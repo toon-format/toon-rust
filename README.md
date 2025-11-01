@@ -10,15 +10,6 @@
 
 🚧 **This crate is currently a namespace reservation.** Full implementation coming soon!
 
-## What is TOON?
-
-TOON achieves 30-60% token reduction compared to JSON by:
-
-- **Eliminating repetitive keys** in arrays of objects
-- **Using indentation** instead of braces
-- **Declaring structure upfront** with explicit lengths and field names
-- **Minimal quoting** for string values
-
 ### Example
 
 **JSON** (verbose):

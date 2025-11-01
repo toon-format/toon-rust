@@ -1,0 +1,15 @@
+[package]
+name = "toon-format"
+version = "0.1.0"
+edition = "2021"
+authors = ["Johann Schopplich <hello@johannschopplich.com>"]
+license = "MIT"
+description = "Token-Oriented Object Notation (TOON) - A compact, human-readable format for LLM input"
+repository = "https://github.com/johannschopplich/toon-rust"
+homepage = "https://github.com/johannschopplich/toon"
+documentation = "https://docs.rs/toon-format"
+keywords = ["toon", "format", "llm", "token", "serialization"]
+categories = ["encoding", "parser-implementations"]
+readme = "README.md"
+
+[dependencies]

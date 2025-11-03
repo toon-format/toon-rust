@@ -28,6 +28,7 @@
 
 mod constants;
 mod types;
+mod utils;
 
 /// Placeholder for future TOON encoding functionality.
 ///

@@ -1,3 +1,4 @@
+//! Constants
 use crate::types::Delimiter;
 
 /// Characters that have structural meaning in TOON format.

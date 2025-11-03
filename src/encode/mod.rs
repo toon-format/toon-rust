@@ -1,3 +1,4 @@
+//! Encoder Implementation
 pub mod primitives;
 pub mod writer;
 use indexmap::IndexMap;

@@ -6,9 +6,7 @@
 
 **Token-Oriented Object Notation** is a compact, human-readable format designed for passing structured data to Large Language Models with significantly reduced token usage.
 
-## Status
 
-🚧 **This crate is currently a namespace reservation.** Full implementation coming soon!
 
 ### Example
 
@@ -36,16 +34,22 @@ users[2]{id,name,role}:
 - [Benchmarks & Performance](https://github.com/johannschopplich/toon#benchmarks)
 - [Other Language Implementations](https://github.com/johannschopplich/toon#other-implementations)
 
-## Future Usage
-
-Once implemented, the crate will provide:
+## Usage
 
 ```rust
-use toon_format::{encode, decode};
+use serde_json::json;
+use toon_format::{encode_default, decode_default};
 
-let data = // your data structure
-let toon_string = encode(data)?;
-let decoded = decode(&toon_string)?;
+let data = json!({
+  "users": [
+    {"id": 1, "name": "Alice"},
+    {"id": 2, "name": "Bob"}
+  ]
+});
+
+let toon = encode_default(&data)?;
+let decoded = decode_default(&toon)?;
+assert_eq!(decoded, data);
 ```
 
 ## Contributing

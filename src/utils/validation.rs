@@ -1,8 +1,9 @@
 use serde_json::Value;
 
-use crate::types::{ToonError, ToonResult};
-
-
+use crate::types::{
+    ToonError,
+    ToonResult,
+};
 
 /// Validate that nesting depth doesn't exceed the maximum.
 pub fn validate_depth(depth: usize, max_depth: usize) -> ToonResult<()> {

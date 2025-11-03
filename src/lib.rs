@@ -27,6 +27,7 @@
 #![warn(rustdoc::missing_crate_level_docs)]
 
 mod constants;
+mod encode;
 mod types;
 mod utils;
 

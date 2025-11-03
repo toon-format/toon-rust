@@ -1,11 +1,11 @@
 //! # TOON Format for Rust
 //!
 //! Token-Oriented Object Notation (TOON) is a compact, human-readable format
-//! designed for passing structured data to Large Language Models with significantly
-//! reduced token usage.
+//! designed for passing structured data to Large Language Models with
+//! significantly reduced token usage.
 //!
-//! This crate reserves the `toon-format` namespace for the official Rust implementation.
-//! Full implementation coming soon!
+//! This crate reserves the `toon-format` namespace for the official Rust
+//! implementation. Full implementation coming soon!
 //!
 //! ## Resources
 //!
@@ -18,13 +18,16 @@
 //! ```ignore
 //! use toon_format::{encode, decode};
 //!
-//! let data = // your data structure
-//! let toon_string = encode(data);
-//! let decoded = decode(&toon_string);
+//! let data = json!({"name": "Alice", "age": 30});
+//! let toon_string = encode(&data)?;
+//! let decoded = decode(&toon_string)?;
+//! # Ok::<(), toon_format::ToonError>(())
 //! ```
-
 #![warn(missing_docs)]
 #![warn(rustdoc::missing_crate_level_docs)]
+
+mod constants;
+mod types;
 
 /// Placeholder for future TOON encoding functionality.
 ///

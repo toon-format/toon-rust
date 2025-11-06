@@ -4,31 +4,54 @@ on:
   push:
     branches:
       - main
-    tags:
-      - "*-v*"
-  workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  release-plz:
-    name: Release-please
+  # Update/Create Release PR
+  release-plz-pr:
+    name: Release-plz PR
     runs-on: ubuntu-latest
     permissions:
       contents: write
       pull-requests: write
-      id-token: write
-
+    concurrency:
+      group: release-plz-${{ github.ref }}
+      cancel-in-progress: false
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
+      
+      - uses: dtolnay/rust-toolchain@stable
+      
+      - name: Run release-plz
+        uses: release-plz/action@v0.5
+        with:
+          command: release-pr
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+  
+  # Publish if Release PR was merged
+  release-plz-release:
+    name: Release-plz Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - uses: dtolnay/rust-toolchain@stable
+      
       - name: Run release-plz
         uses: release-plz/action@v0.5
         with:
           command: release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+

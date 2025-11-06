@@ -12,6 +12,10 @@ keywords = ["toon", "format", "llm", "token", "serialization"]
 categories = ["encoding", "parser-implementations"]
 readme = "README.md"
 
+[[example]]
+name = "examples"
+path = "examples/main.rs"
+
 [dependencies]
 serde = { version = "1.0.228", features = ["derive"] }
 indexmap = "2.0"

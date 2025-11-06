@@ -1,8 +1,11 @@
 [package]
 name = "toon-format"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
-authors = ["Johann Schopplich <hello@johannschopplich.com>"]
+authors = [
+    "Johann Schopplich <hello@johannschopplich.com>",
+    "Shreyas K S <ks.shreyas0@gmail.com>",
+]
 license = "MIT"
 description = "Token-Oriented Object Notation (TOON) - a token-efficient JSON alternative for LLM prompts"
 repository = "https://github.com/toon-format/toon-rust"

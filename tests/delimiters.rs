@@ -1,3 +1,4 @@
+use serde_json::json;
 use toon_format::{
     decode_default,
     encode,
@@ -5,7 +6,6 @@ use toon_format::{
     Delimiter,
     EncodeOptions,
 };
-use serde_json::json;
 
 #[test]
 fn test_delimiter_variants() {

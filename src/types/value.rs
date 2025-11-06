@@ -109,13 +109,13 @@ impl Number {
 impl fmt::Display for Number {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Number::PosInt(u) => write!(f, "{}", u),
-            Number::NegInt(i) => write!(f, "{}", i),
+            Number::PosInt(u) => write!(f, "{u}"),
+            Number::NegInt(i) => write!(f, "{i}"),
             Number::Float(fl) => {
                 if fl.fract() == 0.0 && fl.is_finite() {
                     write!(f, "{}.0", *fl as i64)
                 } else {
-                    write!(f, "{}", fl)
+                    write!(f, "{fl}")
                 }
             }
         }
@@ -200,8 +200,9 @@ impl From<f64> for Number {
 
 pub type Object = IndexMap<String, JsonValue>;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Default)]
 pub enum JsonValue {
+    #[default]
     Null,
     Bool(bool),
     Number(Number),
@@ -346,26 +347,20 @@ impl JsonValue {
     }
 }
 
-impl Default for JsonValue {
-    fn default() -> Self {
-        JsonValue::Null
-    }
-}
-
 impl fmt::Display for JsonValue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             JsonValue::Null => write!(f, "null"),
-            JsonValue::Bool(b) => write!(f, "{}", b),
-            JsonValue::Number(n) => write!(f, "{}", n),
-            JsonValue::String(s) => write!(f, "\"{}\"", s),
+            JsonValue::Bool(b) => write!(f, "{b}"),
+            JsonValue::Number(n) => write!(f, "{n}"),
+            JsonValue::String(s) => write!(f, "\"{s}\""),
             JsonValue::Array(arr) => {
                 write!(f, "[")?;
                 for (i, v) in arr.iter().enumerate() {
                     if i > 0 {
                         write!(f, ", ")?;
                     }
-                    write!(f, "{}", v)?;
+                    write!(f, "{v}")?;
                 }
                 write!(f, "]")
             }
@@ -375,7 +370,7 @@ impl fmt::Display for JsonValue {
                     if i > 0 {
                         write!(f, ", ")?;
                     }
-                    write!(f, "\"{}\": {}", k, v)?;
+                    write!(f, "\"{k}\": {v}")?;
                 }
                 write!(f, "}}")
             }
@@ -410,7 +405,7 @@ impl Index<&str> for JsonValue {
         match self {
             JsonValue::Object(obj) => obj
                 .get(key)
-                .unwrap_or_else(|| panic!("key '{}' not found in object", key)),
+                .unwrap_or_else(|| panic!("key '{key}' not found in object")),
             _ => panic!("cannot index into non-object value with &str"),
         }
     }
@@ -421,7 +416,7 @@ impl IndexMut<&str> for JsonValue {
         match self {
             JsonValue::Object(obj) => obj
                 .get_mut(key)
-                .unwrap_or_else(|| panic!("key '{}' not found in object", key)),
+                .unwrap_or_else(|| panic!("key '{key}' not found in object")),
             _ => panic!("cannot index into non-object value with &str"),
         }
     }

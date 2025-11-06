@@ -1,3 +1,4 @@
+use serde_json::json;
 use toon_format::{
     decode,
     decode_default,
@@ -5,7 +6,6 @@ use toon_format::{
     DecodeOptions,
     ToonError,
 };
-use serde_json::json;
 
 #[test]
 fn test_invalid_syntax_errors() {
@@ -17,21 +17,16 @@ fn test_invalid_syntax_errors() {
 
     for (input, expected_msg) in cases {
         let result = decode_default(input);
-        if result.is_err() {
-            let err = result.unwrap_err();
+        if let Err(err) = result {
             let err_str = err.to_string();
             assert!(
                 err_str.contains(expected_msg)
                     || err_str.contains("Parse error")
                     || err_str.contains("Invalid"),
-                "Expected error containing '{}' but got: {}",
-                expected_msg,
-                err_str
+                "Expected error containing '{expected_msg}' but got: {err_str}"
             );
-        } else {
-            if input == "key value" {
-                assert!(result.is_ok(), "'key value' is valid as a root string");
-            }
+        } else if input == "key value" {
+            assert!(result.is_ok(), "'key value' is valid as a root string");
         }
     }
 
@@ -42,15 +37,13 @@ fn test_invalid_syntax_errors() {
 
     for (input, expected_msg) in invalid_cases {
         let result = decode_default(input);
-        assert!(result.is_err(), "Expected error for input: {}", input);
+        assert!(result.is_err(), "Expected error for input: {input}");
 
         let err = result.unwrap_err();
         let err_str = err.to_string();
         assert!(
             err_str.contains(expected_msg) || err_str.contains("Parse error"),
-            "Expected error containing '{}' but got: {}",
-            expected_msg,
-            err_str
+            "Expected error containing '{expected_msg}' but got: {err_str}"
         );
     }
 }
@@ -64,7 +57,7 @@ fn test_type_mismatch_errors() {
 
     for (input, description) in cases {
         let result = decode_default(input);
-        println!("Test case '{}': {:?}", description, result);
+        println!("Test case '{description}': {result:?}");
     }
 }
 
@@ -77,10 +70,7 @@ fn test_length_mismatch_strict_mode() {
 
         assert!(
             result.is_err(),
-            "Expected error for input '{}' (expected: {}, actual: {})",
-            input,
-            expected,
-            actual
+            "Expected error for input '{input}' (expected: {expected}, actual: {actual})",
         );
 
         if let Err(ToonError::LengthMismatch {
@@ -91,24 +81,19 @@ fn test_length_mismatch_strict_mode() {
         {
             assert_eq!(
                 exp, expected,
-                "Expected length {} but got {} for input '{}'",
-                expected, exp, input
+                "Expected length {expected} but got {exp} for input '{input}'"
             );
             assert_eq!(
                 fnd, actual,
-                "Expected found {} but got {} for input '{}'",
-                actual, fnd, input
+                "Expected found {actual} but got {fnd} for input '{input}'"
             );
         }
     }
 
     let result = decode_strict("items[1]: a,b,c");
 
-    match result {
-        Ok(val) => {
-            assert_eq!(val["items"], json!(["a"]));
-        }
-        Err(_) => {}
+    if let Ok(val) = result {
+        assert_eq!(val["items"], json!(["a"]));
     }
 }
 
@@ -121,7 +106,7 @@ fn test_length_mismatch_non_strict_mode() {
 
     for (input, _expected) in test_cases {
         let result = decode_default(input);
-        println!("Non-strict test for '{}': {:?}", input, result);
+        println!("Non-strict test for '{input}': {result:?}");
     }
 }
 
@@ -130,7 +115,7 @@ fn test_delimiter_errors() {
     let mixed_delimiters = "items[3]: a,b|c";
     let result = decode_default(mixed_delimiters);
 
-    println!("Mixed delimiter test: {:?}", result);
+    println!("Mixed delimiter test: {result:?}");
 }
 
 #[test]
@@ -142,7 +127,7 @@ fn test_quoting_errors() {
 
     for (input, description) in test_cases {
         let result = decode_default(input);
-        println!("Quoting error test '{}': {:?}", description, result);
+        println!("Quoting error test '{description}': {result:?}");
     }
 }
 
@@ -158,20 +143,18 @@ fn test_tabular_array_errors() {
                 || err_str.contains("field")
                 || err_str.contains("Expected")
                 || err_str.contains("primitive"),
-            "Error should mention missing field or delimiter: {}",
-            err_str
+            "Error should mention missing field or delimiter: {err_str}"
         );
     }
 
     let result = decode_default("items[2]{id,name}:\n  1,Alice\n  2,Bob,Extra");
-    if result.is_err() {
-        let err_str = result.unwrap_err().to_string();
+    if let Err(err) = result {
+        let err_str = err.to_string();
         assert!(
             err_str.contains("delimiter")
                 || err_str.contains("Expected")
                 || err_str.contains("field"),
-            "Should mention unexpected content: {}",
-            err_str
+            "Should mention unexpected content: {err_str}"
         );
     } else {
         println!("Note: Extra fields are ignored in tabular arrays");
@@ -210,7 +193,7 @@ fn test_depth_limit_errors() {
     nested.push_str(&format!("{}c: value", "  ".repeat(61)));
 
     let result = decode_default(&nested);
-    println!("Deep nesting test: {:?}", result);
+    println!("Deep nesting test: {result:?}");
 }
 
 #[test]
@@ -224,7 +207,7 @@ fn test_empty_structure_errors() {
 
     for (input, description) in cases {
         let result = decode_default(input);
-        println!("Empty structure test '{}': {:?}", description, result);
+        println!("Empty structure test '{description}': {result:?}");
     }
 }
 
@@ -240,8 +223,7 @@ fn test_error_messages_are_helpful() {
                 || err_msg.contains("3")
                 || err_msg.contains("expected")
                 || err_msg.contains("found"),
-            "Error message should contain length information: {}",
-            err_msg
+            "Error message should contain length information: {err_msg}"
         );
     }
 }
@@ -252,7 +234,7 @@ fn test_parse_error_line_column() {
     let result = decode_default(input);
 
     if let Err(ToonError::ParseError { line, column, .. }) = result {
-        println!("Parse error at line {}, column {}", line, column);
+        println!("Parse error at line {line}, column {column}");
         assert!(line > 0, "Line number should be positive");
         assert!(column > 0, "Column number should be positive");
     }
@@ -315,8 +297,8 @@ fn test_edge_case_values() {
     for (input, expected) in cases {
         let result = decode_default(input);
         match result {
-            Ok(val) => assert_eq!(val, expected, "Failed for input: {}", input),
-            Err(e) => println!("Edge case '{}' error: {:?}", input, e),
+            Ok(val) => assert_eq!(val, expected, "Failed for input: {input}"),
+            Err(e) => println!("Edge case '{input}' error: {e:?}"),
         }
     }
 
@@ -329,7 +311,7 @@ fn test_edge_case_values() {
                 "Negative zero is normalized to zero in JSON"
             );
         }
-        Err(e) => println!("Edge case '-0' error: {:?}", e),
+        Err(e) => println!("Edge case '-0' error: {e:?}"),
     }
 }
 
@@ -340,7 +322,7 @@ fn test_unicode_in_errors() {
 
     if let Err(err) = result {
         let err_msg = err.to_string();
-        println!("Unicode error handling: {}", err_msg);
+        println!("Unicode error handling: {err_msg}");
         assert!(!err_msg.is_empty());
     }
 }
@@ -351,7 +333,7 @@ fn test_recovery_from_errors() {
 
     for input in valid_after_invalid {
         let result = decode_default(input);
-        println!("Recovery test for: {:?}", result);
+        println!("Recovery test for: {result:?}");
     }
 }
 
@@ -375,14 +357,14 @@ fn test_strict_mode_indentation_errors() {
 #[test]
 fn test_quoted_key_without_colon() {
     let result = decode_default(r#""key" value"#);
-    println!("Quoted key test: {:?}", result);
+    println!("Quoted key test: {result:?}");
 }
 
 #[test]
 fn test_nested_array_length_mismatches() {
     let result = decode_strict("outer[1]:\n  - items[2]: a,b\n  - items[3]: x,y");
-    if result.is_err() {
-        let err_str = result.unwrap_err().to_string();
+    if let Err(err) = result {
+        let err_str = err.to_string();
         assert!(err_str.contains("3") || err_str.contains("2") || err_str.contains("length"));
     }
 }
@@ -426,26 +408,23 @@ fn test_invalid_array_header_syntax() {
         let result = decode_default(input);
         assert!(
             result.is_err(),
-            "Should error on invalid array header: {}",
-            input
+            "Should error on invalid array header: {input}"
         );
 
         if let Err(e) = result {
             let err_str = e.to_string();
             assert!(
                 err_str.contains(expected_msg) || err_str.contains("Parse error"),
-                "Expected error about '{}' but got: {}",
-                expected_msg,
-                err_str
+                "Expected error about '{expected_msg}' but got: {err_str}",
             );
         }
     }
 
     let result = decode_default("items{id}: a,b");
-    println!("Braces without brackets test: {:?}", result);
+    println!("Braces without brackets test: {result:?}");
 
     let result = decode_default("items]2[: a,b");
-    println!("Quirky bracket syntax test: {:?}", result);
+    println!("Quirky bracket syntax test: {result:?}");
 }
 
 #[test]
@@ -453,7 +432,7 @@ fn test_missing_colon_after_key() {
     let _result = decode_default("key value");
 
     let result = decode_default("obj:\n  key value");
-    println!("Missing colon in object: {:?}", result);
+    println!("Missing colon in object: {result:?}");
 }
 
 #[test]
@@ -469,24 +448,23 @@ fn test_error_context_information() {
                 || err_str.contains("length")
                 || err_str.contains("expected")
                 || err_str.contains("found"),
-            "Error should contain length information: {}",
-            err_str
+            "Error should contain length information: {err_str}",
         );
 
         match e {
-            ToonError::ParseError { context, .. } => {
-                if let Some(ctx) = context {
-                    println!(
-                        "Error context has {} preceding lines, {} following lines",
-                        ctx.preceding_lines.len(),
-                        ctx.following_lines.len()
-                    );
-                }
+            ToonError::ParseError {
+                context: Some(ctx), ..
+            } => {
+                println!(
+                    "Error context has {} preceding lines, {} following lines",
+                    ctx.preceding_lines.len(),
+                    ctx.following_lines.len()
+                );
             }
-            ToonError::LengthMismatch { context, .. } => {
-                if let Some(ctx) = context {
-                    println!("Length mismatch context available:{}", ctx);
-                }
+            ToonError::LengthMismatch {
+                context: Some(ctx), ..
+            } => {
+                println!("Length mismatch context available:{ctx}");
             }
             _ => {}
         }

@@ -1,8 +1,10 @@
+use std::f64;
+
+use serde_json::json;
 use toon_format::{
     decode_default,
     encode_default,
 };
-use serde_json::json;
 
 #[test]
 fn test_comprehensive_round_trips() {
@@ -12,7 +14,7 @@ fn test_comprehensive_round_trips() {
         json!(false),
         json!(42),
         json!(-42),
-        json!(3.14),
+        json!(f64::consts::PI),
         json!("hello"),
         json!(""),
         json!({"key": "value"}),
@@ -30,13 +32,12 @@ fn test_comprehensive_round_trips() {
 
     for (i, case) in test_cases.iter().enumerate() {
         let encoded =
-            encode_default(case).unwrap_or_else(|e| panic!("Failed to encode case {}: {:?}", i, e));
-        let decoded = decode_default(&encoded)
-            .unwrap_or_else(|e| panic!("Failed to decode case {}: {:?}", i, e));
+            encode_default(case).unwrap_or_else(|e| panic!("Failed to encode case {i}: {e:?}"));
+        let decoded =
+            decode_default(&encoded).unwrap_or_else(|e| panic!("Failed to decode case {i}: {e}"));
         assert_eq!(
             case, &decoded,
-            "Round-trip failed for case {}: Original: {:?}, Decoded: {:?}",
-            i, case, decoded
+            "Round-trip failed for case {i}: Original: {case}, Decoded: {decoded}"
         );
     }
 }

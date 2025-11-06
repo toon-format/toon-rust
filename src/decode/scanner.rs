@@ -360,6 +360,8 @@ impl Scanner {
 
 #[cfg(test)]
 mod tests {
+    use core::f64;
+
     use super::*;
 
     #[test]
@@ -375,9 +377,12 @@ mod tests {
 
     #[test]
     fn test_scan_numbers() {
-        let mut scanner = Scanner::new("42 3.14 -5");
+        let mut scanner = Scanner::new("42 3.141592653589793 -5");
         assert_eq!(scanner.scan_token().unwrap(), Token::Integer(42));
-        assert_eq!(scanner.scan_token().unwrap(), Token::Number(3.14));
+        assert_eq!(
+            scanner.scan_token().unwrap(),
+            Token::Number(f64::consts::PI)
+        );
         assert_eq!(scanner.scan_token().unwrap(), Token::Integer(-5));
     }
 

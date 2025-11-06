@@ -79,7 +79,7 @@ impl EncodeOptions {
     /// Format an array length with optional marker prefix.
     pub fn format_length(&self, length: usize) -> String {
         if let Some(marker) = self.length_marker {
-            format!("{}{}", marker, length)
+            format!("{marker}{length}")
         } else {
             length.to_string()
         }

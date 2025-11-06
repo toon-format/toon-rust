@@ -49,8 +49,7 @@ pub fn validate_row_length(
 ) -> ToonResult<()> {
     if expected_fields != actual_values {
         return Err(ToonError::InvalidStructure(format!(
-            "Row {} has {} values but expected {} fields",
-            row_index, actual_values, expected_fields
+            "Row {row_index} has {actual_values} values but expected {expected_fields} fields"
         )));
     }
     Ok(())
@@ -64,8 +63,7 @@ pub fn validate_delimiter_consistency(
     if let (Some(detected), Some(expected)) = (detected, expected) {
         if detected != expected {
             return Err(ToonError::InvalidDelimiter(format!(
-                "Detected delimiter {:?} but expected {:?}",
-                detected, expected
+                "Detected delimiter {detected} but expected {expected}"
             )));
         }
     }

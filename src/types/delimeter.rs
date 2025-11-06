@@ -6,8 +6,9 @@ use serde::{
 };
 
 /// Delimiter character used to separate array elements.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum Delimiter {
+    #[default]
     Comma,
     Tab,
     Pipe,
@@ -46,12 +47,6 @@ impl Delimiter {
     /// Check if the delimiter character appears in the string.
     pub fn contains_in(&self, s: &str) -> bool {
         s.contains(self.as_char())
-    }
-}
-
-impl Default for Delimiter {
-    fn default() -> Self {
-        Delimiter::Comma
     }
 }
 

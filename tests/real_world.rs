@@ -1,8 +1,8 @@
+use serde_json::json;
 use toon_format::{
     decode_default,
     encode_default,
 };
-use serde_json::json;
 
 #[test]
 fn test_real_world_github_data() {

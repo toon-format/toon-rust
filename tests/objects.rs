@@ -1,8 +1,8 @@
+use serde_json::json;
 use toon_format::{
     decode_default,
     encode_default,
 };
-use serde_json::json;
 
 #[test]
 fn test_special_characters_and_quoting() {
@@ -22,7 +22,7 @@ fn test_special_characters_and_quoting() {
     for case in cases {
         let encoded = encode_default(&case).unwrap();
         let decoded = decode_default(&encoded).unwrap();
-        assert_eq!(case, decoded, "Failed for: {:?}", case);
+        assert_eq!(case, decoded, "Failed for: {case}");
     }
 }
 

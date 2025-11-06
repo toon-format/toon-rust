@@ -1,8 +1,10 @@
+use std::f64;
+
+use serde_json::json;
 use toon_format::{
     decode_default,
     encode_default,
 };
-use serde_json::json;
 
 #[test]
 fn test_tabular_arrays() {
@@ -41,7 +43,7 @@ fn test_tabular_arrays() {
 #[test]
 fn test_mixed_arrays() {
     let data = json!({
-        "mixed": [1, "two", true, null, 3.14]
+        "mixed": [1, "two", true, null, f64::consts::PI]
     });
 
     let encoded = encode_default(&data).unwrap();

@@ -5,7 +5,7 @@ on:
     branches:
       - main
     tags:
-      - '*-v*'
+      - "*-v*"
   workflow_dispatch:
 
 env:
@@ -19,13 +19,13 @@ jobs:
       contents: write
       pull-requests: write
       id-token: write
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      
+
       - name: Run release-plz
         uses: release-plz/action@v0.5
         with:

@@ -81,7 +81,7 @@ pub fn needs_quoting(s: &str, delimiter: Delimiter) -> bool {
         return true;
     }
 
-    if s.chars().any(|ch| literal::is_structural_char(ch)) {
+    if s.chars().any(literal::is_structural_char) {
         return true;
     }
 
@@ -113,10 +113,10 @@ pub fn split_by_delimiter(s: &str, delimiter: Delimiter) -> Vec<String> {
     let mut result = Vec::new();
     let mut current = String::new();
     let mut in_quotes = false;
-    let mut chars = s.chars().peekable();
+    let chars = s.chars().peekable();
     let delim_char = delimiter.as_char();
 
-    while let Some(ch) = chars.next() {
+    for ch in chars {
         if ch == '"' && (current.is_empty() || !current.ends_with('\\')) {
             in_quotes = !in_quotes;
             current.push(ch);

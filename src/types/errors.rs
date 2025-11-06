@@ -15,7 +15,7 @@ pub enum ToonError {
         column: usize,
         message: String,
         #[source]
-        context: Option<ErrorContext>,
+        context: Option<Box<ErrorContext>>,
     },
 
     #[error("Invalid character '{char}' at position {position}")]
@@ -35,7 +35,7 @@ pub enum ToonError {
         expected: usize,
         found: usize,
         #[source]
-        context: Option<ErrorContext>,
+        context: Option<Box<ErrorContext>>,
     },
 
     #[error("Invalid structure: {0}")]
@@ -64,21 +64,21 @@ impl std::fmt::Display for ErrorContext {
         writeln!(f, "\nContext:")?;
 
         for line in &self.preceding_lines {
-            writeln!(f, "  {}", line)?;
+            writeln!(f, "  {line}")?;
         }
 
         writeln!(f, "> {}", self.source_line)?;
 
         if let Some(indicator) = &self.indicator {
-            writeln!(f, "  {}", indicator)?;
+            writeln!(f, "  {indicator}")?;
         }
 
         for line in &self.following_lines {
-            writeln!(f, "  {}", line)?;
+            writeln!(f, "  {line}")?;
         }
 
         if let Some(suggestion) = &self.suggestion {
-            writeln!(f, "\nSuggestion: {}", suggestion)?;
+            writeln!(f, "\nSuggestion: {suggestion}")?;
         }
 
         Ok(())
@@ -186,7 +186,7 @@ impl ToonError {
             line,
             column,
             message: message.into(),
-            context: Some(context),
+            context: Some(Box::new(context)),
         }
     }
 
@@ -221,7 +221,7 @@ impl ToonError {
         ToonError::LengthMismatch {
             expected,
             found,
-            context: Some(context),
+            context: Some(Box::new(context)),
         }
     }
 
@@ -237,14 +237,14 @@ impl ToonError {
                 line,
                 column,
                 message,
-                context: Some(context),
+                context: Some(Box::new(context)),
             },
             ToonError::LengthMismatch {
                 expected, found, ..
             } => ToonError::LengthMismatch {
                 expected,
                 found,
-                context: Some(context),
+                context: Some(Box::new(context)),
             },
             other => other,
         }
@@ -261,8 +261,8 @@ impl ToonError {
                 context,
             } => {
                 let new_context = context
-                    .map(|c| c.with_suggestion(suggestion.clone()))
-                    .or_else(|| Some(ErrorContext::new("").with_suggestion(suggestion)));
+                    .map(|c| Box::new(c.with_suggestion(suggestion.clone())))
+                    .or_else(|| Some(Box::new(ErrorContext::new("").with_suggestion(suggestion))));
                 ToonError::ParseError {
                     line,
                     column,

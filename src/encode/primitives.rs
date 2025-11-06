@@ -47,11 +47,11 @@ mod tests {
 
     #[test]
     fn test_all_primitives() {
-        assert!(all_primitives(&vec![json!(1), json!(2), json!(3)]));
-        assert!(all_primitives(&vec![json!("a"), json!("b")]));
-        assert!(all_primitives(&vec![json!(null), json!(true), json!(42)]));
-        assert!(!all_primitives(&vec![json!(1), json!([]), json!(3)]));
-        assert!(!all_primitives(&vec![json!({})]));
+        assert!(all_primitives(&[json!(1), json!(2), json!(3)]));
+        assert!(all_primitives(&[json!("a"), json!("b")]));
+        assert!(all_primitives(&[json!(null), json!(true), json!(42)]));
+        assert!(!all_primitives(&[json!(1), json!([]), json!(3)]));
+        assert!(!all_primitives(&[json!({})]));
     }
 
     #[test]

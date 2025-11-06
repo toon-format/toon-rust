@@ -31,7 +31,6 @@ pub mod encode;
 pub mod types;
 pub mod utils;
 
-pub use types::ToonError;
 pub use decode::{
     decode,
     decode_default,
@@ -50,6 +49,7 @@ pub use types::{
     DecodeOptions,
     Delimiter,
     EncodeOptions,
+    ToonError,
 };
 pub use utils::{
     literal::{

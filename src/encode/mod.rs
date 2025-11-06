@@ -438,6 +438,8 @@ fn encode_nested_array(
 
 #[cfg(test)]
 mod tests {
+    use core::f64;
+
     use serde_json::json;
 
     use super::*;
@@ -450,22 +452,25 @@ mod tests {
 
     #[test]
     fn test_encode_bool() {
-        assert_eq!(encode_default(&json!(true)).unwrap(), "true");
-        assert_eq!(encode_default(&json!(false)).unwrap(), "false");
+        assert_eq!(encode_default(json!(true)).unwrap(), "true");
+        assert_eq!(encode_default(json!(false)).unwrap(), "false");
     }
 
     #[test]
     fn test_encode_number() {
-        assert_eq!(encode_default(&json!(42)).unwrap(), "42");
-        assert_eq!(encode_default(&json!(3.14)).unwrap(), "3.14");
-        assert_eq!(encode_default(&json!(-5)).unwrap(), "-5");
+        assert_eq!(encode_default(json!(42)).unwrap(), "42");
+        assert_eq!(
+            encode_default(json!(f64::consts::PI)).unwrap(),
+            "3.141592653589793"
+        );
+        assert_eq!(encode_default(json!(-5)).unwrap(), "-5");
     }
 
     #[test]
     fn test_encode_string() {
-        assert_eq!(encode_default(&json!("hello")).unwrap(), "hello");
+        assert_eq!(encode_default(json!("hello")).unwrap(), "hello");
         assert_eq!(
-            encode_default(&json!("hello world")).unwrap(),
+            encode_default(json!("hello world")).unwrap(),
             "\"hello world\""
         );
     }

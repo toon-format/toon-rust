@@ -64,6 +64,8 @@ pub fn normalize(value: Value) -> Value {
 
 #[cfg(test)]
 mod tests {
+    use core::f64;
+
     use serde_json::json;
 
     use super::*;
@@ -121,7 +123,7 @@ mod tests {
         let value = Value::from(json!({
             "name": "Alice",
             "age": 30,
-            "score": 3.14
+            "score": f64::consts::PI
         }));
 
         let normalized = normalize(value.clone());

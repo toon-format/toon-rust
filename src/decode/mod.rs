@@ -152,6 +152,8 @@ pub fn decode_default(input: &str) -> ToonResult<Value> {
 
 #[cfg(test)]
 mod tests {
+    use core::f64;
+
     use serde_json::json;
 
     use super::*;
@@ -170,7 +172,10 @@ mod tests {
     #[test]
     fn test_decode_number() {
         assert_eq!(decode_default("42").unwrap(), json!(42));
-        assert_eq!(decode_default("3.14").unwrap(), json!(3.14));
+        assert_eq!(
+            decode_default("3.141592653589793").unwrap(),
+            json!(f64::consts::PI)
+        );
         assert_eq!(decode_default("-5").unwrap(), json!(-5));
     }
 

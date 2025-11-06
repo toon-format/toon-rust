@@ -129,7 +129,7 @@ impl<'a> Parser<'a> {
                     let val = *n;
                     self.advance()?;
                     Ok(serde_json::Number::from_f64(val)
-                        .ok_or_else(|| ToonError::InvalidInput(format!("Invalid number: {}", val)))?
+                        .ok_or_else(|| ToonError::InvalidInput(format!("Invalid number: {val}")))?
                         .into())
                 }
             }
@@ -145,17 +145,12 @@ impl<'a> Parser<'a> {
                         // Accumulate consecutive strings with spaces (e.g., "hello" "world" ->
                         // "hello world")
                         let mut accumulated = first;
-                        loop {
-                            match &self.current_token {
-                                Token::String(next, _) => {
-                                    if !accumulated.is_empty() {
-                                        accumulated.push(' ');
-                                    }
-                                    accumulated.push_str(next);
-                                    self.advance()?;
-                                }
-                                _ => break,
+                        while let Token::String(next, _) = &self.current_token {
+                            if !accumulated.is_empty() {
+                                accumulated.push(' ');
                             }
+                            accumulated.push_str(next);
+                            self.advance()?;
                         }
                         Ok(Value::String(accumulated))
                     }
@@ -486,7 +481,7 @@ impl<'a> Parser<'a> {
         } {
             self.advance()?;
             return length_str.parse::<usize>().map_err(|_| {
-                self.parse_error_with_context(format!("Invalid array length: {}", length_str))
+                self.parse_error_with_context(format!("Invalid array length: {length_str}"))
                     .with_suggestion("Length must be a positive number")
             });
         }
@@ -609,7 +604,7 @@ impl<'a> Parser<'a> {
                                     "Expected delimiter in tabular row {}, got {:?}",
                                     row_index, self.current_token
                                 ))
-                                .with_suggestion(&format!(
+                                .with_suggestion(format!(
                                     "Expected delimiter between fields in row {}",
                                     row_index + 1
                                 )));
@@ -647,7 +642,7 @@ impl<'a> Parser<'a> {
                                 "Expected '-' for list item, found {:?}",
                                 self.current_token
                             ))
-                            .with_suggestion(&format!(
+                            .with_suggestion(format!(
                                 "List arrays need '-' prefix for each item (item {} of {})",
                                 i + 1,
                                 length
@@ -684,7 +679,7 @@ impl<'a> Parser<'a> {
                                         "Expected delimiter, found {:?}",
                                         self.current_token
                                     ))
-                                    .with_suggestion(&format!(
+                                    .with_suggestion(format!(
                                         "Expected delimiter between items (item {} of {})",
                                         i + 1,
                                         length
@@ -712,6 +707,8 @@ impl<'a> Parser<'a> {
 
 #[cfg(test)]
 mod tests {
+    use std::f64;
+
     use serde_json::json;
 
     use super::*;
@@ -727,7 +724,7 @@ mod tests {
         assert_eq!(parse("true").unwrap(), json!(true));
         assert_eq!(parse("false").unwrap(), json!(false));
         assert_eq!(parse("42").unwrap(), json!(42));
-        assert_eq!(parse("3.14").unwrap(), json!(3.14));
+        assert_eq!(parse("3.141592653589793").unwrap(), json!(f64::consts::PI));
         assert_eq!(parse("hello").unwrap(), json!("hello"));
     }
 

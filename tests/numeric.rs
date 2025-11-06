@@ -1,8 +1,10 @@
+use core::f64;
+
+use serde_json::json;
 use toon_format::{
     decode_default,
     encode_default,
 };
-use serde_json::json;
 
 #[test]
 fn test_numeric_edge_cases() {
@@ -11,7 +13,7 @@ fn test_numeric_edge_cases() {
         "negative": -42,
         "large": 9999999999i64,
         "small": -9999999999i64,
-        "decimal": 3.14159265359,
+        "decimal": f64::consts::PI,
         "scientific": 1.23e10,
         "tiny": 0.0000001
     });

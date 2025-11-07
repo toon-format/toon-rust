@@ -139,6 +139,14 @@ impl Scanner {
                     count += 1;
                     idx += 1;
                 } else {
+                    if ch == '\t' {
+                        let (line, col) = self.current_position();
+                        return Err(ToonError::parse_error(
+                            line,
+                            col + count,
+                            "Tabs are not allowed in indentation",
+                        ));
+                    }
                     break;
                 }
             }
@@ -232,8 +240,12 @@ impl Scanner {
                     '"' => value.push('"'),
                     '\\' => value.push('\\'),
                     _ => {
-                        value.push('\\');
-                        value.push(ch);
+                        let (line, col) = self.current_position();
+                        return Err(ToonError::parse_error(
+                            line,
+                            col - 1,
+                            format!("Invalid escape sequence: \\{ch}"),
+                        ));
                     }
                 }
                 escaped = false;

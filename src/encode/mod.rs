@@ -15,6 +15,7 @@ use crate::{
     utils::{
         normalize,
         validation::validate_depth,
+        QuotingContext,
     },
 };
 
@@ -52,7 +53,7 @@ fn encode_impl(value: &Value, options: &EncodeOptions) -> ToonResult<String> {
             write_object(&mut writer, obj, 0)?;
         }
         _ => {
-            write_primitive_value(&mut writer, &normalized)?;
+            write_primitive_value(&mut writer, &normalized, QuotingContext::ObjectValue)?;
         }
     }
 
@@ -201,7 +202,7 @@ fn write_object(
                 writer.write_key(key)?;
                 writer.write_char(':')?;
                 writer.write_char(' ')?;
-                write_primitive_value(writer, value)?;
+                write_primitive_value(writer, value, QuotingContext::ObjectValue)?;
             }
         }
     }
@@ -297,24 +298,30 @@ fn encode_primitive_array(
 ) -> ToonResult<()> {
     writer.write_array_header(key, arr.len(), None, depth)?;
     writer.write_char(' ')?;
+    writer.push_active_delimiter(writer.options.delimiter);
 
     for (i, val) in arr.iter().enumerate() {
         if i > 0 {
             writer.write_delimiter()?;
         }
-        write_primitive_value(writer, val)?;
+        write_primitive_value(writer, val, QuotingContext::ArrayValue)?;
     }
+    writer.pop_active_delimiter();
 
     Ok(())
 }
 
-fn write_primitive_value(writer: &mut writer::Writer, value: &Value) -> ToonResult<()> {
+fn write_primitive_value(
+    writer: &mut writer::Writer,
+    value: &Value,
+    context: QuotingContext,
+) -> ToonResult<()> {
     match value {
         Value::Null => writer.write_str("null"),
         Value::Bool(b) => writer.write_str(&b.to_string()),
         Value::Number(n) => writer.write_str(&n.to_string()),
         Value::String(s) => {
-            if writer.needs_quoting(s) {
+            if writer.needs_quoting(s, context) {
                 writer.write_quoted_string(s)
             } else {
                 writer.write_str(s)
@@ -336,6 +343,8 @@ fn encode_tabular_array(
     writer.write_array_header(key, arr.len(), Some(keys), depth)?;
     writer.write_newline()?;
 
+    writer.push_active_delimiter(writer.options.delimiter);
+
     for (row_index, obj_val) in arr.iter().enumerate() {
         if let Some(obj) = obj_val.as_object() {
             writer.write_indent(depth + 1)?;
@@ -346,7 +355,7 @@ fn encode_tabular_array(
                 }
 
                 if let Some(val) = obj.get(key) {
-                    write_primitive_value(writer, val)?;
+                    write_primitive_value(writer, val, QuotingContext::ArrayValue)?;
                 } else {
                     writer.write_str("null")?;
                 }
@@ -369,6 +378,7 @@ fn encode_nested_array(
 ) -> ToonResult<()> {
     writer.write_array_header(key, arr.len(), None, depth)?;
     writer.write_newline()?;
+    writer.push_active_delimiter(writer.options.delimiter);
 
     for (i, val) in arr.iter().enumerate() {
         writer.write_indent(depth + 1)?;
@@ -396,13 +406,13 @@ fn encode_nested_array(
                             write_object(writer, nested_obj, depth + 2)?;
                         }
                         _ => {
-                            write_primitive_value(writer, first_val)?;
+                            write_primitive_value(writer, first_val, QuotingContext::ObjectValue)?;
                         }
                     }
 
                     for key in keys.iter().skip(1) {
                         writer.write_newline()?;
-                        writer.write_indent(depth + 2)?;
+                        writer.write_indent(depth + 1)?;
                         writer.write_key(key)?;
                         writer.write_char(':')?;
                         writer.write_char(' ')?;
@@ -417,14 +427,14 @@ fn encode_nested_array(
                                 write_object(writer, nested_obj, depth + 3)?;
                             }
                             _ => {
-                                write_primitive_value(writer, value)?;
+                                write_primitive_value(writer, value, QuotingContext::ObjectValue)?;
                             }
                         }
                     }
                 }
             }
             _ => {
-                write_primitive_value(writer, val)?;
+                write_primitive_value(writer, val, QuotingContext::ArrayValue)?;
             }
         }
 
@@ -432,6 +442,7 @@ fn encode_nested_array(
             writer.write_newline()?;
         }
     }
+    writer.pop_active_delimiter();
 
     Ok(())
 }
@@ -469,10 +480,7 @@ mod tests {
     #[test]
     fn test_encode_string() {
         assert_eq!(encode_default(json!("hello")).unwrap(), "hello");
-        assert_eq!(
-            encode_default(json!("hello world")).unwrap(),
-            "\"hello world\""
-        );
+        assert_eq!(encode_default(json!("hello world")).unwrap(), "hello world");
     }
 
     #[test]

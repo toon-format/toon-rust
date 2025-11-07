@@ -72,7 +72,7 @@ pub fn is_valid_unquoted_key(key: &str) -> bool {
 }
 
 /// Determine if a string needs quoting based on content and delimiter.
-pub fn needs_quoting(s: &str, delimiter: Delimiter) -> bool {
+pub fn needs_quoting(s: &str, delimiter: char) -> bool {
     if s.is_empty() {
         return true;
     }
@@ -85,19 +85,23 @@ pub fn needs_quoting(s: &str, delimiter: Delimiter) -> bool {
         return true;
     }
 
-    if s.contains(delimiter.as_char()) {
+    if s.contains('\\') || s.contains('"') {
         return true;
     }
 
-    if s.contains('\n') || s.contains('\r') {
+    if s.contains(delimiter) {
         return true;
     }
 
-    if s.contains(' ') || s.contains('\t') {
+    if s.contains('\n') || s.contains('\r') || s.contains('\t') {
         return true;
     }
 
-    if s.starts_with("- ") {
+    if s.starts_with(char::is_whitespace) || s.ends_with(char::is_whitespace) {
+        return true;
+    }
+
+    if s.starts_with("-") {
         return true;
     }
 
@@ -157,7 +161,7 @@ mod tests {
 
     #[test]
     fn test_needs_quoting() {
-        let comma = Delimiter::Comma;
+        let comma = Delimiter::Comma.as_char();
 
         assert!(needs_quoting("", comma));
 
@@ -170,9 +174,9 @@ mod tests {
         assert!(needs_quoting("key:value", comma));
 
         assert!(needs_quoting("a,b", comma));
-        assert!(!needs_quoting("a,b", Delimiter::Pipe));
+        assert!(!needs_quoting("a,b", Delimiter::Pipe.as_char()));
 
-        assert!(needs_quoting("hello world", comma));
+        assert!(!needs_quoting("hello world", comma));
         assert!(needs_quoting(" hello", comma));
         assert!(needs_quoting("hello ", comma));
 

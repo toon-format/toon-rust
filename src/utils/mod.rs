@@ -25,9 +25,8 @@ use crate::types::{
 /// Context for determining when quoting is needed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum QuotingContext {
-    Key,
-    Value,
-    Header,
+    ObjectValue,
+    ArrayValue,
 }
 
 /// Normalize a JSON value (converts NaN/Infinity to null, -0 to 0).

@@ -49,6 +49,7 @@ pub use types::{
     DecodeOptions,
     Delimiter,
     EncodeOptions,
+    Indent,
     ToonError,
 };
 pub use utils::{
@@ -162,6 +163,6 @@ mod tests {
         assert!(is_keyword("null"));
         assert!(is_literal_like("true"));
         assert_eq!(escape_string("hello\nworld"), "hello\\nworld");
-        assert!(needs_quoting("true", Delimiter::Comma));
+        assert!(needs_quoting("true", Delimiter::Comma.as_char()));
     }
 }

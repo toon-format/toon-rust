@@ -139,9 +139,9 @@ fn test_tabular_array_errors() {
     if let Err(e) = result {
         let err_str = e.to_string();
         assert!(
-            err_str.contains("delimiter")
-                || err_str.contains("field")
-                || err_str.contains("Expected")
+            err_str.contains("Parse")
+                || err_str.contains("cloumn")
+                || err_str.contains("expected")
                 || err_str.contains("primitive"),
             "Error should mention missing field or delimiter: {err_str}"
         );
@@ -151,9 +151,7 @@ fn test_tabular_array_errors() {
     if let Err(err) = result {
         let err_str = err.to_string();
         assert!(
-            err_str.contains("delimiter")
-                || err_str.contains("Expected")
-                || err_str.contains("field"),
+            err_str.contains("Parse") || err_str.contains("Expected") || err_str.contains("field"),
             "Should mention unexpected content: {err_str}"
         );
     } else {

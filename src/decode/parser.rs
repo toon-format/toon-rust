@@ -868,7 +868,7 @@ impl<'a> Parser<'a> {
         }
 
         let indent_size = self.options.indent.get_spaces();
-        if indent_size > 0 && indent_amount > 0 && indent_amount % indent_size != 0 {
+        if indent_size > 0 && indent_amount > 0 && !indent_amount.is_multiple_of(indent_size) {
             Err(self.parse_error_with_context(format!(
                 "Invalid indentation: found {indent_amount} spaces, but must be a multiple of \
                  {indent_size}"

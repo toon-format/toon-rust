@@ -54,6 +54,9 @@ impl<'a> Parser<'a> {
 
     /// Parse the input into a JSON value.
     pub fn parse(&mut self) -> ToonResult<Value> {
+        if self.options.strict {
+            self.validate_indentation(self.scanner.get_last_line_indent())?;
+        }
         self.parse_value()
     }
 
@@ -157,7 +160,7 @@ impl<'a> Parser<'a> {
                 }
             }
             Token::LeftBracket => self.parse_root_array(depth),
-            Token::Eof => Ok(Value::Null),
+            Token::Eof => Ok(Value::Object(Map::new())),
             _ => self.parse_object(depth),
         }
     }
@@ -183,6 +186,9 @@ impl<'a> Parser<'a> {
                     break;
                 }
             } else {
+                if self.options.strict {
+                    self.validate_indentation(current_indent)?;
+                }
                 base_indent = Some(current_indent);
             }
 
@@ -288,6 +294,10 @@ impl<'a> Parser<'a> {
             while matches!(self.current_token, Token::Newline) {
                 self.advance()?;
             }
+            let current_indent = self.scanner.get_last_line_indent();
+            if self.options.strict {
+                self.validate_indentation(current_indent)?;
+            }
 
             if self.scanner.get_last_line_indent() == 0 || matches!(self.current_token, Token::Eof)
             {
@@ -335,15 +345,30 @@ impl<'a> Parser<'a> {
     fn parse_primitive(&mut self) -> ToonResult<Value> {
         match &self.current_token {
             Token::String(s, is_quoted) => {
-                let value = if *is_quoted {
-                    Value::String(s.clone())
-                } else if self.options.coerce_types {
-                    self.coerce_string_to_type(s)
+                if *is_quoted {
+                    // Quoted string: consume one token and return
+                    let value = Value::String(s.clone());
+                    self.advance()?;
+                    Ok(value)
                 } else {
-                    Value::String(s.clone())
-                };
-                self.advance()?;
-                Ok(value)
+                    // Unquoted string: check for more parts
+                    let mut accumulated = s.clone();
+                    self.advance()?;
+
+                    // Loop while the next token is also an unquoted string
+                    while let Token::String(next, false) = &self.current_token {
+                        accumulated.push(' ');
+                        accumulated.push_str(next);
+                        self.advance()?;
+                    }
+
+                    // Now coerce the *full* accumulated string
+                    if self.options.coerce_types {
+                        Ok(self.coerce_string_to_type(&accumulated))
+                    } else {
+                        Ok(Value::String(accumulated))
+                    }
+                }
             }
             Token::Integer(i) => {
                 let value = Value::Number((*i).into());
@@ -403,6 +428,19 @@ impl<'a> Parser<'a> {
         }
         if s == "false" {
             return Value::Bool(false);
+        }
+
+        let mut chars = s.chars();
+        let first = chars.next();
+        let second = chars.next();
+        if first == Some('0') && second.is_some_and(|c| c.is_ascii_digit()) {
+            return Value::String(s.to_string());
+        }
+        if first == Some('-')
+            && second == Some('0')
+            && chars.next().is_some_and(|c| c.is_ascii_digit())
+        {
+            return Value::String(s.to_string());
         }
 
         if let Ok(i) = s.parse::<i64>() {
@@ -586,9 +624,27 @@ impl<'a> Parser<'a> {
 
         self.scanner.set_active_delimiter(self.delimiter);
 
-        for row_index in 0..length {
-            let mut row = Map::new();
+        let expected_indent = self.options.indent.get_spaces() * (depth + 1);
+        loop {
+            if matches!(self.current_token, Token::Eof) {
+                break;
+            }
+            let current_indent = self.scanner.get_last_line_indent();
+            if current_indent < expected_indent {
+                break;
+            }
+            if self.options.strict && current_indent != expected_indent {
+                return Err(self.parse_error_with_context(format!(
+                    "Invalid indentation for tabular row: expected {expected_indent} spaces, \
+                     found {current_indent}"
+                )));
+            }
+            if matches!(self.current_token, Token::String(..)) && self.scanner.peek() == Some(':') {
+                break;
+            }
 
+            let row_index = rows.len();
+            let mut row = Map::new();
             for (i, field) in fields.iter().enumerate() {
                 if i > 0 {
                     match &self.current_token {
@@ -599,28 +655,103 @@ impl<'a> Parser<'a> {
                             self.advance()?;
                         }
                         _ => {
-                            return Err(self
-                                .parse_error_with_context(format!(
-                                    "Expected delimiter in tabular row {}, got {:?}",
-                                    row_index, self.current_token
-                                ))
-                                .with_suggestion(format!(
-                                    "Expected delimiter between fields in row {}",
-                                    row_index + 1
-                                )));
+                            if self.options.strict {
+                                return Err(self
+                                    .parse_error_with_context(format!(
+                                        "Tabular row {}: expected {} values, but found only {}",
+                                        row_index + 1,
+                                        fields.len(),
+                                        i
+                                    ))
+                                    .with_suggestion(format!(
+                                        "Row {} should have {} values",
+                                        row_index + 1,
+                                        fields.len()
+                                    )));
+                            } else {
+                                break;
+                            }
                         }
                     }
+                }
+
+                if self.options.strict
+                    && (matches!(self.current_token, Token::Newline)
+                        || matches!(self.current_token, Token::Eof))
+                {
+                    return Err(self
+                        .parse_error_with_context(format!(
+                            "Tabular row {}: expected {} values, but found only {}",
+                            row_index + 1,
+                            fields.len(),
+                            i
+                        ))
+                        .with_suggestion(format!(
+                            "Row {} should have {} values",
+                            row_index + 1,
+                            fields.len()
+                        )));
                 }
 
                 let value = self.parse_primitive()?;
                 row.insert(field.clone(), value);
             }
 
+            if self.options.strict {
+                match &self.current_token {
+                    Token::Newline | Token::Eof => {}
+                    _ => {
+                        return Err(self
+                            .parse_error_with_context(format!(
+                                "Tabular row {}: expected {} values, but found extra values",
+                                row_index + 1,
+                                fields.len()
+                            ))
+                            .with_suggestion(format!(
+                                "Row {} should have exactly {} values",
+                                row_index + 1,
+                                fields.len()
+                            )));
+                    }
+                }
+            }
+
+            if !self.options.strict && row.len() < fields.len() {
+                for field in fields.iter().skip(row.len()) {
+                    row.insert(field.clone(), Value::Null);
+                }
+            }
+
             rows.push(Value::Object(row));
 
-            if row_index < length - 1 {
-                self.skip_newlines()?;
+            if matches!(self.current_token, Token::Eof) {
+                break;
             }
+
+            if !matches!(self.current_token, Token::Newline) {
+                if !self.options.strict {
+                    while !matches!(self.current_token, Token::Newline | Token::Eof) {
+                        self.advance()?;
+                    }
+                    if matches!(self.current_token, Token::Eof) {
+                        break;
+                    }
+                } else {
+                    return Err(self.parse_error_with_context(format!(
+                        "Expected newline after tabular row {}",
+                        row_index + 1
+                    )));
+                }
+            }
+
+            self.advance()?;
+            if self.options.strict && matches!(self.current_token, Token::Newline) {
+                return Err(self.parse_error_with_context(
+                    "Blank lines are not allowed inside tabular arrays in strict mode",
+                ));
+            }
+
+            self.skip_newlines()?;
         }
 
         validation::validate_array_length(length, rows.len(), self.options.strict)?;
@@ -635,7 +766,20 @@ impl<'a> Parser<'a> {
             Token::Newline => {
                 self.skip_newlines()?;
 
+                let expected_indent = self.options.indent.get_spaces() * (depth + 1);
+
                 for i in 0..length {
+                    let current_indent = self.scanner.get_last_line_indent();
+                    if self.options.strict {
+                        self.validate_indentation(current_indent)?;
+
+                        if current_indent != expected_indent {
+                            return Err(self.parse_error_with_context(format!(
+                                "Invalid indentation for list item: expected {expected_indent} \
+                                 spaces, found {current_indent}"
+                            )));
+                        }
+                    }
                     if !matches!(self.current_token, Token::Dash) {
                         return Err(self
                             .parse_error_with_context(format!(
@@ -659,6 +803,20 @@ impl<'a> Parser<'a> {
                     items.push(value);
 
                     if items.len() < length {
+                        if !matches!(self.current_token, Token::Newline) {
+                            return Err(self.parse_error_with_context(format!(
+                                "Expected newline after list item {}",
+                                i + 1
+                            )));
+                        }
+                        self.advance()?;
+
+                        if self.options.strict && matches!(self.current_token, Token::Newline) {
+                            return Err(self.parse_error_with_context(
+                                "Blank lines are not allowed inside list arrays in strict mode",
+                            ));
+                        }
+
                         self.skip_newlines()?;
                     }
                 }
@@ -702,6 +860,22 @@ impl<'a> Parser<'a> {
         validation::validate_array_length(length, items.len(), self.options.strict)?;
 
         Ok(Value::Array(items))
+    }
+
+    fn validate_indentation(&self, indent_amount: usize) -> ToonResult<()> {
+        if !self.options.strict {
+            return Ok(());
+        }
+
+        let indent_size = self.options.indent.get_spaces();
+        if indent_size > 0 && indent_amount > 0 && indent_amount % indent_size != 0 {
+            Err(self.parse_error_with_context(format!(
+                "Invalid indentation: found {indent_amount} spaces, but must be a multiple of \
+                 {indent_size}"
+            )))
+        } else {
+            Ok(())
+        }
     }
 }
 

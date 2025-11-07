@@ -4,17 +4,21 @@ use crate::{
         EncodeOptions,
         ToonResult,
     },
-    utils::string::{
-        is_valid_unquoted_key,
-        needs_quoting,
-        quote_string,
+    utils::{
+        string::{
+            is_valid_unquoted_key,
+            needs_quoting,
+            quote_string,
+        },
+        QuotingContext,
     },
 };
 
 /// Writer that builds TOON output string from JSON values.
 pub struct Writer {
     buffer: String,
-    options: EncodeOptions,
+    pub(crate) options: EncodeOptions,
+    active_delimiters: Vec<Delimiter>,
 }
 
 impl Writer {
@@ -22,6 +26,7 @@ impl Writer {
     pub fn new(options: EncodeOptions) -> Self {
         Self {
             buffer: String::new(),
+            active_delimiters: vec![options.delimiter],
             options,
         }
     }
@@ -125,20 +130,43 @@ impl Writer {
         self.write_char(':')
     }
 
-    pub fn needs_quoting(&self, s: &str) -> bool {
-        needs_quoting(s, self.options.delimiter)
+    pub fn needs_quoting(&self, s: &str, context: QuotingContext) -> bool {
+        let delim_char = match context {
+            QuotingContext::ObjectValue => self.get_document_delimiter_char(),
+            QuotingContext::ArrayValue => self.get_active_delimiter_char(),
+        };
+        needs_quoting(s, delim_char)
     }
 
     pub fn write_quoted_string(&mut self, s: &str) -> ToonResult<()> {
         self.write_str(&quote_string(s))
     }
 
-    pub fn write_value(&mut self, s: &str) -> ToonResult<()> {
-        if self.needs_quoting(s) {
+    pub fn write_value(&mut self, s: &str, context: QuotingContext) -> ToonResult<()> {
+        if self.needs_quoting(s, context) {
             self.write_quoted_string(s)
         } else {
             self.write_str(s)
         }
+    }
+
+    pub fn push_active_delimiter(&mut self, delim: Delimiter) {
+        self.active_delimiters.push(delim);
+    }
+    pub fn pop_active_delimiter(&mut self) {
+        if self.active_delimiters.len() > 1 {
+            self.active_delimiters.pop();
+        }
+    }
+    fn get_active_delimiter_char(&self) -> char {
+        self.active_delimiters
+            .last()
+            .unwrap_or(&self.options.delimiter)
+            .as_char()
+    }
+
+    fn get_document_delimiter_char(&self) -> char {
+        self.options.delimiter.as_char()
     }
 }
 
@@ -283,15 +311,16 @@ mod tests {
     fn test_needs_quoting() {
         let opts = EncodeOptions::default();
         let writer = Writer::new(opts);
+        let ctx = QuotingContext::ObjectValue;
 
-        assert!(!writer.needs_quoting("hello"));
-        assert!(writer.needs_quoting("hello,world"));
-        assert!(writer.needs_quoting("true"));
-        assert!(writer.needs_quoting("false"));
-        assert!(writer.needs_quoting("null"));
-        assert!(writer.needs_quoting("123"));
-        assert!(writer.needs_quoting(""));
-        assert!(writer.needs_quoting("hello:world"));
+        assert!(!writer.needs_quoting("hello", ctx));
+        assert!(writer.needs_quoting("hello,world", ctx));
+        assert!(writer.needs_quoting("true", ctx));
+        assert!(writer.needs_quoting("false", ctx));
+        assert!(writer.needs_quoting("null", ctx));
+        assert!(writer.needs_quoting("123", ctx));
+        assert!(writer.needs_quoting("", ctx));
+        assert!(writer.needs_quoting("hello:world", ctx));
     }
 
     #[test]

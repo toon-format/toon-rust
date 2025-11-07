@@ -108,17 +108,14 @@ impl Number {
 
 impl fmt::Display for Number {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Number::PosInt(u) => write!(f, "{u}"),
-            Number::NegInt(i) => write!(f, "{i}"),
+        let s_json_num = match self {
+            Number::PosInt(u) => serde_json::Number::from(*u),
+            Number::NegInt(i) => serde_json::Number::from(*i),
             Number::Float(fl) => {
-                if fl.fract() == 0.0 && fl.is_finite() {
-                    write!(f, "{}.0", *fl as i64)
-                } else {
-                    write!(f, "{fl}")
-                }
+                serde_json::Number::from_f64(*fl).unwrap_or_else(|| serde_json::Number::from(0))
             }
-        }
+        };
+        write!(f, "{s_json_num}")
     }
 }
 

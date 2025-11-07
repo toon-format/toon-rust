@@ -32,6 +32,13 @@ impl Indent {
             Indent::Tabs => "\t".repeat(depth),
         }
     }
+
+    pub fn get_spaces(&self) -> usize {
+        match self {
+            Indent::Spaces(count) => *count,
+            Indent::Tabs => 0,
+        }
+    }
 }
 
 /// Options for encoding JSON values to TOON format.
@@ -104,6 +111,7 @@ pub struct DecodeOptions {
     pub delimiter: Option<Delimiter>,
     pub strict: bool,
     pub coerce_types: bool,
+    pub indent: Indent,
 }
 
 impl Default for DecodeOptions {
@@ -112,6 +120,7 @@ impl Default for DecodeOptions {
             delimiter: None,
             strict: true,
             coerce_types: true,
+            indent: Indent::default(),
         }
     }
 }
@@ -138,6 +147,11 @@ impl DecodeOptions {
     /// Enable or disable type coercion (strings like "123" -> numbers).
     pub fn with_coerce_types(mut self, coerce: bool) -> Self {
         self.coerce_types = coerce;
+        self
+    }
+
+    pub fn with_indent(mut self, style: Indent) -> Self {
+        self.indent = style;
         self
     }
 }

@@ -19,8 +19,17 @@ readme = "README.md"
 name = "examples"
 path = "examples/main.rs"
 
+[[bin]]
+name = "toon"
+path = "src/cli/main.rs"
+
 [dependencies]
 serde = { version = "1.0.228", features = ["derive"] }
 indexmap = "2.0"
 serde_json = { version = "1.0.145", features = ["preserve_order"] }
 thiserror = "2.0.17"
+
+clap = { version = "4.5.11", features = ["derive"] }
+anyhow = "1.0.86"
+tiktoken-rs = "0.7.0"
+comfy-table = "7.1"

@@ -105,6 +105,12 @@ pub fn needs_quoting(s: &str, delimiter: char) -> bool {
         return true;
     }
 
+    // Check for leading zeros (e.g., "05", "007", "0123")
+    // Numbers with leading zeros must be quoted
+    if s.starts_with('0') && s.len() > 1 && s.chars().nth(1).is_some_and(|c| c.is_ascii_digit()) {
+        return true;
+    }
+
     false
 }
 

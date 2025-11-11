@@ -2,53 +2,62 @@
 
 [![Crates.io](https://img.shields.io/crates/v/toon-format.svg)](https://crates.io/crates/toon-format)
 [![Documentation](https://docs.rs/toon-format/badge.svg)](https://docs.rs/toon-format)
-[![Spec v1.4](https://img.shields.io/badge/spec-v1.4-brightgreen.svg)](https://github.com/toon-format/spec/blob/main/SPEC.md)
+[![Spec v2.0](https://img.shields.io/badge/spec-v2.0-brightgreen.svg)](https://github.com/toon-format/spec/blob/main/SPEC.md)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
+[![Tests](https://img.shields.io/badge/tests-109%20passing-success.svg)]()
 
 **Token-Oriented Object Notation (TOON)** is a compact, human-readable format designed for passing structured data to Large Language Models with significantly reduced token usage.
 
-This crate provides the official, spec-compliant Rust implementation of TOON, offering both a library (`toon-format`) and a full-featured command-line tool (`toon`).
+This crate provides the official, **spec-compliant Rust implementation** of TOON v2.0 with v1.5 optional features, offering both a library (`toon-format`) and a full-featured command-line tool (`toon`).
 
-### Example
+## Quick Example
 
-**JSON** (verbose):
+**JSON** (16 tokens, 40 bytes):
 ```json
 {
   "users": [
-    { "id": 1, "name": "Alice", "role": "admin" },
-    { "id": 2, "name": "Bob", "role": "user" }
+    { "id": 1, "name": "Alice" },
+    { "id": 2, "name": "Bob" }
   ]
 }
-````
+```
 
-**TOON** (compact):
-
+**TOON** (13 tokens, 28 bytes) - **18.75% token savings**:
 ```toon
-users[2]{id,name,role}:
-  1,Alice,admin
-  2,Bob,user
+users[2]{id,name}:
+  1,Alice
+  2,Bob
 ```
 
 ## Features
 
-  * **Spec-Compliant:** Fully compliant with [TOON Specification v1.4](https://github.com/toon-format/spec/blob/main/SPEC.md).
-  * **Safe & Performant:** Built with safe, fast Rust.
-  * **Serde Integration:** Natively serializes from and deserializes to `serde_json::Value` for easy integration.
-  * **Powerful CLI:** A full-featured `toon` binary for command-line conversion.
-  * **Validation:** Includes a strict mode decoder (on by default) to enforce all spec rules.
+- **Spec-Compliant**: Fully compliant with [TOON Specification v2.0](https://github.com/toon-format/spec/blob/main/SPEC.md)
+- **v1.5 Optional Features**: Key folding and path expansion
+- **Safe & Performant**: Built with safe, fast Rust
+- **Serde Integration**: Native support for `serde_json::Value`
+- **Powerful CLI**: Full-featured command-line tool
+- **Strict Validation**: Enforces all spec rules (configurable)
+- **100% Test Coverage**: 109 unit tests + 22 spec fixture tests passing
 
+## Installation
 
-## Library Usage
-
-Add `toon-format` to your Rust project:
+### As a Library
 
 ```bash
 cargo add toon-format
 ```
 
-### Basic `encode` and `decode`
+### As a CLI Tool
 
-The library works directly with `serde_json::Value`.
+```bash
+cargo install toon-format
+```
+
+---
+
+## Library Usage
+
+### Basic Encode & Decode
 
 ```rust
 use serde_json::json;
@@ -56,171 +65,437 @@ use toon_format::{encode_default, decode_default};
 
 fn main() -> Result<(), toon_format::ToonError> {
     let data = json!({
-      "users": [
-        {"id": 1, "name": "Alice"},
-        {"id": 2, "name": "Bob"}
-      ]
+        "users": [
+            {"id": 1, "name": "Alice"},
+            {"id": 2, "name": "Bob"}
+        ]
     });
 
-    // Encode
-    let toon_string = encode_default(&data)?;
-    println!("{}", toon_string);
+    // Encode to TOON
+    let toon_str = encode_default(&data)?;
+    println!("{}", toon_str);
+    // Output:
     // users[2]{id,name}:
     //   1,Alice
     //   2,Bob
 
-    // Decode
-    let decoded_value = decode_default(&toon_string)?;
-    assert_eq!(decoded_value, data);
+    // Decode back to JSON
+    let decoded = decode_default(&toon_str)?;
+    assert_eq!(decoded, data);
     
     Ok(())
 }
 ```
 
-### Options
+---
 
-You can customize the encoding and decoding process by passing `EncodeOptions` or `DecodeOptions`.
+## API Reference
+
+### Encoding
+
+#### `encode(&value, &options) -> Result<String, ToonError>`
+
+Encode a `serde_json::Value` to TOON format.
 
 ```rust
-use toon_format::{encode, decode, EncodeOptions, DecodeOptions, Delimiter, Indent};
+use toon_format::{encode, EncodeOptions, Delimiter, Indent};
 use serde_json::json;
 
-// --- Encode with options ---
-let data = json!({"tags": ["a", "b"]});
+let data = json!({"items": ["a", "b", "c"]});
 
-let encode_opts = EncodeOptions::new()
-    .with_delimiter(Delimiter::Pipe) // Use '|' as delimiter
-    .with_indent(Indent::Spaces(4)); // Use 4 spaces
+// Default encoding
+let toon = encode(&data, &EncodeOptions::default())?;
+// items[3]: a,b,c
 
-let toon_string = encode(&data, &encode_opts)?;
-// tags[2|]: a|b
+// Custom delimiter
+let opts = EncodeOptions::new()
+    .with_delimiter(Delimiter::Pipe);
+let toon = encode(&data, &opts)?;
+// items[3|]: a|b|c
 
-// --- Decode with options ---
-let toon_input = "items[3]: a,b"; // Mismatched length
-
-// Default (strict) decode will fail
-assert!(decode_default(toon_input).is_err());
-
-// Non-strict decode will pass
-let decode_opts = DecodeOptions::new()
-    .with_strict(false); // Disable length validation
-
-let decoded = decode(toon_input, &decode_opts)?;
-assert_eq!(decoded, json!({"items": ["a", "b"]}));
+// Custom indentation
+let opts = EncodeOptions::new()
+    .with_indent(Indent::Spaces(4));
+let toon = encode(&data, &opts)?;
 ```
+
+#### `EncodeOptions`
+
+| Method | Description | Default |
+|--------|-------------|---------|
+| `with_delimiter(d)` | Set delimiter: `Comma`, `Tab`, or `Pipe` | `Comma` |
+| `with_indent(i)` | Set indentation (spaces only) | `Spaces(2)` |
+| `with_spaces(n)` | Shorthand for `Indent::Spaces(n)` | `2` |
+| `with_key_folding(mode)` | Enable key folding (v1.5) | `Off` |
+| `with_flatten_depth(n)` | Set max folding depth | `usize::MAX` |
+
+### Decoding
+
+#### `decode(&input, &options) -> Result<Value, ToonError>`
+
+Decode TOON format to `serde_json::Value`.
+
+```rust
+use toon_format::{decode, DecodeOptions};
+
+let toon = "name: Alice\nage: 30";
+
+// Default (strict) decode
+let json = decode(toon, &DecodeOptions::default())?;
+
+// Non-strict mode (relaxed validation)
+let opts = DecodeOptions::new()
+    .with_strict(false);
+let json = decode(toon, &opts)?;
+
+// Disable type coercion
+let opts = DecodeOptions::new()
+    .with_coerce_types(false);
+let json = decode("active: true", &opts)?;
+// With coercion: {"active": true}
+// Without: {"active": "true"}
+```
+
+#### `DecodeOptions`
+
+| Method | Description | Default |
+|--------|-------------|---------|
+| `with_strict(b)` | Enable strict validation | `true` |
+| `with_coerce_types(b)` | Auto-convert strings to types | `true` |
+| `with_expand_paths(mode)` | Enable path expansion (v1.5) | `Off` |
+
+---
+
+## v1.5 Features
+
+### Key Folding (Encoder)
+
+**New in v1.5**: Collapse single-key object chains into dotted paths to reduce tokens.
+
+**Standard nesting:**
+```toon
+data:
+  metadata:
+    items[2]: a,b
+```
+
+**With key folding:**
+```toon
+data.metadata.items[2]: a,b
+```
+
+#### Example
+
+```rust
+use toon_format::{encode, EncodeOptions, KeyFoldingMode};
+use serde_json::json;
+
+let data = json!({
+    "data": {
+        "metadata": {
+            "items": ["a", "b"]
+        }
+    }
+});
+
+// Enable key folding
+let opts = EncodeOptions::new()
+    .with_key_folding(KeyFoldingMode::Safe);
+
+let toon = encode(&data, &opts)?;
+// Output: data.metadata.items[2]: a,b
+```
+
+#### With Depth Control
+
+```rust
+let data = json!({"a": {"b": {"c": {"d": 1}}}});
+
+// Fold only 2 levels
+let opts = EncodeOptions::new()
+    .with_key_folding(KeyFoldingMode::Safe)
+    .with_flatten_depth(2);
+
+let toon = encode(&data, &opts)?;
+// Output:
+// a.b:
+//   c:
+//     d: 1
+```
+
+#### Safety Features
+
+Key folding only applies when:
+- All segments are valid identifiers (`a-z`, `A-Z`, `0-9`, `_`)
+- Each level contains exactly one key
+- No collision with sibling literal keys
+- Within the specified `flatten_depth`
+
+Keys like `full-name`, `user.email` (if quoted), or numeric keys won't be folded.
+
+### Path Expansion (Decoder)
+
+**New in v1.5**: Automatically expand dotted keys into nested objects.
+
+**Compact input:**
+```toon
+a.b.c: 1
+a.b.d: 2
+a.e: 3
+```
+
+**Expanded output:**
+```json
+{
+  "a": {
+    "b": {
+      "c": 1,
+      "d": 2
+    },
+    "e": 3
+  }
+}
+```
+
+#### Example
+
+```rust
+use toon_format::{decode, DecodeOptions, PathExpansionMode};
+
+let toon = "a.b.c: 1\na.b.d: 2";
+
+// Enable path expansion
+let opts = DecodeOptions::new()
+    .with_expand_paths(PathExpansionMode::Safe);
+
+let json = decode(toon, &opts)?;
+// {"a": {"b": {"c": 1, "d": 2}}}
+```
+
+#### Round-Trip Example
+
+```rust
+use toon_format::{encode, decode, EncodeOptions, DecodeOptions, KeyFoldingMode, PathExpansionMode};
+use serde_json::json;
+
+let original = json!({
+    "user": {
+        "profile": {
+            "name": "Alice"
+        }
+    }
+});
+
+// Encode with folding
+let encode_opts = EncodeOptions::new()
+    .with_key_folding(KeyFoldingMode::Safe);
+let toon = encode(&original, &encode_opts)?;
+// → "user.profile.name: Alice"
+
+// Decode with expansion
+let decode_opts = DecodeOptions::new()
+    .with_expand_paths(PathExpansionMode::Safe);
+let restored = decode(&toon, &decode_opts)?;
+
+assert_eq!(restored, original); // Perfect round-trip!
+```
+
+#### Quoted Keys Remain Literal
+
+```rust
+let toon = r#"a.b: 1
+"c.d": 2"#;
+
+let opts = DecodeOptions::new()
+    .with_expand_paths(PathExpansionMode::Safe);
+let json = decode(toon, &opts)?;
+// {
+//   "a": {"b": 1},
+//   "c.d": 2        ← quoted key preserved
+// }
+```
+
+---
 
 ## CLI Usage
 
-You can also install the `toon` binary for command-line use.
-
-### Installation
+### Basic Commands
 
 ```bash
-cargo install toon-format
-```
+# Auto-detect from extension
+toon data.json        # Encode
+toon data.toon        # Decode
 
-### Basic Usage
+# Force mode
+toon -e data.txt      # Force encode
+toon -d output.txt    # Force decode
 
-The CLI auto-detects the operation based on the file extension.
-
-  * `.json` input will be **encoded** to TOON.
-  * `.toon` input will be **decoded** to JSON.
-
-<!-- end list -->
-
-```bash
-# Encode JSON to TOON (auto-detected)
-toon data.json
-
-# Decode TOON to JSON (auto-detected)
-toon data.toon
-```
-
-### Piping
-
-The CLI reads from `stdin` if no input file is provided, or if `-` is used as the input file.
-
-```bash
-# Pipe from stdin (defaults to ENCODE)
+# Pipe from stdin
 cat data.json | toon
-echo '{"name": "Ada"}' | toon
-
-# Pipe from stdin and force DECODE
-cat data.toon | toon -d
-echo "name: Ada" | toon --decode
+echo '{"name": "Alice"}' | toon -e
 ```
 
-### Stats
-
-Use --stats during encoding to see token (cl100k_base) and byte-size savings.
+### Encode Options
 
 ```bash
-$ echo '{"users": [{"id": 1, "name": "Alice"}]}' | toon --stats
-users[1]{id,name}:
-  1,Alice
+# Custom delimiter
+toon data.json --delimiter pipe
+toon data.json --delimiter tab
 
-Stats:
+# Custom indentation
+toon data.json --indent 4
 
-+--------------+------+------+---------+
-| Metric       | JSON | TOON | Savings |
-+==============+======+======+=========+
-| Tokens       | 16   | 13   | 13.33%  |
-+--------------+------+------+---------+
-| Size (bytes) | 40   | 28   | 27.50%  |
-+--------------+------+------+---------+
+# Key folding (v1.5)
+toon data.json --fold-keys
+toon data.json --fold-keys --flatten-depth 2
 
-
+# Show statistics
+toon data.json --stats
 ```
 
-### Options
-
-| Option | Short | Description |
-| :--- | :--- | :--- |
-| `[input]` | | Input file path (reads from stdin if omitted or '-') |
-| `--output <file>` | `-o` | Output file path (prints to stdout if omitted) |
-| `--encode` | `-e` | Force encode mode (JSON -\> TOON) |
-| `--decode` | `-d` | Force decode mode (TOON -\> JSON) |
-| `--delimiter <val>` | | Array delimiter: `comma`, `tab`, or `pipe` (encode only) |
-| `--indent <num>` | `-i` | Indentation size in spaces (default: 2) (encode only) |
-| `--tabs` | | Use tabs for indentation (encode only) |
-| `--length-marker` | | Add `#` prefix to array lengths (e.g., `items[#3]`) (encode only) |
-| `--stats` | | Show byte size savings (encode only) |
-| `--no-strict` | | Disable strict validation (decode only) |
-| `--no-coerce` | | Disable type coercion (e.g., "true" -\> `true`) (decode only) |
-| `--json-indent <num>` | | Indent output JSON with N spaces (decode only) |
-
-### CLI Examples
+### Decode Options
 
 ```bash
-# Encode a file to stdout
-toon data.json
-
-# Encode a file to another file
-toon data.json -o data.toon
-
-# Encode with tab delimiters and 4-space indent
-toon data.json --delimiter tab -i 4
-
-# Decode a file and pretty-print the JSON
+# Pretty-print JSON
 toon data.toon --json-indent 2
 
-# Decode from stdin
-cat data.toon | toon -d
+# Relaxed validation
+toon data.toon --no-strict
 
-# Encode from stdin and save to file with stats
-cat data.json | toon --stats -o data.toon
+# Disable type coercion
+toon data.toon --no-coerce
+
+# Path expansion (v1.5)
+toon data.toon --expand-paths
 ```
 
+### Full Example
+
+```bash
+$ echo '{"data":{"meta":{"items":["x","y"]}}}' | toon --fold-keys --stats
+
+data.meta.items[2]: x,y
+
+Stats:
++--------------+------+------+---------+
+| Metric       | JSON | TOON | Savings |
++======================================+
+| Tokens       | 13   | 8    | 38.46%  |
+|--------------+------+------+---------|
+| Size (bytes) | 38   | 23   | 39.47%  |
++--------------+------+------+---------+
+```
+
+---
+
+## Test Coverage
+
+### Comprehensive Test Suite
+
+- **109 Unit Tests**: Core functionality, edge cases, error handling
+- **22 Spec Fixture Tests**: Official TOON spec compliance tests
+  - 11 decode fixtures (objects, arrays, primitives, validation)
+  - 11 encode fixtures (formatting, delimiters, arrays)
+- **13 Key Folding Tests**: v1.5 feature coverage
+- **11 Path Expansion Tests**: v1.5 feature coverage
+- **Integration Tests**: Real-world scenarios
+- **Doc Tests**: All examples in documentation tested
+
+### Running Tests
+
+```bash
+# Run all tests
+cargo test
+
+# Run specific test suite
+cargo test --test spec_fixtures
+cargo test --lib folding
+cargo test --lib expansion
+
+# With output
+cargo test -- --nocapture
+
+# Release mode
+cargo test --release
+```
+
+## Error Handling
+
+All operations return `Result<T, ToonError>` with descriptive error messages:
+
+```rust
+use toon_format::{decode_strict, ToonError};
+
+match decode_strict("items[3]: a,b") {
+    Ok(value) => println!("Success: {:?}", value),
+    Err(ToonError::LengthMismatch { expected, found, .. }) => {
+        eprintln!("Array length mismatch: expected {}, found {}", expected, found);
+    }
+    Err(e) => eprintln!("Error: {}", e),
+}
+```
+
+### Error Types
+
+- `ParseError` - Syntax errors with line/column info
+- `LengthMismatch` - Array length doesn't match header
+- `TypeMismatch` - Unexpected value type
+- `InvalidStructure` - Malformed TOON structure
+- `SerializationError` / `DeserializationError` - Conversion failures
+
+---
+
+
+## Examples
+
+See the [`examples/`](./examples/) directory for more:
+
+- `basic.rs` - Simple encode/decode
+- `options.rs` - Custom configuration
+- `folding.rs` - Key folding examples
+- `expansion.rs` - Path expansion examples
+- `cli_usage.sh` - CLI examples
+
+---
+
 ## Resources
-  * [TOON Specification](https://github.com/toon-format/spec/blob/main/SPEC.md)
-  * [Main Repository (JS/TS)](https://github.com/toon-format/toon)
-  * [Benchmarks & Performance](https://github.com/toon-format/toon#benchmarks)
-  * [Other Language Implementations](https://github.com/toon-format/toon#other-implementations)
+
+- 📖 [TOON Specification v2.0](https://github.com/toon-format/spec/blob/main/SPEC.md)
+- 📦 [Crates.io Package](https://crates.io/crates/toon-format)
+- 📚 [API Documentation](https://docs.rs/toon-format)
+- 🔧 [Main Repository (JS/TS)](https://github.com/toon-format/toon)
+- 🎯 [Benchmarks & Performance](https://github.com/toon-format/toon#benchmarks)
+
+---
 
 ## Contributing
 
-Contributions are welcome\! Please see the [CONTRIBUTING.md](CONTRIBUTING.md) file for guidelines.
+Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+### Development
+
+```bash
+# Clone the repository
+git clone https://github.com/your-org/toon-rust.git
+cd toon-rust
+
+# Run tests
+cargo test --all
+
+# Run lints
+cargo clippy -- -D warnings
+
+# Format code
+cargo fmt
+
+# Build docs
+cargo doc --open
+```
+
+---
 
 ## License
 
 MIT License © 2025-PRESENT [Johann Schopplich](https://github.com/johannschopplich) and [Shreyas K S](https://github.com/shreyasbhat0)
+
+---

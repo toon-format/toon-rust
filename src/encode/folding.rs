@@ -152,7 +152,7 @@ mod tests {
         let existing: Vec<&String> = vec![&existing_key];
 
         let result = analyze_foldable_chain("a", &val, usize::MAX, &existing);
-        assert!(result.is_none()); 
+        assert!(result.is_none());
     }
 
     #[test]

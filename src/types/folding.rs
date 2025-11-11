@@ -16,7 +16,8 @@ pub enum PathExpansionMode {
     Safe,
 }
 
-/// Check if a key segment is a valid IdentifierSegment (stricter than unquoted keys).
+/// Check if a key segment is a valid IdentifierSegment (stricter than unquoted
+/// keys).
 pub fn is_identifier_segment(s: &str) -> bool {
     if s.is_empty() {
         return false;

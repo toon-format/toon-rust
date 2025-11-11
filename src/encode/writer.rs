@@ -153,7 +153,8 @@ impl Writer {
         }
     }
 
-    /// Push a new delimiter onto the stack (for nested arrays with different delimiters).
+    /// Push a new delimiter onto the stack (for nested arrays with different
+    /// delimiters).
     pub fn push_active_delimiter(&mut self, delim: Delimiter) {
         self.active_delimiters.push(delim);
     }

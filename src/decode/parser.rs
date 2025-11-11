@@ -8,7 +8,7 @@ use crate::{
     constants::{
         KEYWORDS,
         MAX_DEPTH,
-    }, 
+    },
     decode::{
         scanner::{
             Scanner,

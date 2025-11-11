@@ -295,7 +295,8 @@ impl Scanner {
             self.advance();
         }
 
-        // Single-character delimiter strings are kept as-is, others get trailing spaces trimmed
+        // Single-character delimiter strings are kept as-is, others get trailing spaces
+        // trimmed
         let value = if value.len() == 1 && (value == "," || value == "|" || value == "\t") {
             value
         } else {

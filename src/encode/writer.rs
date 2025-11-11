@@ -92,12 +92,14 @@ impl Writer {
         let length_str = self.options.format_length(length);
         self.write_str(&length_str)?;
 
+        // Only write delimiter in header if it's not comma (comma is default/implied)
         if self.options.delimiter != Delimiter::Comma {
             self.write_delimiter()?;
         }
 
         self.write_char(']')?;
 
+        // Write field list for tabular arrays: {field1,field2}
         if let Some(field_list) = fields {
             self.write_char('{')?;
             for (i, field) in field_list.iter().enumerate() {
@@ -131,6 +133,7 @@ impl Writer {
     }
 
     pub fn needs_quoting(&self, s: &str, context: QuotingContext) -> bool {
+        // Use active delimiter for array values, document delimiter for object values
         let delim_char = match context {
             QuotingContext::ObjectValue => self.get_document_delimiter_char(),
             QuotingContext::ArrayValue => self.get_active_delimiter_char(),
@@ -150,9 +153,11 @@ impl Writer {
         }
     }
 
+    /// Push a new delimiter onto the stack (for nested arrays with different delimiters).
     pub fn push_active_delimiter(&mut self, delim: Delimiter) {
         self.active_delimiters.push(delim);
     }
+    /// Pop the active delimiter, keeping at least one (the document default).
     pub fn pop_active_delimiter(&mut self) {
         if self.active_delimiters.len() > 1 {
             self.active_delimiters.pop();

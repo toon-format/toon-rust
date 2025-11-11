@@ -30,22 +30,6 @@ fn test_delimiter_variants() {
 }
 
 #[test]
-fn test_length_markers() {
-    let data = json!({"items": [1, 2, 3, 4, 5]});
-
-    let opts = EncodeOptions::new().with_length_marker('#');
-    let encoded = encode(&data, &opts).unwrap();
-    assert!(encoded.contains("#5"));
-    let decoded = decode_default(&encoded).unwrap();
-    assert_eq!(data, decoded);
-
-    let encoded = encode_default(&data).unwrap();
-    assert!(encoded.contains("[5]"));
-    let decoded = decode_default(&encoded).unwrap();
-    assert_eq!(data, decoded);
-}
-
-#[test]
 fn test_delimiter_in_values() {
     let data = json!({"tags": ["a,b", "c|d", "e\tf"]});
 

@@ -57,20 +57,14 @@ struct Cli {
     #[arg(short, long, help = "Force decode mode (TOON → JSON)")]
     decode: bool,
 
-    #[arg(long, help = "Add '#' length marker to arrays")]
-    length_marker: bool,
-
     #[arg(long, help = "Show token count and savings")]
     stats: bool,
 
     #[arg(long, value_parser = parse_delimiter, help = "Delimiter: comma, tab, or pipe")]
     delimiter: Option<Delimiter>,
 
-    #[arg(short, long, value_parser = parse_indent, conflicts_with = "tabs", help = "Indentation spaces")]
+    #[arg(short, long, value_parser = parse_indent, help = "Indentation spaces")]
     indent: Option<usize>,
-
-    #[arg(long, conflicts_with = "indent", help = "Use tabs for indentation")]
-    tabs: bool,
 
     #[arg(long, help = "Disable strict validation (decode)")]
     no_strict: bool,
@@ -148,13 +142,8 @@ fn run_encode(cli: &Cli, input: &str) -> Result<()> {
     if let Some(d) = cli.delimiter {
         opts = opts.with_delimiter(d);
     }
-    if cli.tabs {
-        opts = opts.with_indent(Indent::Tabs);
-    } else if let Some(i) = cli.indent {
+    if let Some(i) = cli.indent {
         opts = opts.with_indent(Indent::Spaces(i));
-    }
-    if cli.length_marker {
-        opts = opts.with_length_marker('#');
     }
 
     let toon_str = encode(&json_value, &opts).context("Failed to encode to TOON")?;
@@ -293,17 +282,11 @@ fn validate_flags(cli: &Cli, operation: &Operation) -> Result<()> {
             }
         }
         Operation::Decode => {
-            if cli.length_marker {
-                bail!("--length-marker is only valid for encode mode");
-            }
             if cli.delimiter.is_some() {
                 bail!("--delimiter is only valid for encode mode");
             }
             if cli.stats {
                 bail!("--stats is only valid for encode mode");
-            }
-            if cli.tabs {
-                bail!("--tabs is only valid for encode mode");
             }
             if cli.indent.is_some() {
                 bail!("--indent is only valid for encode mode");

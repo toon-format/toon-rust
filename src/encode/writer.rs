@@ -88,9 +88,7 @@ impl Writer {
         }
 
         self.write_char('[')?;
-
-        let length_str = self.options.format_length(length);
-        self.write_str(&length_str)?;
+        self.write_str(&length.to_string())?;
 
         // Only write delimiter in header if it's not comma (comma is default/implied)
         if self.options.delimiter != Delimiter::Comma {
@@ -120,9 +118,7 @@ impl Writer {
             self.write_key(k)?;
         }
         self.write_char('[')?;
-
-        let length_str = self.options.format_length(0);
-        self.write_str(&length_str)?;
+        self.write_str("0")?;
 
         if self.options.delimiter != Delimiter::Comma {
             self.write_delimiter()?;
@@ -250,17 +246,6 @@ mod tests {
             .write_array_header(Some("users"), 2, Some(&fields), 0)
             .unwrap();
         assert_eq!(writer.finish(), "users[2]{id,name}:");
-    }
-
-    #[test]
-    fn test_write_array_header_with_length_marker() {
-        let opts = EncodeOptions::new().with_length_marker('#');
-        let mut writer = Writer::new(opts);
-
-        writer
-            .write_array_header(Some("items"), 3, None, 0)
-            .unwrap();
-        assert_eq!(writer.finish(), "items[#3]:");
     }
 
     #[test]

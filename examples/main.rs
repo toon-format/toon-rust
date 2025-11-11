@@ -8,8 +8,6 @@ mod decode_strict;
 mod delimiters;
 #[path = "parts/empty_and_root.rs"]
 mod empty_and_root;
-#[path = "parts/length_marker.rs"]
-mod length_marker;
 #[path = "parts/mixed_arrays.rs"]
 mod mixed_arrays;
 #[path = "parts/objects.rs"]
@@ -42,9 +40,6 @@ fn main() {
 
     println!("\n-- tabular --");
     tabular::tabular();
-
-    println!("\n-- length marker --");
-    length_marker::length_marker();
 
     println!("\n-- empty and root --");
     empty_and_root::empty_and_root();

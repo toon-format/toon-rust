@@ -16,6 +16,12 @@ pub const DEFAULT_DELIMITER: Delimiter = Delimiter::Comma;
 /// Maximum nesting depth to prevent stack overflow.
 pub const MAX_DEPTH: usize = 256;
 
+/// Internal marker prefix for quoted keys containing dots.
+/// Used during path expansion to distinguish quoted keys (which should remain
+/// literal) from unquoted keys (which may be expanded).
+/// This marker is added during parsing and removed during expansion.
+pub(crate) const QUOTED_KEY_MARKER: char = '\x00';
+
 #[inline]
 pub fn is_structural_char(ch: char) -> bool {
     STRUCTURAL_CHARS.contains(&ch)

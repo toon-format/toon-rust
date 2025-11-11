@@ -1,12 +1,15 @@
 use crate::{
     constants::DEFAULT_INDENT,
-    types::Delimiter,
+    types::{
+        Delimiter,
+        KeyFoldingMode,
+        PathExpansionMode,
+    },
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Indent {
     Spaces(usize),
-    Tabs,
 }
 
 impl Default for Indent {
@@ -29,14 +32,12 @@ impl Indent {
                     String::new()
                 }
             }
-            Indent::Tabs => "\t".repeat(depth),
         }
     }
 
     pub fn get_spaces(&self) -> usize {
         match self {
             Indent::Spaces(count) => *count,
-            Indent::Tabs => 0,
         }
     }
 }
@@ -45,16 +46,18 @@ impl Indent {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EncodeOptions {
     pub delimiter: Delimiter,
-    pub length_marker: Option<char>,
     pub indent: Indent,
+    pub key_folding: KeyFoldingMode,
+    pub flatten_depth: usize,
 }
 
 impl Default for EncodeOptions {
     fn default() -> Self {
         Self {
             delimiter: Delimiter::Comma,
-            length_marker: None,
             indent: Indent::default(),
+            key_folding: KeyFoldingMode::Off,
+            flatten_depth: usize::MAX,
         }
     }
 }
@@ -71,25 +74,10 @@ impl EncodeOptions {
         self
     }
 
-    /// Set a character prefix for array length markers (e.g., `#` for `[#3]`).
-    pub fn with_length_marker(mut self, marker: char) -> Self {
-        self.length_marker = Some(marker);
-        self
-    }
-
     /// Set the indentation string for nested structures.
     pub fn with_indent(mut self, style: Indent) -> Self {
         self.indent = style;
         self
-    }
-
-    /// Format an array length with optional marker prefix.
-    pub fn format_length(&self, length: usize) -> String {
-        if let Some(marker) = self.length_marker {
-            format!("{marker}{length}")
-        } else {
-            length.to_string()
-        }
     }
 
     /// Set indentation to a specific number of spaces.
@@ -98,9 +86,25 @@ impl EncodeOptions {
         self
     }
 
-    /// Set indentation to tabs.
-    pub fn with_tabs(mut self) -> Self {
-        self.indent = Indent::Tabs;
+    /// Enable key folding (v1.5 feature).
+    ///
+    /// When set to `Safe`, single-key object chains will be folded into
+    /// dotted-path notation if all safety requirements are met.
+    ///
+    /// Default: `Off`
+    pub fn with_key_folding(mut self, mode: KeyFoldingMode) -> Self {
+        self.key_folding = mode;
+        self
+    }
+
+    /// Set maximum depth for key folding.
+    ///
+    /// Controls how many segments will be folded. A value of 2 folds
+    /// only two-segment chains: `{a: {b: val}}` → `a.b: val`.
+    ///
+    /// Default: `usize::MAX` (fold entire eligible chains)
+    pub fn with_flatten_depth(mut self, depth: usize) -> Self {
+        self.flatten_depth = depth;
         self
     }
 }
@@ -112,6 +116,7 @@ pub struct DecodeOptions {
     pub strict: bool,
     pub coerce_types: bool,
     pub indent: Indent,
+    pub expand_paths: PathExpansionMode,
 }
 
 impl Default for DecodeOptions {
@@ -121,6 +126,7 @@ impl Default for DecodeOptions {
             strict: true,
             coerce_types: true,
             indent: Indent::default(),
+            expand_paths: PathExpansionMode::Off,
         }
     }
 }
@@ -154,27 +160,31 @@ impl DecodeOptions {
         self.indent = style;
         self
     }
+
+    /// Enable path expansion (v1.5 feature).
+    ///
+    /// When set to `Safe`, dotted keys will be expanded into nested objects
+    /// if all segments are IdentifierSegments.
+    ///
+    /// Conflict handling:
+    /// - `strict=true`: Errors on conflicts
+    /// - `strict=false`: Last-write-wins
+    ///
+    /// Default: `Off`
+    pub fn with_expand_paths(mut self, mode: PathExpansionMode) -> Self {
+        self.expand_paths = mode;
+        self
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    #[test]
-    fn test_encode_options_length_marker() {
-        let opts = EncodeOptions::new().with_length_marker('#');
-        assert_eq!(opts.format_length(5), "#5");
-
-        let opts = EncodeOptions::new();
-        assert_eq!(opts.format_length(5), "5");
-    }
 
     #[test]
     fn test_encode_options_indent() {
         let opts = EncodeOptions::new().with_spaces(4);
         assert_eq!(opts.indent, Indent::Spaces(4));
-
-        let opts = EncodeOptions::new().with_tabs();
-        assert_eq!(opts.indent, Indent::Tabs);
 
         let opts = EncodeOptions::new().with_indent(Indent::Spaces(2));
         assert_eq!(opts.indent, Indent::Spaces(2));

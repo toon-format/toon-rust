@@ -22,33 +22,74 @@ pub fn escape_string(s: &str) -> String {
 }
 
 /// Unescape special characters in a quoted string.
-pub fn unescape_string(s: &str) -> String {
+///
+/// Per TOON spec §7.1, only these escape sequences are valid:
+/// - `\\` → `\`
+/// - `\"` → `"`
+/// - `\n` → newline
+/// - `\r` → carriage return
+/// - `\t` → tab
+///
+/// Any other escape sequence MUST cause an error.
+///
+/// # Errors
+///
+/// Returns an error if the string contains an invalid escape sequence
+/// or if a backslash appears at the end of the string.
+pub fn unescape_string(s: &str) -> Result<String, String> {
     let mut result = String::with_capacity(s.len());
-    let mut chars = s.chars();
+    let mut chars = s.chars().peekable();
+    let mut position = 0;
 
     while let Some(ch) = chars.next() {
+        position += 1;
+
         if ch == '\\' {
-            if let Some(next) = chars.next() {
+            if let Some(&next) = chars.peek() {
                 match next {
-                    'n' => result.push('\n'),
-                    'r' => result.push('\r'),
-                    't' => result.push('\t'),
-                    '"' => result.push('"'),
-                    '\\' => result.push('\\'),
-                    _ => {
+                    'n' => {
+                        result.push('\n');
+                        chars.next(); // consume the 'n'
+                        position += 1;
+                    }
+                    'r' => {
+                        result.push('\r');
+                        chars.next();
+                        position += 1;
+                    }
+                    't' => {
+                        result.push('\t');
+                        chars.next();
+                        position += 1;
+                    }
+                    '"' => {
+                        result.push('"');
+                        chars.next();
+                        position += 1;
+                    }
+                    '\\' => {
                         result.push('\\');
-                        result.push(next);
+                        chars.next();
+                        position += 1;
+                    }
+                    _ => {
+                        return Err(format!(
+                            "Invalid escape sequence '\\{next}' at position {position}. Only \
+                             \\\\, \\\", \\n, \\r, \\t are valid",
+                        ));
                     }
                 }
             } else {
-                result.push('\\');
+                return Err(format!(
+                    "Unterminated escape sequence at end of string (position {position})",
+                ));
             }
         } else {
             result.push(ch);
         }
     }
 
-    result
+    Ok(result)
 }
 
 /// Check if a key can be written without quotes (alphanumeric, underscore,
@@ -159,10 +200,34 @@ mod tests {
 
     #[test]
     fn test_unescape_string() {
-        assert_eq!(unescape_string("hello"), "hello");
-        assert_eq!(unescape_string("hello\\nworld"), "hello\nworld");
-        assert_eq!(unescape_string("say \\\"hi\\\""), "say \"hi\"");
-        assert_eq!(unescape_string("back\\\\slash"), "back\\slash");
+        // Valid escapes
+        assert_eq!(unescape_string("hello").unwrap(), "hello");
+        assert_eq!(unescape_string("hello\\nworld").unwrap(), "hello\nworld");
+        assert_eq!(unescape_string("say \\\"hi\\\"").unwrap(), "say \"hi\"");
+        assert_eq!(unescape_string("back\\\\slash").unwrap(), "back\\slash");
+        assert_eq!(unescape_string("tab\\there").unwrap(), "tab\there");
+        assert_eq!(unescape_string("return\\rhere").unwrap(), "return\rhere");
+    }
+
+    #[test]
+    fn test_unescape_string_invalid_escapes() {
+        // Invalid escape sequences should error
+        assert!(unescape_string("bad\\xescape").is_err());
+        assert!(unescape_string("bad\\uescape").is_err());
+        assert!(unescape_string("bad\\0escape").is_err());
+        assert!(unescape_string("bad\\aescape").is_err());
+
+        // Unterminated escape at end
+        assert!(unescape_string("ends\\").is_err());
+    }
+
+    #[test]
+    fn test_unescape_string_error_messages() {
+        let result = unescape_string("bad\\x");
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.contains("Invalid escape sequence"));
+        assert!(err.contains("\\x"));
     }
 
     #[test]

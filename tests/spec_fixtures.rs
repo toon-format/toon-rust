@@ -4,10 +4,14 @@ use serde_json::Value;
 use toon_format::{
     decode,
     encode,
-    DecodeOptions,
-    Delimiter,
-    EncodeOptions,
-    Indent,
+    types::{
+        DecodeOptions,
+        Delimiter,
+        EncodeOptions,
+        Indent,
+        KeyFoldingMode,
+        PathExpansionMode,
+    },
 };
 
 #[derive(Deserialize, Debug)]
@@ -31,11 +35,13 @@ struct TestCase {
 struct TestOptions {
     // Decode options
     strict: Option<bool>,
+    expand_paths: Option<String>,
 
     // Encode options
     delimiter: Option<String>,
     indent: Option<usize>,
-    length_marker: Option<String>,
+    key_folding: Option<String>,
+    flatten_depth: Option<usize>,
 }
 
 fn test_decode_fixtures(path: &Utf8Path, contents: String) -> datatest_stable::Result<()> {
@@ -53,6 +59,14 @@ fn test_decode_fixtures(path: &Utf8Path, contents: String) -> datatest_stable::R
         }
         if let Some(indent) = test.options.indent {
             opts = opts.with_indent(Indent::Spaces(indent));
+        }
+        if let Some(expand_paths_str) = &test.options.expand_paths {
+            let mode = match expand_paths_str.as_str() {
+                "safe" => PathExpansionMode::Safe,
+                "off" => PathExpansionMode::Off,
+                _ => return Err(format!("Invalid expandPaths value: {expand_paths_str}").into()),
+            };
+            opts = opts.with_expand_paths(mode);
         }
 
         let toon_input = test
@@ -103,11 +117,6 @@ fn test_encode_fixtures(path: &Utf8Path, contents: String) -> datatest_stable::R
         if let Some(indent) = test.options.indent {
             opts = opts.with_indent(Indent::Spaces(indent));
         }
-        if let Some(marker) = &test.options.length_marker {
-            if let Some(c) = marker.chars().next() {
-                opts = opts.with_length_marker(c);
-            }
-        }
         if let Some(delim_str) = &test.options.delimiter {
             let delim = match delim_str.as_str() {
                 "," => Delimiter::Comma,
@@ -116,6 +125,17 @@ fn test_encode_fixtures(path: &Utf8Path, contents: String) -> datatest_stable::R
                 _ => return Err(format!("Invalid delimiter in fixture: {delim_str}").into()),
             };
             opts = opts.with_delimiter(delim);
+        }
+        if let Some(key_folding_str) = &test.options.key_folding {
+            let mode = match key_folding_str.as_str() {
+                "safe" => KeyFoldingMode::Safe,
+                "off" => KeyFoldingMode::Off,
+                _ => return Err(format!("Invalid keyFolding value: {key_folding_str}").into()),
+            };
+            opts = opts.with_key_folding(mode);
+        }
+        if let Some(flatten_depth) = test.options.flatten_depth {
+            opts = opts.with_flatten_depth(flatten_depth);
         }
 
         let result = encode(&test.input, &opts);

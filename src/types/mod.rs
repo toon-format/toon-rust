@@ -1,5 +1,6 @@
 mod delimeter;
 mod errors;
+mod folding;
 mod options;
 mod value;
 
@@ -8,6 +9,11 @@ pub use errors::{
     ErrorContext,
     ToonError,
     ToonResult,
+};
+pub use folding::{
+    is_identifier_segment,
+    KeyFoldingMode,
+    PathExpansionMode,
 };
 pub use options::{
     DecodeOptions,

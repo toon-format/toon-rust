@@ -182,23 +182,31 @@ fn write_object(
             writer.write_newline()?;
         }
 
-        if depth > 0 {
-            writer.write_indent(depth)?;
-        }
-
         let value = &obj[*key];
 
         match value {
             Value::Array(arr) => {
-                write_array(writer, Some(key), arr, depth)?;
+                if depth > 0 {
+                    writer.write_indent(depth)?;
+                }
+                // Pass depth=0 since indent is already written; array header handles key
+                write_array(writer, Some(key), arr, 0)?;
             }
             Value::Object(nested_obj) => {
+                if depth > 0 {
+                    writer.write_indent(depth)?;
+                }
                 writer.write_key(key)?;
                 writer.write_char(':')?;
-                writer.write_newline()?;
-                write_object(writer, nested_obj, depth + 1)?;
+                if !nested_obj.is_empty() {
+                    writer.write_newline()?;
+                    write_object(writer, nested_obj, depth + 1)?;
+                }
             }
             _ => {
+                if depth > 0 {
+                    writer.write_indent(depth)?;
+                }
                 writer.write_key(key)?;
                 writer.write_char(':')?;
                 writer.write_char(' ')?;
@@ -223,7 +231,7 @@ fn write_array(
         return Ok(());
     }
 
-    // Choose encoding format: tabular > primitive inline > nested list
+    // Select format based on array content: tabular (uniform objects) > inline primitives > nested list
     if let Some(keys) = is_tabular_array(arr) {
         encode_tabular_array(writer, key, arr, &keys, depth)?;
     } else if is_primitive_array(arr) {
@@ -250,20 +258,26 @@ fn is_tabular_array(arr: &[Value]) -> Option<Vec<String>> {
     let first_obj = first.as_object()?;
     let keys: Vec<String> = first_obj.keys().cloned().collect();
 
-    // All values must be primitives for tabular format
+    // First object must have only primitive values
     for value in first_obj.values() {
         if !is_primitive(value) {
             return None;
         }
     }
 
-    // All objects must have the same keys and primitive values
+    // All remaining objects must match: same keys and all primitive values
     for val in arr.iter().skip(1) {
         if let Some(obj) = val.as_object() {
-            let obj_keys: Vec<String> = obj.keys().cloned().collect();
-            if keys != obj_keys {
+            if obj.len() != keys.len() {
                 return None;
             }
+            // Verify all keys from first object exist (order doesn't matter)
+            for key in &keys {
+                if !obj.contains_key(key) {
+                    return None;
+                }
+            }
+            // All values must be primitives
             for value in obj.values() {
                 if !is_primitive(value) {
                     return None;
@@ -298,6 +312,7 @@ fn encode_primitive_array(
 ) -> ToonResult<()> {
     writer.write_array_header(key, arr.len(), None, depth)?;
     writer.write_char(' ')?;
+    // Set delimiter context for array values (affects quoting decisions)
     writer.push_active_delimiter(writer.options.delimiter);
 
     for (i, val) in arr.iter().enumerate() {
@@ -319,7 +334,19 @@ fn write_primitive_value(
     match value {
         Value::Null => writer.write_str("null"),
         Value::Bool(b) => writer.write_str(&b.to_string()),
-        Value::Number(n) => writer.write_str(&n.to_string()),
+        Value::Number(n) => {
+            // Normalize floats that are actually integers for cleaner output
+            let num_str = if let Some(f) = n.as_f64() {
+                if f.is_finite() && f.fract() == 0.0 && f.abs() <= i64::MAX as f64 {
+                    format!("{}", f as i64)
+                } else {
+                    format!("{f}")
+                }
+            } else {
+                n.to_string()
+            };
+            writer.write_str(&num_str)
+        }
         Value::String(s) => {
             if writer.needs_quoting(s, context) {
                 writer.write_quoted_string(s)
@@ -345,6 +372,7 @@ fn encode_tabular_array(
 
     writer.push_active_delimiter(writer.options.delimiter);
 
+    // Write each row with values separated by delimiters
     for (row_index, obj_val) in arr.iter().enumerate() {
         if let Some(obj) = obj_val.as_object() {
             writer.write_indent(depth + 1)?;
@@ -354,6 +382,7 @@ fn encode_tabular_array(
                     writer.write_delimiter()?;
                 }
 
+                // Missing fields become null
                 if let Some(val) = obj.get(key) {
                     write_primitive_value(writer, val, QuotingContext::ArrayValue)?;
                 } else {
@@ -390,43 +419,56 @@ fn encode_nested_array(
                 write_array(writer, None, inner_arr, depth + 1)?;
             }
             Value::Object(obj) => {
+                // Objects in list items: first field on same line as "- ", rest indented
                 let keys: Vec<&String> = obj.keys().collect();
                 if let Some(first_key) = keys.first() {
                     let first_val = &obj[*first_key];
 
-                    writer.write_key(first_key)?;
-                    writer.write_char(':')?;
-                    writer.write_char(' ')?;
                     match first_val {
                         Value::Array(arr) => {
+                            // First field with array: key on "- " line, array follows
+                            writer.write_key(first_key)?;
                             write_array(writer, None, arr, depth + 1)?;
                         }
                         Value::Object(nested_obj) => {
-                            writer.write_newline()?;
-                            write_object(writer, nested_obj, depth + 2)?;
+                            writer.write_key(first_key)?;
+                            writer.write_char(':')?;
+                            if !nested_obj.is_empty() {
+                                writer.write_newline()?;
+                                write_object(writer, nested_obj, depth + 2)?;
+                            }
                         }
                         _ => {
+                            writer.write_key(first_key)?;
+                            writer.write_char(':')?;
+                            writer.write_char(' ')?;
                             write_primitive_value(writer, first_val, QuotingContext::ObjectValue)?;
                         }
                     }
 
+                    // Remaining fields on separate lines with proper indentation
                     for key in keys.iter().skip(1) {
                         writer.write_newline()?;
-                        writer.write_indent(depth + 1)?;
-                        writer.write_key(key)?;
-                        writer.write_char(':')?;
-                        writer.write_char(' ')?;
+                        writer.write_indent(depth + 2)?;
 
                         let value = &obj[*key];
                         match value {
                             Value::Array(arr) => {
+                                writer.write_key(key)?;
                                 write_array(writer, None, arr, depth + 2)?;
                             }
                             Value::Object(nested_obj) => {
-                                writer.write_newline()?;
-                                write_object(writer, nested_obj, depth + 3)?;
+                                writer.write_key(key)?;
+                                writer.write_char(':')?;
+                                if !nested_obj.is_empty() {
+                                    writer.write_newline()?;
+                                    write_object(writer, nested_obj, depth + 3)?;
+                                }
                             }
                             _ => {
+                                writer.write_key(key)?;
+                                writer.write_char(':')?;
+                                writer.write_char(' ')?;
                                 write_primitive_value(writer, value, QuotingContext::ObjectValue)?;
                             }
                         }

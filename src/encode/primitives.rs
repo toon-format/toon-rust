@@ -12,6 +12,7 @@ pub fn all_primitives(values: &[serde_json::Value]) -> bool {
     values.iter().all(is_primitive)
 }
 
+/// Recursively normalize JSON values.
 pub fn normalize_value(value: serde_json::Value) -> serde_json::Value {
     match value {
         serde_json::Value::Null => serde_json::Value::Null,

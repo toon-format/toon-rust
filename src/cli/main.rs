@@ -23,10 +23,14 @@ use tiktoken_rs::cl100k_base;
 use toon_format::{
     decode,
     encode,
-    DecodeOptions,
-    Delimiter,
-    EncodeOptions,
-    Indent,
+    types::{
+        DecodeOptions,
+        Delimiter,
+        EncodeOptions,
+        Indent,
+        KeyFoldingMode,
+        PathExpansionMode,
+    },
 };
 
 #[derive(Parser, Debug)]
@@ -42,7 +46,11 @@ EXAMPLES:
   toon input.toon --json-indent 2
   cat data.json | toon -e --stats
   toon input.json --delimiter pipe
-  toon input.toon -d --no-coerce",
+  toon input.toon -d --no-coerce
+  
+  toon input.json --fold-keys              # Collapse {a:{b:1}} to a.b: 1
+  toon input.json --fold-keys --flatten-depth 2
+  toon input.toon --expand-paths           # Expand a.b:1 to {\"a\":{\"b\":1}}",
     disable_help_subcommand = true
 )]
 struct Cli {
@@ -74,6 +82,21 @@ struct Cli {
 
     #[arg(long, help = "Indent output JSON with N spaces")]
     json_indent: Option<usize>,
+
+    #[arg(
+        long,
+        help = "Enable key folding (encode): collapse {a:{b:1}} → a.b: 1"
+    )]
+    fold_keys: bool,
+
+    #[arg(long, help = "Max depth for key folding (default: unlimited)")]
+    flatten_depth: Option<usize>,
+
+    #[arg(
+        long,
+        help = "Enable path expansion (decode): expand a.b:1 → {\"a\":{\"b\":1}}"
+    )]
+    expand_paths: bool,
 }
 
 #[derive(Debug, PartialEq)]
@@ -146,6 +169,13 @@ fn run_encode(cli: &Cli, input: &str) -> Result<()> {
         opts = opts.with_indent(Indent::Spaces(i));
     }
 
+    if cli.fold_keys {
+        opts = opts.with_key_folding(KeyFoldingMode::Safe);
+        if let Some(depth) = cli.flatten_depth {
+            opts = opts.with_flatten_depth(depth);
+        }
+    }
+
     let toon_str = encode(&json_value, &opts).context("Failed to encode to TOON")?;
 
     write_output(cli.output.clone(), &toon_str)?;
@@ -200,6 +230,10 @@ fn run_decode(cli: &Cli, input: &str) -> Result<()> {
     }
     if cli.no_coerce {
         opts = opts.with_coerce_types(false);
+    }
+
+    if cli.expand_paths {
+        opts = opts.with_expand_paths(PathExpansionMode::Safe);
     }
 
     let json_value = decode(input, &opts).context("Failed to decode TOON")?;
@@ -280,6 +314,9 @@ fn validate_flags(cli: &Cli, operation: &Operation) -> Result<()> {
             if cli.json_indent.is_some() {
                 bail!("--json-indent is only valid for decode mode");
             }
+            if cli.expand_paths {
+                bail!("--expand-paths is only valid for decode mode");
+            }
         }
         Operation::Decode => {
             if cli.delimiter.is_some() {
@@ -291,8 +328,20 @@ fn validate_flags(cli: &Cli, operation: &Operation) -> Result<()> {
             if cli.indent.is_some() {
                 bail!("--indent is only valid for encode mode");
             }
+            if cli.fold_keys {
+                bail!("--fold-keys is only valid for encode mode");
+            }
+            if cli.flatten_depth.is_some() {
+                bail!("--flatten-depth is only valid for encode mode (use with --fold-keys)");
+            }
         }
     }
+
+    // Additional validation: flatten-depth requires fold-keys
+    if cli.flatten_depth.is_some() && !cli.fold_keys {
+        bail!("--flatten-depth requires --fold-keys to be enabled");
+    }
+
     Ok(())
 }
 

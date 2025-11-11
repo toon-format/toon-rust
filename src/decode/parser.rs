@@ -8,6 +8,7 @@ use crate::{
     constants::{
         KEYWORDS,
         MAX_DEPTH,
+        QUOTED_KEY_MARKER,
     },
     decode::{
         scanner::{
@@ -232,7 +233,15 @@ impl<'a> Parser<'a> {
             }
 
             let key = match &self.current_token {
-                Token::String(s, _) => s.clone(),
+                Token::String(s, was_quoted) => {
+                    // Mark quoted keys containing dots with a special prefix
+                    // so path expansion can skip them
+                    if *was_quoted && s.contains('.') {
+                        format!("{QUOTED_KEY_MARKER}{s}")
+                    } else {
+                        s.clone()
+                    }
+                }
                 _ => {
                     return Err(self
                         .parse_error_with_context(format!(
@@ -353,7 +362,15 @@ impl<'a> Parser<'a> {
             }
 
             let key = match &self.current_token {
-                Token::String(s, _) => s.clone(),
+                Token::String(s, was_quoted) => {
+                    // Mark quoted keys containing dots with a special prefix
+                    // so path expansion can skip them
+                    if *was_quoted && s.contains('.') {
+                        format!("{QUOTED_KEY_MARKER}{s}")
+                    } else {
+                        s.clone()
+                    }
+                }
                 _ => break,
             };
             self.advance()?;
@@ -416,72 +433,25 @@ impl<'a> Parser<'a> {
         }
         self.advance()?;
 
-        // Parse array length and optional embedded delimiter
-        // Supports formats like: [3], [#3], [3|], ["#3,"], etc.
-        let (length, embedded_delim) = if let Token::String(s, _) = &self.current_token {
-            if let Some(stripped) = s.strip_prefix('#') {
-                // Format: "#3|" or "#3," - length with embedded delimiter
-                let len_str = stripped
-                    .chars()
-                    .take_while(|c| c.is_ascii_digit())
-                    .collect::<String>();
-
-                if len_str.is_empty() {
-                    return Err(self.parse_error_with_context(format!(
-                        "Expected array length after #, found: {stripped}",
-                    )));
-                }
-
-                let length = len_str.parse::<usize>().map_err(|_| {
-                    self.parse_error_with_context(format!(
-                        "Expected array length after #, found: {len_str}",
-                    ))
-                })?;
-
-                let remainder = &stripped[len_str.len()..];
-                let embedded_delim = if remainder == "|" {
-                    Some(Delimiter::Pipe)
-                } else if remainder == "\t" {
-                    Some(Delimiter::Tab)
-                } else if remainder == "," {
-                    Some(Delimiter::Comma)
-                } else if remainder.is_empty() {
-                    None
-                } else {
-                    return Err(self.parse_error_with_context(format!(
-                        "Unexpected characters after length: {remainder}",
-                    )));
-                };
-
-                self.advance()?;
-                (length, embedded_delim)
-            } else if s == "#" {
-                // Format: "# 3" - separate # token followed by integer
-                self.advance()?;
-                match &self.current_token {
-                    Token::Integer(n) => {
-                        let val = *n as usize;
-                        self.advance()?;
-                        (val, None)
-                    }
-                    _ => {
-                        return Err(self.parse_error_with_context(format!(
-                            "Expected array length after #, found {:?}",
-                            self.current_token
-                        )))
-                    }
-                }
-            } else {
-                // Plain string that's a number: "3"
-                let val = s.parse::<usize>().map_err(|_| {
-                    self.parse_error_with_context(format!("Expected array length, found: {s}",))
-                })?;
-                (val, None)
+        // Parse array length (plain integer only per TOON spec v2.0)
+        // Supports formats: [N], [N|], [N\t] (no # marker)
+        let length = if let Token::Integer(n) = &self.current_token {
+            *n as usize
+        } else if let Token::String(s, _) = &self.current_token {
+            // Check if string starts with # - this is now invalid per spec v2.0
+            if s.starts_with('#') {
+                return Err(self
+                    .parse_error_with_context(
+                        "Length marker '#' is no longer supported in TOON spec v2.0. Use [N] \
+                         format instead of [#N]",
+                    )
+                    .with_suggestion("Remove the '#' prefix from the array length"));
             }
-        } else if let Token::Integer(n) = &self.current_token {
-            let val = *n as usize;
-            self.advance()?;
-            (val, None)
+
+            // Plain string that's a number: "3"
+            s.parse::<usize>().map_err(|_| {
+                self.parse_error_with_context(format!("Expected array length, found: {s}"))
+            })?
         } else {
             return Err(self.parse_error_with_context(format!(
                 "Expected array length, found {:?}",
@@ -489,30 +459,28 @@ impl<'a> Parser<'a> {
             )));
         };
 
-        // Delimiter can be embedded in the length string or appear as a separate token
-        let detected_delim = if let Some(delim) = embedded_delim {
-            Some(delim)
-        } else {
-            match &self.current_token {
-                Token::Delimiter(d) => {
-                    let delim = *d;
-                    self.advance()?;
-                    Some(delim)
-                }
-                Token::String(s, _) if s == "," => {
-                    self.advance()?;
-                    Some(Delimiter::Comma)
-                }
-                Token::String(s, _) if s == "|" => {
-                    self.advance()?;
-                    Some(Delimiter::Pipe)
-                }
-                Token::String(s, _) if s == "\t" => {
-                    self.advance()?;
-                    Some(Delimiter::Tab)
-                }
-                _ => None,
+        self.advance()?;
+
+        // Check for optional delimiter after length
+        let detected_delim = match &self.current_token {
+            Token::Delimiter(d) => {
+                let delim = *d;
+                self.advance()?;
+                Some(delim)
             }
+            Token::String(s, _) if s == "," => {
+                self.advance()?;
+                Some(Delimiter::Comma)
+            }
+            Token::String(s, _) if s == "|" => {
+                self.advance()?;
+                Some(Delimiter::Pipe)
+            }
+            Token::String(s, _) if s == "\t" => {
+                self.advance()?;
+                Some(Delimiter::Tab)
+            }
+            _ => None,
         };
 
         // Default to comma if no delimiter specified

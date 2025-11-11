@@ -90,11 +90,10 @@ let data = json!({"tags": ["a", "b"]});
 
 let encode_opts = EncodeOptions::new()
     .with_delimiter(Delimiter::Pipe) // Use '|' as delimiter
-    .with_indent(Indent::Spaces(4))  // Use 4 spaces
-    .with_length_marker('#');        // Add '#' to [N]
+    .with_indent(Indent::Spaces(4)); // Use 4 spaces
 
 let toon_string = encode(&data, &encode_opts)?;
-// tags[#2|]: a|b
+// tags[2|]: a|b
 
 // --- Decode with options ---
 let toon_input = "items[3]: a,b"; // Mismatched length

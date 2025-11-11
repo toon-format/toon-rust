@@ -1,4 +1,5 @@
 //! Decoder Implementation
+pub mod expansion;
 pub mod parser;
 pub mod scanner;
 pub mod validation;
@@ -30,7 +31,18 @@ use crate::types::{
 /// ```
 pub fn decode(input: &str, options: &DecodeOptions) -> ToonResult<Value> {
     let mut parser = parser::Parser::new(input, options.clone())?;
-    parser.parse()
+    let value = parser.parse()?;
+
+    // Apply path expansion if enabled (v1.5 feature)
+    use crate::types::PathExpansionMode;
+    if options.expand_paths != PathExpansionMode::Off {
+        let json_value = crate::types::JsonValue::from(value);
+        let expanded =
+            expansion::expand_paths_recursive(json_value, options.expand_paths, options.strict)?;
+        Ok(Value::from(expanded))
+    } else {
+        Ok(value)
+    }
 }
 
 /// Decode with strict validation enabled (validates array lengths,

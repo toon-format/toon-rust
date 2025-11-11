@@ -132,17 +132,6 @@ mod tests {
     }
 
     #[test]
-    fn test_length_marker() {
-        let original = json!({"tags": ["a", "b", "c"]});
-        let opts = EncodeOptions::new().with_length_marker('#');
-        let encoded = encode(&original, &opts).unwrap();
-        assert!(encoded.contains("[#3]"));
-
-        let decoded = decode_default(&encoded).unwrap();
-        assert_eq!(original, decoded);
-    }
-
-    #[test]
     fn test_decode_strict_helper() {
         let input = "items[2]: a,b";
         assert!(decode_strict(input).is_ok());

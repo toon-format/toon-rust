@@ -1,4 +1,5 @@
 //! Encoder Implementation
+pub mod folding;
 pub mod primitives;
 pub mod writer;
 use indexmap::IndexMap;
@@ -9,10 +10,12 @@ use crate::{
         EncodeOptions,
         IntoJsonValue,
         JsonValue as Value,
+        KeyFoldingMode,
         ToonError,
         ToonResult,
     },
     utils::{
+        format_canonical_number,
         normalize,
         validation::validate_depth,
         QuotingContext,
@@ -173,6 +176,15 @@ fn write_object(
     obj: &IndexMap<String, Value>,
     depth: usize,
 ) -> ToonResult<()> {
+    write_object_impl(writer, obj, depth, false)
+}
+
+fn write_object_impl(
+    writer: &mut writer::Writer,
+    obj: &IndexMap<String, Value>,
+    depth: usize,
+    disable_folding: bool,
+) -> ToonResult<()> {
     validate_depth(depth, MAX_DEPTH)?;
 
     let keys: Vec<&String> = obj.keys().collect();
@@ -184,33 +196,86 @@ fn write_object(
 
         let value = &obj[*key];
 
-        match value {
-            Value::Array(arr) => {
-                if depth > 0 {
-                    writer.write_indent(depth)?;
-                }
-                // Pass depth=0 since indent is already written; array header handles key
-                write_array(writer, Some(key), arr, 0)?;
+        // Check if this key-value pair can be folded (v1.5 feature)
+        // Don't fold if any sibling key is a dotted path starting with this key
+        // (e.g., don't fold inside "data" if "data.meta.items" exists as a sibling)
+        let has_conflicting_sibling = keys
+            .iter()
+            .any(|k| k.starts_with(&format!("{key}.")) || (k.contains('.') && k == key));
+
+        let folded = if !disable_folding
+            && writer.options.key_folding == KeyFoldingMode::Safe
+            && !has_conflicting_sibling
+        {
+            folding::analyze_foldable_chain(key, value, writer.options.flatten_depth, &keys)
+        } else {
+            None
+        };
+
+        if let Some(chain) = folded {
+            // Write folded key-value pair
+            if depth > 0 {
+                writer.write_indent(depth)?;
             }
-            Value::Object(nested_obj) => {
-                if depth > 0 {
-                    writer.write_indent(depth)?;
+
+            // Write the leaf value
+            match &chain.leaf_value {
+                Value::Array(arr) => {
+                    // For arrays, pass the folded key to write_array so it generates the header
+                    // correctly
+                    write_array(writer, Some(&chain.folded_key), arr, 0)?;
                 }
-                writer.write_key(key)?;
-                writer.write_char(':')?;
-                if !nested_obj.is_empty() {
-                    writer.write_newline()?;
-                    write_object(writer, nested_obj, depth + 1)?;
+                Value::Object(nested_obj) => {
+                    // Write the folded key (e.g., "a.b.c")
+                    writer.write_key(&chain.folded_key)?;
+                    writer.write_char(':')?;
+                    if !nested_obj.is_empty() {
+                        writer.write_newline()?;
+                        // After folding a chain, disable folding for the leaf object
+                        // This respects flattenDepth and prevents over-folding
+                        write_object_impl(writer, nested_obj, depth + 1, true)?;
+                    }
+                }
+                _ => {
+                    // Write the folded key (e.g., "a.b.c")
+                    writer.write_key(&chain.folded_key)?;
+                    writer.write_char(':')?;
+                    writer.write_char(' ')?;
+                    write_primitive_value(writer, &chain.leaf_value, QuotingContext::ObjectValue)?;
                 }
             }
-            _ => {
-                if depth > 0 {
-                    writer.write_indent(depth)?;
+        } else {
+            // Standard (non-folded) encoding
+            match value {
+                Value::Array(arr) => {
+                    if depth > 0 {
+                        writer.write_indent(depth)?;
+                    }
+                    write_array(writer, Some(key), arr, 0)?;
                 }
-                writer.write_key(key)?;
-                writer.write_char(':')?;
-                writer.write_char(' ')?;
-                write_primitive_value(writer, value, QuotingContext::ObjectValue)?;
+                Value::Object(nested_obj) => {
+                    if depth > 0 {
+                        writer.write_indent(depth)?;
+                    }
+                    writer.write_key(key)?;
+                    writer.write_char(':')?;
+                    if !nested_obj.is_empty() {
+                        writer.write_newline()?;
+                        // If this key has a conflicting sibling, disable folding for its nested
+                        // objects
+                        let nested_disable_folding = disable_folding || has_conflicting_sibling;
+                        write_object_impl(writer, nested_obj, depth + 1, nested_disable_folding)?;
+                    }
+                }
+                _ => {
+                    if depth > 0 {
+                        writer.write_indent(depth)?;
+                    }
+                    writer.write_key(key)?;
+                    writer.write_char(':')?;
+                    writer.write_char(' ')?;
+                    write_primitive_value(writer, value, QuotingContext::ObjectValue)?;
+                }
             }
         }
     }
@@ -336,16 +401,8 @@ fn write_primitive_value(
         Value::Null => writer.write_str("null"),
         Value::Bool(b) => writer.write_str(&b.to_string()),
         Value::Number(n) => {
-            // Normalize floats that are actually integers for cleaner output
-            let num_str = if let Some(f) = n.as_f64() {
-                if f.is_finite() && f.fract() == 0.0 && f.abs() <= i64::MAX as f64 {
-                    format!("{}", f as i64)
-                } else {
-                    format!("{f}")
-                }
-            } else {
-                n.to_string()
-            };
+            // Format in canonical TOON form (no exponents, no trailing zeros)
+            let num_str = format_canonical_number(n);
             writer.write_str(&num_str)
         }
         Value::String(s) => {

@@ -1,4 +1,5 @@
 pub mod literal;
+pub mod number;
 pub mod string;
 pub mod validation;
 
@@ -9,6 +10,7 @@ pub use literal::{
     is_numeric_like,
     is_structural_char,
 };
+pub use number::format_canonical_number;
 pub use string::{
     escape_string,
     is_valid_unquoted_key,

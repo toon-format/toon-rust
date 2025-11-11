@@ -90,7 +90,7 @@ enum Operation {
 
 fn parse_indent(s: &str) -> Result<usize, String> {
     s.parse::<usize>()
-        .map_err(|_| format!("'{}' is not a valid number", s))
+        .map_err(|_| format!("'{s}' is not a valid number"))
 }
 
 fn parse_delimiter(s: &str) -> Result<Delimiter, String> {
@@ -99,8 +99,7 @@ fn parse_delimiter(s: &str) -> Result<Delimiter, String> {
         "tab" | "\t" => Ok(Delimiter::Tab),
         "pipe" | "|" => Ok(Delimiter::Pipe),
         _ => Err(format!(
-            "'{}' is not a valid delimiter. Use 'comma', 'tab', or 'pipe'",
-            s
+            "'{s}' is not a valid delimiter. Use 'comma', 'tab', or 'pipe'",
         )),
     }
 }
@@ -184,14 +183,14 @@ fn run_encode(cli: &Cli, input: &str) -> Result<()> {
             "Tokens",
             &json_tokens.to_string(),
             &toon_tokens.to_string(),
-            &format!("{:.2}%", token_savings),
+            &format!("{token_savings:.2}%"),
         ]);
 
         table.add_row(vec![
             "Size (bytes)",
             &json_bytes.to_string(),
             &toon_bytes.to_string(),
-            &format!("{:.2}%", size_savings),
+            &format!("{size_savings:.2}%"),
         ]);
 
         eprintln!("\n{table}\n");

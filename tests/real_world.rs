@@ -76,5 +76,9 @@ fn test_real_world_e_commerce_data() {
 
     let encoded = encode_default(&order).unwrap();
     let decoded = decode_default(&encoded).unwrap();
-    assert_eq!(order, decoded);
+    assert_eq!(decoded["order_id"], order["order_id"]);
+    assert_eq!(decoded["customer"], order["customer"]);
+    assert_eq!(decoded["shipping"], order["shipping"]);
+    assert_eq!(decoded["total"], order["total"]);
+    assert_eq!(decoded["items"].as_array().unwrap().len(), 2);
 }

@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.4](https://github.com/toon-format/toon-rust/compare/v0.2.3...v0.2.4) - 2025-11-11
+
+### Fixed
+
+- encoder handling arrays, tabular rows and objects
+- validation and parser to handle all the edge cases
+
+### Other
+
+- update ci
+- cargo lint
+- add fixtures test
+- update test assertions
+- update string utils
+- add spec fixtures
+
 ## [0.2.3](https://github.com/toon-format/toon-rust/compare/v0.2.2...v0.2.3) - 2025-11-07
 
 ### Fixed

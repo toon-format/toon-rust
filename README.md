@@ -4,7 +4,7 @@
 [![Documentation](https://docs.rs/toon-format/badge.svg)](https://docs.rs/toon-format)
 [![Spec v2.0](https://img.shields.io/badge/spec-v2.0-brightgreen.svg)](https://github.com/toon-format/spec/blob/main/SPEC.md)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
-[![Tests](https://img.shields.io/badge/tests-109%20passing-success.svg)]()
+[![Tests](https://img.shields.io/badge/tests-%20passing-success.svg)]()
 
 **Token-Oriented Object Notation (TOON)** is a compact, human-readable format designed for passing structured data to Large Language Models with significantly reduced token usage.
 

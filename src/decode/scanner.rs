@@ -131,9 +131,11 @@ impl Scanner {
 
     /// Scan the next token from the input.
     pub fn scan_token(&mut self) -> ToonResult<Token> {
+        // Track indentation at the start of each line (column 1)
         if self.column == 1 {
             let mut count = 0;
             let mut idx = self.position;
+
             while let Some(&ch) = self.input.get(idx) {
                 if ch == ' ' {
                     count += 1;
@@ -183,7 +185,7 @@ impl Scanner {
             }
             Some('-') => {
                 self.advance();
-                // Check if '-' is part of a negative number
+                // Dash can be a list marker or start of negative number
                 if let Some(ch) = self.peek() {
                     if ch.is_ascii_digit() {
                         let num_str = self.scan_number_string(true)?;
@@ -193,6 +195,7 @@ impl Scanner {
                 Ok(Token::Dash)
             }
             Some(',') => {
+                // Comma is a delimiter only when active, otherwise part of string
                 if matches!(self.active_delimiter, Some(Delimiter::Comma)) {
                     self.advance();
                     Ok(Token::Delimiter(Delimiter::Comma))
@@ -226,13 +229,14 @@ impl Scanner {
     }
 
     fn scan_quoted_string(&mut self) -> ToonResult<Token> {
-        self.advance();
+        self.advance(); // Skip opening quote
 
         let mut value = String::new();
         let mut escaped = false;
 
         while let Some(ch) = self.advance() {
             if escaped {
+                // Process escape sequences
                 match ch {
                     'n' => value.push('\n'),
                     'r' => value.push('\r'),
@@ -258,12 +262,14 @@ impl Scanner {
             }
         }
 
+        // Unclosed string
         Err(ToonError::UnexpectedEof)
     }
 
     fn scan_unquoted_string(&mut self) -> ToonResult<Token> {
         let mut value = String::new();
 
+        // Stop at structural characters or whitespace
         while let Some(ch) = self.peek() {
             if ch == '\n'
                 || ch == ' '
@@ -276,6 +282,7 @@ impl Scanner {
                 break;
             }
 
+            // If a delimiter is active, it stops the string; otherwise it's part of it
             if let Some(active) = self.active_delimiter {
                 if (active == Delimiter::Comma && ch == ',')
                     || (active == Delimiter::Pipe && ch == '|')
@@ -288,12 +295,14 @@ impl Scanner {
             self.advance();
         }
 
+        // Single-character delimiter strings are kept as-is, others get trailing spaces trimmed
         let value = if value.len() == 1 && (value == "," || value == "|" || value == "\t") {
             value
         } else {
             value.trim_end().to_string()
         };
 
+        // Check for keywords
         match value.as_str() {
             "null" => Ok(Token::Null),
             "true" => Ok(Token::Bool(true)),
@@ -313,6 +322,7 @@ impl Scanner {
             String::new()
         };
 
+        // Collect digits, decimal point, and scientific notation parts
         while let Some(ch) = self.peek() {
             if ch.is_ascii_digit() || ch == '.' || ch == 'e' || ch == 'E' || ch == '+' || ch == '-'
             {
@@ -327,20 +337,32 @@ impl Scanner {
     }
 
     fn parse_number(&self, s: &str) -> ToonResult<Token> {
+        // Reject leading zeros like "05" or "007", but allow "0", "0.5", "-0"
+        if s.starts_with('0') && s.len() > 1 {
+            let second_char = s.chars().nth(1).unwrap();
+            if second_char.is_ascii_digit() {
+                return Ok(Token::String(s.to_string(), false));
+            }
+        }
+
+        // Try parsing as float first (handles scientific notation)
         if s.contains('.') || s.contains('e') || s.contains('E') {
             if let Ok(f) = s.parse::<f64>() {
                 Ok(Token::Number(f))
             } else {
+                // Invalid float format - treat as string
                 Ok(Token::String(s.to_string(), false))
             }
         } else if let Ok(i) = s.parse::<i64>() {
             Ok(Token::Integer(i))
         } else {
+            // Not a valid number - treat as string
             Ok(Token::String(s.to_string(), false))
         }
     }
 
     /// Detect the delimiter used in the input by scanning ahead.
+    /// Stops at structural characters or when a delimiter is found.
     pub fn detect_delimiter(&mut self) -> Option<Delimiter> {
         let saved_pos = self.position;
 
@@ -358,6 +380,7 @@ impl Scanner {
                     self.position = saved_pos;
                     return Some(Delimiter::Tab);
                 }
+                // Stop scanning at structural characters
                 '\n' | ':' | '[' | ']' | '{' | '}' => break,
                 _ => {
                     self.advance();

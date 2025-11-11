@@ -29,7 +29,7 @@ use crate::types::{
 /// # Ok::<(), toon_format::ToonError>(())
 /// ```
 pub fn decode(input: &str, options: &DecodeOptions) -> ToonResult<Value> {
-    let mut parser = parser::Parser::new(input, options.clone());
+    let mut parser = parser::Parser::new(input, options.clone())?;
     parser.parse()
 }
 
@@ -68,7 +68,7 @@ pub fn decode_strict(input: &str) -> ToonResult<Value> {
 /// let options = DecodeOptions::new()
 ///     .with_strict(true)
 ///     .with_delimiter(toon_format::Delimiter::Pipe);
-/// let result = decode_strict_with_options("items[2]: a|b", &options)?;
+/// let result = decode_strict_with_options("items[2|]: a|b", &options)?;
 /// assert_eq!(result["items"], json!(["a", "b"]));
 /// # Ok::<(), toon_format::ToonError>(())
 /// ```

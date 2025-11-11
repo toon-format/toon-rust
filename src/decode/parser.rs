@@ -8,7 +8,7 @@ use crate::{
     constants::{
         KEYWORDS,
         MAX_DEPTH,
-    },
+    }, 
     decode::{
         scanner::{
             Scanner,
@@ -27,6 +27,7 @@ use crate::{
 };
 
 /// Parser that builds JSON values from a sequence of tokens.
+#[allow(unused)]
 pub struct Parser<'a> {
     scanner: Scanner,
     current_token: Token,
@@ -37,19 +38,19 @@ pub struct Parser<'a> {
 
 impl<'a> Parser<'a> {
     /// Create a new parser with the given input and options.
-    pub fn new(input: &'a str, options: DecodeOptions) -> Self {
+    pub fn new(input: &'a str, options: DecodeOptions) -> ToonResult<Self> {
         let mut scanner = Scanner::new(input);
         let chosen_delim = options.delimiter;
         scanner.set_active_delimiter(chosen_delim);
-        let current_token = scanner.scan_token().unwrap_or(Token::Eof);
+        let current_token = scanner.scan_token()?;
 
-        Self {
+        Ok(Self {
             scanner,
             current_token,
             delimiter: chosen_delim,
             options,
             input,
-        }
+        })
     }
 
     /// Parse the input into a JSON value.
@@ -57,7 +58,21 @@ impl<'a> Parser<'a> {
         if self.options.strict {
             self.validate_indentation(self.scanner.get_last_line_indent())?;
         }
-        self.parse_value()
+        let value = self.parse_value()?;
+
+        // In strict mode, check for trailing content at root level
+        if self.options.strict {
+            self.skip_newlines()?;
+            if !matches!(self.current_token, Token::Eof) {
+                return Err(self
+                    .parse_error_with_context(
+                        "Multiple values at root level are not allowed in strict mode",
+                    )
+                    .with_suggestion("Wrap multiple values in an object or array"));
+            }
+        }
+
+        Ok(value)
     }
 
     fn advance(&mut self) -> ToonResult<()> {
@@ -79,11 +94,12 @@ impl<'a> Parser<'a> {
     fn parse_value_with_depth(&mut self, depth: usize) -> ToonResult<Value> {
         validate_depth(depth, MAX_DEPTH)?;
 
+        let had_newline = matches!(self.current_token, Token::Newline);
         self.skip_newlines()?;
 
         match &self.current_token {
             Token::Null => {
-                // "null:" indicates "null" is a key, not a value
+                // Peek ahead to see if this is a key (followed by ':') or a value
                 let next_char_is_colon = matches!(self.scanner.peek(), Some(':'));
                 if next_char_is_colon {
                     let key = KEYWORDS[0].to_string();
@@ -131,9 +147,16 @@ impl<'a> Parser<'a> {
                 } else {
                     let val = *n;
                     self.advance()?;
-                    Ok(serde_json::Number::from_f64(val)
-                        .ok_or_else(|| ToonError::InvalidInput(format!("Invalid number: {val}")))?
-                        .into())
+                    // Normalize floats that are actually integers
+                    if val.is_finite() && val.fract() == 0.0 && val.abs() <= i64::MAX as f64 {
+                        Ok(serde_json::Number::from(val as i64).into())
+                    } else {
+                        Ok(serde_json::Number::from_f64(val)
+                            .ok_or_else(|| {
+                                ToonError::InvalidInput(format!("Invalid number: {val}"))
+                            })?
+                            .into())
+                    }
                 }
             }
             Token::String(s, _) => {
@@ -145,8 +168,20 @@ impl<'a> Parser<'a> {
                         self.parse_object_with_initial_key(first, depth)
                     }
                     _ => {
-                        // Accumulate consecutive strings with spaces (e.g., "hello" "world" ->
-                        // "hello world")
+                        // Strings on new indented lines could be missing colons (keys) or values
+                        // Only error in strict mode when we know it's a new line
+                        if self.options.strict && depth > 0 && had_newline {
+                            return Err(self
+                                .parse_error_with_context(format!(
+                                    "Expected ':' after '{first}' in object context"
+                                ))
+                                .with_suggestion(
+                                    "Add ':' after the key, or place the value on the same line \
+                                     as the parent key",
+                                ));
+                        }
+
+                        // Multiple consecutive string tokens get joined with spaces
                         let mut accumulated = first;
                         while let Token::String(next, _) = &self.current_token {
                             if !accumulated.is_empty() {
@@ -169,6 +204,7 @@ impl<'a> Parser<'a> {
         validate_depth(depth, MAX_DEPTH)?;
 
         let mut obj = Map::new();
+        // Track the indentation of the first key to ensure all keys align
         let mut base_indent: Option<usize> = None;
 
         loop {
@@ -181,14 +217,17 @@ impl<'a> Parser<'a> {
             }
 
             let current_indent = self.scanner.get_last_line_indent();
+
+            if self.options.strict {
+                self.validate_indentation(current_indent)?;
+            }
+
+            // Once we've seen the first key, all subsequent keys must match its indent
             if let Some(expected) = base_indent {
                 if current_indent != expected {
                     break;
                 }
             } else {
-                if self.options.strict {
-                    self.validate_indentation(current_indent)?;
-                }
                 base_indent = Some(current_indent);
             }
 
@@ -230,38 +269,96 @@ impl<'a> Parser<'a> {
         validate_depth(depth, MAX_DEPTH)?;
 
         let mut obj = Map::new();
+        let mut base_indent: Option<usize> = None;
 
-        let value = if matches!(self.current_token, Token::LeftBracket) {
-            self.parse_array(depth)?
+        // Validate indentation for the initial key if in strict mode
+        if self.options.strict {
+            let current_indent = self.scanner.get_last_line_indent();
+            self.validate_indentation(current_indent)?;
+        }
+
+        if matches!(self.current_token, Token::LeftBracket) {
+            let value = self.parse_array(depth)?;
+            obj.insert(key, value);
         } else {
             if !matches!(self.current_token, Token::Colon) {
-                return Err(self
-                    .parse_error_with_context(format!(
-                        "Expected ':' or '[', found {:?}",
-                        self.current_token
-                    ))
-                    .with_suggestion("Use ':' for object values or '[' for arrays"));
+                return Err(self.parse_error_with_context(format!(
+                    "Expected ':', found {:?}",
+                    self.current_token
+                )));
             }
             self.advance()?;
-            self.parse_field_value(depth)?
-        };
 
-        obj.insert(key, value);
-
-        self.skip_newlines()?;
+            let value = self.parse_field_value(depth)?;
+            obj.insert(key, value);
+        }
 
         loop {
+            // Skip newlines and check if the next line belongs to this object
+            while matches!(self.current_token, Token::Newline) {
+                self.advance()?;
+
+                if !self.options.strict {
+                    while matches!(self.current_token, Token::Newline) {
+                        self.advance()?;
+                    }
+                }
+
+                if matches!(self.current_token, Token::Newline) {
+                    continue;
+                }
+
+                let next_indent = self.scanner.get_last_line_indent();
+
+                // Check if the next line is at the right indentation level
+                let should_continue = if let Some(expected) = base_indent {
+                    next_indent == expected
+                } else {
+                    // First field: use depth-based expected indent
+                    let current_depth_indent = self.options.indent.get_spaces() * depth;
+                    next_indent == current_depth_indent
+                };
+
+                if !should_continue {
+                    break;
+                }
+            }
+
             if matches!(self.current_token, Token::Eof) {
                 break;
             }
 
-            let next_key = match &self.current_token {
+            if !matches!(self.current_token, Token::String(_, _)) {
+                break;
+            }
+
+            if matches!(self.current_token, Token::Eof) {
+                break;
+            }
+
+            let current_indent = self.scanner.get_last_line_indent();
+
+            if let Some(expected) = base_indent {
+                if current_indent != expected {
+                    break;
+                }
+            }
+
+            if self.options.strict {
+                self.validate_indentation(current_indent)?;
+            }
+
+            if base_indent.is_none() {
+                base_indent = Some(current_indent);
+            }
+
+            let key = match &self.current_token {
                 Token::String(s, _) => s.clone(),
                 _ => break,
             };
             self.advance()?;
 
-            let next_value = if matches!(self.current_token, Token::LeftBracket) {
+            let value = if matches!(self.current_token, Token::LeftBracket) {
                 self.parse_array(depth)?
             } else {
                 if !matches!(self.current_token, Token::Colon) {
@@ -271,233 +368,222 @@ impl<'a> Parser<'a> {
                 self.parse_field_value(depth)?
             };
 
-            obj.insert(next_key, next_value);
-            self.skip_newlines()?;
+            obj.insert(key, value);
         }
 
         Ok(Value::Object(obj))
     }
 
     fn parse_field_value(&mut self, depth: usize) -> ToonResult<Value> {
-        match &self.current_token {
-            Token::Newline => self.parse_indented_object(depth + 1),
-            _ => self.parse_primitive(),
-        }
-    }
-
-    fn parse_indented_object(&mut self, depth: usize) -> ToonResult<Value> {
         validate_depth(depth, MAX_DEPTH)?;
 
-        let mut obj = Map::new();
-
-        loop {
-            while matches!(self.current_token, Token::Newline) {
-                self.advance()?;
-            }
-            let current_indent = self.scanner.get_last_line_indent();
-            if self.options.strict {
-                self.validate_indentation(current_indent)?;
-            }
-
-            if self.scanner.get_last_line_indent() == 0 || matches!(self.current_token, Token::Eof)
-            {
-                break;
-            }
-
-            let key = match &self.current_token {
-                Token::String(s, _) => s.clone(),
-                _ => {
-                    return Err(self
-                        .parse_error_with_context(format!(
-                            "Expected key, found {:?}",
-                            self.current_token
-                        ))
-                        .with_suggestion("Object keys must be strings"));
-                }
-            };
-
-            self.advance()?;
-
-            let value = if matches!(self.current_token, Token::LeftBracket) {
-                self.parse_array(depth)?
+        if matches!(self.current_token, Token::Newline | Token::Eof) {
+            // After a colon on a new line, check if there are indented children
+            let has_children = if matches!(self.current_token, Token::Newline) {
+                let current_depth_indent = self.options.indent.get_spaces() * (depth + 1);
+                let next_indent = self.scanner.count_leading_spaces();
+                next_indent >= current_depth_indent
             } else {
-                if !matches!(self.current_token, Token::Colon) {
-                    return Err(self
-                        .parse_error_with_context(format!(
-                            "Expected ':' or '[', found {:?}",
-                            self.current_token
-                        ))
-                        .with_suggestion("Use ':' after object keys"));
-                }
-                self.advance()?;
-                self.parse_field_value(depth)?
+                false
             };
 
-            obj.insert(key, value);
-            while matches!(self.current_token, Token::Newline) {
-                self.advance()?;
+            if has_children {
+                self.parse_value_with_depth(depth + 1)
+            } else {
+                // Empty object when colon is followed by newline with no children
+                Ok(Value::Object(Map::new()))
             }
-        }
-
-        Ok(Value::Object(obj))
-    }
-
-    fn parse_primitive(&mut self) -> ToonResult<Value> {
-        match &self.current_token {
-            Token::String(s, is_quoted) => {
-                if *is_quoted {
-                    // Quoted string: consume one token and return
-                    let value = Value::String(s.clone());
-                    self.advance()?;
-                    Ok(value)
-                } else {
-                    // Unquoted string: check for more parts
-                    let mut accumulated = s.clone();
-                    self.advance()?;
-
-                    // Loop while the next token is also an unquoted string
-                    while let Token::String(next, false) = &self.current_token {
-                        accumulated.push(' ');
-                        accumulated.push_str(next);
-                        self.advance()?;
-                    }
-
-                    // Now coerce the *full* accumulated string
-                    if self.options.coerce_types {
-                        Ok(self.coerce_string_to_type(&accumulated))
-                    } else {
-                        Ok(Value::String(accumulated))
-                    }
-                }
-            }
-            Token::Integer(i) => {
-                let value = Value::Number((*i).into());
-                self.advance()?;
-                Ok(value)
-            }
-            Token::Number(f) => {
-                let value = Number::from_f64(*f)
-                    .map(Value::Number)
-                    .unwrap_or_else(|| Value::String(f.to_string()));
-                self.advance()?;
-                Ok(value)
-            }
-            Token::Bool(b) => {
-                let value = *b;
-                self.advance()?;
-                Ok(Value::Bool(value))
-            }
-            Token::Null => {
-                self.advance()?;
-                Ok(Value::Null)
-            }
-            _ => Err(self
-                .parse_error_with_context(format!(
-                    "Expected primitive value, found {:?}",
-                    self.current_token
-                ))
-                .with_suggestion("Expected a value (string, number, boolean, or null)")),
+        } else {
+            self.parse_value_with_depth(depth + 1)
         }
     }
 
-    fn create_error_context(&self) -> ErrorContext {
-        let line = self.scanner.get_line();
-        let column = self.scanner.get_column();
-
-        ErrorContext::from_input(self.input, line, column, 2)
-            .unwrap_or_else(|| ErrorContext::new("").with_indicator(column))
-    }
-
-    fn parse_error_with_context(&self, message: impl Into<String>) -> ToonError {
-        let context = self.create_error_context();
-        ToonError::parse_error_with_context(
-            self.scanner.get_line(),
-            self.scanner.get_column(),
-            message,
-            context,
-        )
-    }
-
-    fn coerce_string_to_type(&self, s: &str) -> Value {
-        if s == "null" {
-            return Value::Null;
-        }
-
-        if s == "true" {
-            return Value::Bool(true);
-        }
-        if s == "false" {
-            return Value::Bool(false);
-        }
-
-        let mut chars = s.chars();
-        let first = chars.next();
-        let second = chars.next();
-        if first == Some('0') && second.is_some_and(|c| c.is_ascii_digit()) {
-            return Value::String(s.to_string());
-        }
-        if first == Some('-')
-            && second == Some('0')
-            && chars.next().is_some_and(|c| c.is_ascii_digit())
-        {
-            return Value::String(s.to_string());
-        }
-
-        if let Ok(i) = s.parse::<i64>() {
-            return Value::Number(i.into());
-        }
-
-        if let Ok(f) = s.parse::<f64>() {
-            if let Some(num) = Number::from_f64(f) {
-                return Value::Number(num);
-            }
-        }
-
-        Value::String(s.to_string())
-    }
-
-    fn parse_array(&mut self, depth: usize) -> ToonResult<Value> {
+    fn parse_root_array(&mut self, depth: usize) -> ToonResult<Value> {
         validate_depth(depth, MAX_DEPTH)?;
 
         if !matches!(self.current_token, Token::LeftBracket) {
-            return Err(self
-                .parse_error_with_context("Expected '['")
-                .with_suggestion("Arrays must start with '['"));
+            return Err(self.parse_error_with_context("Expected '[' at the start of root array"));
+        }
+
+        self.parse_array(depth)
+    }
+
+    fn parse_array_header(
+        &mut self,
+    ) -> ToonResult<(usize, Option<Delimiter>, Option<Vec<String>>)> {
+        if !matches!(self.current_token, Token::LeftBracket) {
+            return Err(self.parse_error_with_context("Expected '['"));
         }
         self.advance()?;
 
-        let length = self.parse_array_length()?;
+        // Parse array length and optional embedded delimiter
+        // Supports formats like: [3], [#3], [3|], ["#3,"], etc.
+        let (length, embedded_delim) = if let Token::String(s, _) = &self.current_token {
+            if let Some(stripped) = s.strip_prefix('#') {
+                // Format: "#3|" or "#3," - length with embedded delimiter
+                let len_str = stripped
+                    .chars()
+                    .take_while(|c| c.is_ascii_digit())
+                    .collect::<String>();
 
-        self.detect_or_consume_delimiter()?;
+                if len_str.is_empty() {
+                    return Err(self.parse_error_with_context(format!(
+                        "Expected array length after #, found: {stripped}",
+                    )));
+                }
+
+                let length = len_str.parse::<usize>().map_err(|_| {
+                    self.parse_error_with_context(format!(
+                        "Expected array length after #, found: {len_str}",
+                    ))
+                })?;
+
+                let remainder = &stripped[len_str.len()..];
+                let embedded_delim = if remainder == "|" {
+                    Some(Delimiter::Pipe)
+                } else if remainder == "\t" {
+                    Some(Delimiter::Tab)
+                } else if remainder == "," {
+                    Some(Delimiter::Comma)
+                } else if remainder.is_empty() {
+                    None
+                } else {
+                    return Err(self.parse_error_with_context(format!(
+                        "Unexpected characters after length: {remainder}",
+                    )));
+                };
+
+                self.advance()?;
+                (length, embedded_delim)
+            } else if s == "#" {
+                // Format: "# 3" - separate # token followed by integer
+                self.advance()?;
+                match &self.current_token {
+                    Token::Integer(n) => {
+                        let val = *n as usize;
+                        self.advance()?;
+                        (val, None)
+                    }
+                    _ => {
+                        return Err(self.parse_error_with_context(format!(
+                            "Expected array length after #, found {:?}",
+                            self.current_token
+                        )))
+                    }
+                }
+            } else {
+                // Plain string that's a number: "3"
+                let val = s.parse::<usize>().map_err(|_| {
+                    self.parse_error_with_context(format!("Expected array length, found: {s}",))
+                })?;
+                (val, None)
+            }
+        } else if let Token::Integer(n) = &self.current_token {
+            let val = *n as usize;
+            self.advance()?;
+            (val, None)
+        } else {
+            return Err(self.parse_error_with_context(format!(
+                "Expected array length, found {:?}",
+                self.current_token
+            )));
+        };
+
+        // Delimiter can be embedded in the length string or appear as a separate token
+        let detected_delim = if let Some(delim) = embedded_delim {
+            Some(delim)
+        } else {
+            match &self.current_token {
+                Token::Delimiter(d) => {
+                    let delim = *d;
+                    self.advance()?;
+                    Some(delim)
+                }
+                Token::String(s, _) if s == "," => {
+                    self.advance()?;
+                    Some(Delimiter::Comma)
+                }
+                Token::String(s, _) if s == "|" => {
+                    self.advance()?;
+                    Some(Delimiter::Pipe)
+                }
+                Token::String(s, _) if s == "\t" => {
+                    self.advance()?;
+                    Some(Delimiter::Tab)
+                }
+                _ => None,
+            }
+        };
+
+        // Default to comma if no delimiter specified
+        let active_delim = detected_delim.or(Some(Delimiter::Comma));
+
+        self.scanner.set_active_delimiter(active_delim);
 
         if !matches!(self.current_token, Token::RightBracket) {
-            return Err(self
-                .parse_error_with_context("Expected ']'")
-                .with_suggestion("Close array length with ']'"));
+            return Err(self.parse_error_with_context(format!(
+                "Expected ']', found {:?}",
+                self.current_token
+            )));
         }
         self.advance()?;
 
-        if self.delimiter.is_none() {
-            self.delimiter = Some(Delimiter::Comma);
-        }
-        self.scanner.set_active_delimiter(self.delimiter);
-
         let fields = if matches!(self.current_token, Token::LeftBrace) {
-            Some(self.parse_field_list()?)
+            self.advance()?;
+            let mut fields = Vec::new();
+
+            loop {
+                match &self.current_token {
+                    Token::String(s, _) => {
+                        fields.push(s.clone());
+                        self.advance()?;
+
+                        if matches!(self.current_token, Token::RightBrace) {
+                            break;
+                        }
+
+                        let is_delim = match &self.current_token {
+                            Token::Delimiter(_) => true,
+                            Token::String(s, _) if s == "," || s == "|" || s == "\t" => true,
+                            _ => false,
+                        };
+                        if is_delim {
+                            self.advance()?;
+                        } else {
+                            return Err(self.parse_error_with_context(format!(
+                                "Expected delimiter or '}}', found {:?}",
+                                self.current_token
+                            )));
+                        }
+                    }
+                    Token::RightBrace => break,
+                    _ => {
+                        return Err(self.parse_error_with_context(format!(
+                            "Expected field name, found {:?}",
+                            self.current_token
+                        )))
+                    }
+                }
+            }
+
+            self.advance()?;
+            Some(fields)
         } else {
             None
         };
 
         if !matches!(self.current_token, Token::Colon) {
-            return Err(self
-                .parse_error_with_context("Expected ':'")
-                .with_suggestion("Array header must end with ':'"));
+            return Err(self.parse_error_with_context("Expected ':' after array header"));
         }
         self.advance()?;
 
-        if length == 0 {
-            return Ok(Value::Array(vec![]));
-        }
+        Ok((length, detected_delim, fields))
+    }
+
+    fn parse_array(&mut self, depth: usize) -> ToonResult<Value> {
+        validate_depth(depth, MAX_DEPTH)?;
+
+        let (length, _detected_delim, fields) = self.parse_array_header()?;
 
         if let Some(fields) = fields {
             validation::validate_field_list(&fields)?;
@@ -507,212 +593,123 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse_root_array(&mut self, depth: usize) -> ToonResult<Value> {
-        validate_depth(depth, MAX_DEPTH)?;
-        self.parse_array(depth)
-    }
-
-    fn parse_array_length(&mut self) -> ToonResult<usize> {
-        if let Some(length_str) = match &self.current_token {
-            Token::String(s, _) if s.starts_with('#') => Some(s[1..].to_string()),
-            _ => None,
-        } {
-            self.advance()?;
-            return length_str.parse::<usize>().map_err(|_| {
-                self.parse_error_with_context(format!("Invalid array length: {length_str}"))
-                    .with_suggestion("Length must be a positive number")
-            });
-        }
-
-        match &self.current_token {
-            Token::Integer(i) => {
-                let len = *i as usize;
-                self.advance()?;
-                Ok(len)
-            }
-            _ => Err(self
-                .parse_error_with_context(format!(
-                    "Expected array length, found {:?}",
-                    self.current_token
-                ))
-                .with_suggestion("Array must have a length like [5] or #5")),
-        }
-    }
-
-    fn detect_or_consume_delimiter(&mut self) -> ToonResult<()> {
-        match &self.current_token {
-            Token::Delimiter(delim) => {
-                if self.delimiter.is_none() {
-                    self.delimiter = Some(*delim);
-                }
-                self.advance()?;
-            }
-            Token::String(s, _) if s == "," || s == "|" || s == "\t" => {
-                let delim = if s == "," {
-                    Delimiter::Comma
-                } else if s == "|" {
-                    Delimiter::Pipe
-                } else {
-                    Delimiter::Tab
-                };
-                if self.delimiter.is_none() {
-                    self.delimiter = Some(delim);
-                }
-                self.advance()?;
-            }
-            _ => {}
-        }
-        self.scanner.set_active_delimiter(self.delimiter);
-        Ok(())
-    }
-
-    fn parse_field_list(&mut self) -> ToonResult<Vec<String>> {
-        if !matches!(self.current_token, Token::LeftBrace) {
-            return Err(self
-                .parse_error_with_context("Expected '{'")
-                .with_suggestion("Tabular arrays need field list like {id,name}"));
-        }
-        self.advance()?;
-
-        let mut fields = Vec::new();
-
-        loop {
-            match &self.current_token {
-                Token::String(s, _) => {
-                    fields.push(s.clone());
-                    self.advance()?;
-
-                    if matches!(self.current_token, Token::Delimiter(_)) {
-                        self.advance()?;
-                    } else if matches!(self.current_token, Token::RightBrace) {
-                        break;
-                    }
-                }
-                Token::RightBrace => break,
-                _ => {
-                    return Err(self
-                        .parse_error_with_context(format!(
-                            "Expected field name, found {:?}",
-                            self.current_token
-                        ))
-                        .with_suggestion("Field names must be strings separated by commas"));
-                }
-            }
-        }
-
-        if !matches!(self.current_token, Token::RightBrace) {
-            return Err(self
-                .parse_error_with_context("Expected '}'")
-                .with_suggestion("Close field list with '}'"));
-        }
-        self.advance()?;
-
-        Ok(fields)
-    }
-
     fn parse_tabular_array(
         &mut self,
         length: usize,
         fields: Vec<String>,
         depth: usize,
     ) -> ToonResult<Value> {
-        validate_depth(depth, MAX_DEPTH)?;
-
         let mut rows = Vec::new();
 
+        if !matches!(self.current_token, Token::Newline) {
+            return Err(self
+                .parse_error_with_context("Expected newline after tabular array header")
+                .with_suggestion("Tabular arrays must have rows on separate lines"));
+        }
         self.skip_newlines()?;
 
-        self.scanner.set_active_delimiter(self.delimiter);
-
-        let expected_indent = self.options.indent.get_spaces() * (depth + 1);
-        loop {
+        for row_index in 0..length {
             if matches!(self.current_token, Token::Eof) {
-                break;
-            }
-            let current_indent = self.scanner.get_last_line_indent();
-            if current_indent < expected_indent {
-                break;
-            }
-            if self.options.strict && current_indent != expected_indent {
-                return Err(self.parse_error_with_context(format!(
-                    "Invalid indentation for tabular row: expected {expected_indent} spaces, \
-                     found {current_indent}"
-                )));
-            }
-            if matches!(self.current_token, Token::String(..)) && self.scanner.peek() == Some(':') {
+                if self.options.strict {
+                    return Err(self.parse_error_with_context(format!(
+                        "Expected {} rows, but got {} before EOF",
+                        length,
+                        rows.len()
+                    )));
+                }
                 break;
             }
 
-            let row_index = rows.len();
+            let current_indent = self.scanner.get_last_line_indent();
+            let expected_indent = self.options.indent.get_spaces() * (depth + 1);
+
+            if self.options.strict {
+                self.validate_indentation(current_indent)?;
+
+                if current_indent != expected_indent {
+                    return Err(self.parse_error_with_context(format!(
+                        "Invalid indentation for tabular row: expected {expected_indent} spaces, \
+                         found {current_indent}"
+                    )));
+                }
+            }
+
             let mut row = Map::new();
-            for (i, field) in fields.iter().enumerate() {
-                if i > 0 {
-                    match &self.current_token {
-                        Token::Delimiter(_) => {
-                            self.advance()?;
-                        }
-                        Token::String(s, _) if s == "," || s == "|" || s == "\t" => {
-                            self.advance()?;
-                        }
-                        _ => {
-                            if self.options.strict {
-                                return Err(self
-                                    .parse_error_with_context(format!(
-                                        "Tabular row {}: expected {} values, but found only {}",
-                                        row_index + 1,
-                                        fields.len(),
-                                        i
-                                    ))
-                                    .with_suggestion(format!(
-                                        "Row {} should have {} values",
-                                        row_index + 1,
-                                        fields.len()
-                                    )));
-                            } else {
-                                break;
-                            }
-                        }
+
+            for (field_index, field) in fields.iter().enumerate() {
+                // Skip delimiter before each field except the first
+                if field_index > 0 {
+                    if matches!(self.current_token, Token::Delimiter(_))
+                        || matches!(&self.current_token, Token::String(s, _) if s == "," || s == "|" || s == "\t")
+                    {
+                        self.advance()?;
+                    } else {
+                        return Err(self
+                            .parse_error_with_context(format!(
+                                "Expected delimiter, found {:?}",
+                                self.current_token
+                            ))
+                            .with_suggestion(format!(
+                                "Tabular row {} field {} needs a delimiter",
+                                row_index + 1,
+                                field_index + 1
+                            )));
                     }
                 }
 
-                if self.options.strict
-                    && (matches!(self.current_token, Token::Newline)
-                        || matches!(self.current_token, Token::Eof))
+                // Empty values show up as delimiters or newlines
+                let value = if matches!(self.current_token, Token::Delimiter(_))
+                    || matches!(&self.current_token, Token::String(s, _) if s == "," || s == "|" || s == "\t")
+                    || matches!(self.current_token, Token::Newline | Token::Eof)
                 {
+                    Value::String(String::new())
+                } else {
+                    self.parse_tabular_field_value()?
+                };
+
+                row.insert(field.clone(), value);
+
+                // Validate row completeness
+                if field_index < fields.len() - 1 {
+                    // Not the last field - shouldn't hit newline yet
+                    if matches!(self.current_token, Token::Newline | Token::Eof) {
+                        if self.options.strict {
+                            return Err(self
+                                .parse_error_with_context(format!(
+                                    "Tabular row {}: expected {} values, but found only {}",
+                                    row_index + 1,
+                                    fields.len(),
+                                    field_index + 1
+                                ))
+                                .with_suggestion(format!(
+                                    "Row {} should have exactly {} values",
+                                    row_index + 1,
+                                    fields.len()
+                                )));
+                        } else {
+                            // Fill remaining fields with null in non-strict mode
+                            for field in fields.iter().skip(field_index + 1) {
+                                row.insert(field.clone(), Value::Null);
+                            }
+                            break;
+                        }
+                    }
+                } else if !matches!(self.current_token, Token::Newline | Token::Eof)
+                    && (matches!(self.current_token, Token::Delimiter(_))
+                        || matches!(&self.current_token, Token::String(s, _) if s == "," || s == "|" || s == "\t"))
+                {
+                    // Last field but there's another delimiter - too many values
                     return Err(self
                         .parse_error_with_context(format!(
-                            "Tabular row {}: expected {} values, but found only {}",
+                            "Tabular row {}: expected {} values, but found extra values",
                             row_index + 1,
-                            fields.len(),
-                            i
+                            fields.len()
                         ))
                         .with_suggestion(format!(
-                            "Row {} should have {} values",
+                            "Row {} should have exactly {} values",
                             row_index + 1,
                             fields.len()
                         )));
-                }
-
-                let value = self.parse_primitive()?;
-                row.insert(field.clone(), value);
-            }
-
-            if self.options.strict {
-                match &self.current_token {
-                    Token::Newline | Token::Eof => {}
-                    _ => {
-                        return Err(self
-                            .parse_error_with_context(format!(
-                                "Tabular row {}: expected {} values, but found extra values",
-                                row_index + 1,
-                                fields.len()
-                            ))
-                            .with_suggestion(format!(
-                                "Row {} should have exactly {} values",
-                                row_index + 1,
-                                fields.len()
-                            )));
-                    }
                 }
             }
 
@@ -744,17 +741,39 @@ impl<'a> Parser<'a> {
                 }
             }
 
-            self.advance()?;
-            if self.options.strict && matches!(self.current_token, Token::Newline) {
-                return Err(self.parse_error_with_context(
-                    "Blank lines are not allowed inside tabular arrays in strict mode",
-                ));
-            }
+            if row_index + 1 < length {
+                self.advance()?;
+                if self.options.strict && matches!(self.current_token, Token::Newline) {
+                    return Err(self.parse_error_with_context(
+                        "Blank lines are not allowed inside tabular arrays in strict mode",
+                    ));
+                }
 
-            self.skip_newlines()?;
+                self.skip_newlines()?;
+            } else if matches!(self.current_token, Token::Newline) {
+                // After the last row, check if there are extra rows
+                self.advance()?;
+                self.skip_newlines()?;
+
+                let expected_indent = self.options.indent.get_spaces() * (depth + 1);
+                let actual_indent = self.scanner.get_last_line_indent();
+
+                // If something at the same indent level, it might be a new row (error)
+                // unless it's a key-value pair (which belongs to parent)
+                if actual_indent == expected_indent && !matches!(self.current_token, Token::Eof) {
+                    let is_key_value = matches!(self.current_token, Token::String(_, _))
+                        && matches!(self.scanner.peek(), Some(':'));
+
+                    if !is_key_value {
+                        return Err(self.parse_error_with_context(format!(
+                            "Array length mismatch: expected {length} rows, but more rows found",
+                        )));
+                    }
+                }
+            }
         }
 
-        validation::validate_array_length(length, rows.len(), self.options.strict)?;
+        validation::validate_array_length(length, rows.len())?;
 
         Ok(Value::Array(rows))
     }
@@ -794,8 +813,127 @@ impl<'a> Parser<'a> {
                     }
                     self.advance()?;
 
-                    let value = if matches!(self.current_token, Token::LeftBracket) {
+                    let value = if matches!(self.current_token, Token::Newline | Token::Eof) {
+                        Value::Object(Map::new())
+                    } else if matches!(self.current_token, Token::LeftBracket) {
                         self.parse_array(depth + 1)?
+                    } else if let Token::String(s, _) = &self.current_token {
+                        let key = s.clone();
+                        self.advance()?;
+
+                        if matches!(self.current_token, Token::Colon | Token::LeftBracket) {
+                            // This is an object: key followed by colon or array bracket
+                            let first_value = if matches!(self.current_token, Token::LeftBracket) {
+                                self.parse_array(depth + 1)?
+                            } else {
+                                self.advance()?;
+                                // Handle nested arrays: "key: [2]: ..."
+                                if matches!(self.current_token, Token::LeftBracket) {
+                                    self.parse_array(depth + 2)?
+                                } else {
+                                    self.parse_field_value(depth + 1)?
+                                }
+                            };
+
+                            let mut obj = Map::new();
+                            obj.insert(key, first_value);
+
+                            let field_indent = self.options.indent.get_spaces() * (depth + 2);
+
+                            // Check if there are more fields at the same indentation level
+                            let should_parse_more_fields =
+                                if matches!(self.current_token, Token::Newline) {
+                                    let next_indent = self.scanner.count_leading_spaces();
+
+                                    if next_indent < field_indent {
+                                        false
+                                    } else {
+                                        self.advance()?;
+
+                                        if !self.options.strict {
+                                            self.skip_newlines()?;
+                                        }
+                                        true
+                                    }
+                                } else {
+                                    let current_indent = self.scanner.get_last_line_indent();
+                                    current_indent == field_indent
+                                };
+
+                            // Parse additional fields if they're at the right indentation
+                            if should_parse_more_fields {
+                                while !matches!(self.current_token, Token::Eof) {
+                                    let current_indent = self.scanner.get_last_line_indent();
+
+                                    if current_indent < field_indent {
+                                        break;
+                                    }
+
+                                    if current_indent != field_indent && self.options.strict {
+                                        break;
+                                    }
+
+                                    // Stop if we hit the next list item
+                                    if matches!(self.current_token, Token::Dash) {
+                                        break;
+                                    }
+
+                                    let field_key = match &self.current_token {
+                                        Token::String(s, _) => s.clone(),
+                                        _ => break,
+                                    };
+                                    self.advance()?;
+
+                                    let field_value =
+                                        if matches!(self.current_token, Token::LeftBracket) {
+                                            self.parse_array(depth + 2)?
+                                        } else if matches!(self.current_token, Token::Colon) {
+                                            self.advance()?;
+                                            if matches!(self.current_token, Token::LeftBracket) {
+                                                self.parse_array(depth + 2)?
+                                            } else {
+                                                self.parse_field_value(depth + 1)?
+                                            }
+                                        } else {
+                                            break;
+                                        };
+
+                                    obj.insert(field_key, field_value);
+
+                                    if matches!(self.current_token, Token::Newline) {
+                                        let next_indent = self.scanner.count_leading_spaces();
+                                        if next_indent < field_indent {
+                                            break;
+                                        }
+                                        self.advance()?;
+                                        if !self.options.strict {
+                                            self.skip_newlines()?;
+                                        }
+                                    } else {
+                                        break;
+                                    }
+                                }
+                            }
+
+                            Value::Object(obj)
+                        } else if matches!(self.current_token, Token::LeftBracket) {
+                            // Array as object value: "key[2]: ..."
+                            let array_value = self.parse_array(depth + 1)?;
+                            let mut obj = Map::new();
+                            obj.insert(key, array_value);
+                            Value::Object(obj)
+                        } else {
+                            // Plain string value - join consecutive string tokens
+                            let mut accumulated = key;
+                            while let Token::String(next, _) = &self.current_token {
+                                if !accumulated.is_empty() {
+                                    accumulated.push(' ');
+                                }
+                                accumulated.push_str(next);
+                                self.advance()?;
+                            }
+                            Value::String(accumulated)
+                        }
                     } else {
                         self.parse_primitive()?
                     };
@@ -803,50 +941,67 @@ impl<'a> Parser<'a> {
                     items.push(value);
 
                     if items.len() < length {
-                        if !matches!(self.current_token, Token::Newline) {
+                        if matches!(self.current_token, Token::Newline) {
+                            self.advance()?;
+
+                            if self.options.strict && matches!(self.current_token, Token::Newline) {
+                                return Err(self.parse_error_with_context(
+                                    "Blank lines are not allowed inside list arrays in strict mode",
+                                ));
+                            }
+
+                            self.skip_newlines()?;
+                        } else if !matches!(self.current_token, Token::Dash) {
                             return Err(self.parse_error_with_context(format!(
-                                "Expected newline after list item {}",
+                                "Expected newline or next list item after list item {}",
                                 i + 1
                             )));
                         }
+                    } else if matches!(self.current_token, Token::Newline) {
+                        // After the last item, check for extra items
                         self.advance()?;
-
-                        if self.options.strict && matches!(self.current_token, Token::Newline) {
-                            return Err(self.parse_error_with_context(
-                                "Blank lines are not allowed inside list arrays in strict mode",
-                            ));
-                        }
-
                         self.skip_newlines()?;
+
+                        let list_indent = self.options.indent.get_spaces() * (depth + 1);
+                        let actual_indent = self.scanner.get_last_line_indent();
+                        // If we see another dash at the same indent, there are too many items
+                        if actual_indent == list_indent && matches!(self.current_token, Token::Dash)
+                        {
+                            return Err(self.parse_error_with_context(format!(
+                                "Array length mismatch: expected {length} items, but more items \
+                                 found",
+                            )));
+                        }
                     }
                 }
             }
             _ => {
                 for i in 0..length {
                     if i > 0 {
-                        match &self.current_token {
-                            Token::Delimiter(_) => {
-                                self.advance()?;
-                            }
-                            Token::String(s, _) if s == "," || s == "|" || s == "\t" => {
-                                self.advance()?;
-                            }
-                            _ => {
-                                return Err(self
-                                    .parse_error_with_context(format!(
-                                        "Expected delimiter, found {:?}",
-                                        self.current_token
-                                    ))
-                                    .with_suggestion(format!(
-                                        "Expected delimiter between items (item {} of {})",
-                                        i + 1,
-                                        length
-                                    )));
-                            }
+                        if matches!(self.current_token, Token::Delimiter(_))
+                            || matches!(&self.current_token, Token::String(s, _) if s == "," || s == "|" || s == "\t")
+                        {
+                            self.advance()?;
+                        } else {
+                            return Err(self
+                                .parse_error_with_context(format!(
+                                    "Expected delimiter, found {:?}",
+                                    self.current_token
+                                ))
+                                .with_suggestion(format!(
+                                    "Expected delimiter between items (item {} of {})",
+                                    i + 1,
+                                    length
+                                )));
                         }
                     }
 
-                    let value = if matches!(self.current_token, Token::LeftBracket) {
+                    let value = if matches!(self.current_token, Token::Delimiter(_))
+                        || matches!(&self.current_token, Token::String(s, _) if s == "," || s == "|" || s == "\t")
+                        || (matches!(self.current_token, Token::Eof | Token::Newline) && i < length)
+                    {
+                        Value::String(String::new())
+                    } else if matches!(self.current_token, Token::LeftBracket) {
                         self.parse_array(depth + 1)?
                     } else {
                         self.parse_primitive()?
@@ -857,9 +1012,161 @@ impl<'a> Parser<'a> {
             }
         }
 
-        validation::validate_array_length(length, items.len(), self.options.strict)?;
+        validation::validate_array_length(length, items.len())?;
+
+        if self.options.strict && matches!(self.current_token, Token::Delimiter(_)) {
+            return Err(self.parse_error_with_context(format!(
+                "Array length mismatch: expected {length} items, but more items found",
+            )));
+        }
 
         Ok(Value::Array(items))
+    }
+
+    fn parse_tabular_field_value(&mut self) -> ToonResult<Value> {
+        match &self.current_token {
+            Token::Null => {
+                self.advance()?;
+                Ok(Value::Null)
+            }
+            Token::Bool(b) => {
+                let val = *b;
+                self.advance()?;
+                Ok(Value::Bool(val))
+            }
+            Token::Integer(i) => {
+                let val = *i;
+                self.advance()?;
+                Ok(Number::from(val).into())
+            }
+            Token::Number(n) => {
+                let val = *n;
+                self.advance()?;
+                // If the float is actually an integer, represent it as such
+                if val.is_finite() && val.fract() == 0.0 && val.abs() <= i64::MAX as f64 {
+                    Ok(Number::from(val as i64).into())
+                } else {
+                    Ok(Number::from_f64(val)
+                        .ok_or_else(|| ToonError::InvalidInput(format!("Invalid number: {val}")))?
+                        .into())
+                }
+            }
+            Token::String(s, _) => {
+                // Tabular fields can have multiple string tokens joined with spaces
+                let mut accumulated = s.clone();
+                self.advance()?;
+
+                while let Token::String(next, _) = &self.current_token {
+                    if !accumulated.is_empty() {
+                        accumulated.push(' ');
+                    }
+                    accumulated.push_str(next);
+                    self.advance()?;
+                }
+
+                Ok(Value::String(accumulated))
+            }
+            _ => Err(self.parse_error_with_context(format!(
+                "Expected primitive value, found {:?}",
+                self.current_token
+            ))),
+        }
+    }
+
+    fn parse_primitive(&mut self) -> ToonResult<Value> {
+        match &self.current_token {
+            Token::Null => {
+                self.advance()?;
+                Ok(Value::Null)
+            }
+            Token::Bool(b) => {
+                let val = *b;
+                self.advance()?;
+                Ok(Value::Bool(val))
+            }
+            Token::Integer(i) => {
+                let val = *i;
+                self.advance()?;
+                Ok(Number::from(val).into())
+            }
+            Token::Number(n) => {
+                let val = *n;
+                self.advance()?;
+
+                if val.is_finite() && val.fract() == 0.0 && val.abs() <= i64::MAX as f64 {
+                    Ok(Number::from(val as i64).into())
+                } else {
+                    Ok(Number::from_f64(val)
+                        .ok_or_else(|| ToonError::InvalidInput(format!("Invalid number: {val}")))?
+                        .into())
+                }
+            }
+            Token::String(s, _) => {
+                let val = s.clone();
+                self.advance()?;
+                Ok(Value::String(val))
+            }
+            _ => Err(self.parse_error_with_context(format!(
+                "Expected primitive value, found {:?}",
+                self.current_token
+            ))),
+        }
+    }
+
+    fn parse_error_with_context(&self, message: impl Into<String>) -> ToonError {
+        let (line, column) = self.scanner.current_position();
+        let message = message.into();
+
+        let context = self.get_error_context(line, column);
+
+        ToonError::ParseError {
+            line,
+            column,
+            message,
+            context: Some(Box::new(context)),
+        }
+    }
+
+    fn get_error_context(&self, line: usize, column: usize) -> ErrorContext {
+        let lines: Vec<&str> = self.input.lines().collect();
+
+        let source_line = if line > 0 && line <= lines.len() {
+            lines[line - 1].to_string()
+        } else {
+            String::new()
+        };
+
+        let preceding_lines: Vec<String> = if line > 1 {
+            lines[line.saturating_sub(3)..line - 1]
+                .iter()
+                .map(|s| s.to_string())
+                .collect()
+        } else {
+            Vec::new()
+        };
+
+        let following_lines: Vec<String> = if line < lines.len() {
+            lines[line..line.saturating_add(2).min(lines.len())]
+                .iter()
+                .map(|s| s.to_string())
+                .collect()
+        } else {
+            Vec::new()
+        };
+
+        let indicator = if column > 0 {
+            Some(format!("{:width$}^", "", width = column - 1))
+        } else {
+            None
+        };
+
+        ErrorContext {
+            source_line,
+            preceding_lines,
+            following_lines,
+            suggestion: None,
+            indicator,
+        }
     }
 
     fn validate_indentation(&self, indent_amount: usize) -> ToonResult<()> {
@@ -868,6 +1175,7 @@ impl<'a> Parser<'a> {
         }
 
         let indent_size = self.options.indent.get_spaces();
+        // In strict mode, indentation must be a multiple of the configured indent size
         if indent_size > 0 && indent_amount > 0 && !indent_amount.is_multiple_of(indent_size) {
             Err(self.parse_error_with_context(format!(
                 "Invalid indentation: found {indent_amount} spaces, but must be a multiple of \
@@ -888,7 +1196,7 @@ mod tests {
     use super::*;
 
     fn parse(input: &str) -> ToonResult<Value> {
-        let mut parser = Parser::new(input, DecodeOptions::default());
+        let mut parser = Parser::new(input, DecodeOptions::default())?;
         parser.parse()
     }
 
@@ -931,5 +1239,36 @@ mod tests {
                 {"id": 2, "name": "Bob"}
             ])
         );
+    }
+
+    #[test]
+    fn test_empty_tokens() {
+        let result = parse("items[3]: a,,c").unwrap();
+        assert_eq!(result["items"], json!(["a", "", "c"]));
+    }
+
+    #[test]
+    fn test_empty_nested_object() {
+        let result = parse("user:").unwrap();
+        assert_eq!(result, json!({"user": {}}));
+    }
+
+    #[test]
+    fn test_list_item_object() {
+        let result =
+            parse("items[2]:\n  - id: 1\n    name: First\n  - id: 2\n    name: Second").unwrap();
+        assert_eq!(
+            result["items"],
+            json!([
+                {"id": 1, "name": "First"},
+                {"id": 2, "name": "Second"}
+            ])
+        );
+    }
+
+    #[test]
+    fn test_nested_array_in_list_item() {
+        let result = parse("items[1]:\n  - tags[3]: a,b,c").unwrap();
+        assert_eq!(result["items"], json!([{"tags": ["a", "b", "c"]}]));
     }
 }

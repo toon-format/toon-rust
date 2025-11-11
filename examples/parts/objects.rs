@@ -9,7 +9,7 @@ pub fn objects() {
         "active": true
     });
     let out = encode_default(&simple).unwrap();
-    println!("{}", out);
+    println!("{out}");
 
     // Nested object
     let nested = json!({

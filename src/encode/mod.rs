@@ -231,7 +231,8 @@ fn write_array(
         return Ok(());
     }
 
-    // Select format based on array content: tabular (uniform objects) > inline primitives > nested list
+    // Select format based on array content: tabular (uniform objects) > inline
+    // primitives > nested list
     if let Some(keys) = is_tabular_array(arr) {
         encode_tabular_array(writer, key, arr, &keys, depth)?;
     } else if is_primitive_array(arr) {

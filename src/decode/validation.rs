@@ -3,9 +3,10 @@ use crate::types::{
     ToonResult,
 };
 
-/// Validate that array length matches expected value (strict mode only).
-pub fn validate_array_length(expected: usize, actual: usize, strict: bool) -> ToonResult<()> {
-    if strict && expected != actual {
+/// Validate that array length matches expected value.
+pub fn validate_array_length(expected: usize, actual: usize) -> ToonResult<()> {
+    // Array length mismatches should always error, regardless of strict mode
+    if expected != actual {
         return Err(ToonError::length_mismatch(expected, actual));
     }
     Ok(())
@@ -19,6 +20,7 @@ pub fn validate_field_list(fields: &[String]) -> ToonResult<()> {
         ));
     }
 
+    // Check for duplicate field names
     for i in 0..fields.len() {
         for j in (i + 1)..fields.len() {
             if fields[i] == fields[j] {
@@ -76,12 +78,9 @@ mod tests {
 
     #[test]
     fn test_validate_array_length() {
-        assert!(validate_array_length(5, 3, false).is_ok());
-        assert!(validate_array_length(3, 5, false).is_ok());
-
-        assert!(validate_array_length(5, 5, true).is_ok());
-        assert!(validate_array_length(5, 3, true).is_err());
-        assert!(validate_array_length(3, 5, true).is_err());
+        assert!(validate_array_length(5, 3).is_err());
+        assert!(validate_array_length(3, 5).is_err());
+        assert!(validate_array_length(5, 5).is_ok());
     }
 
     #[test]

@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0](https://github.com/toon-format/toon-rust/compare/v0.2.4...v0.3.0) - 2025-11-11
+
+### Added
+
+- implement key folds and expansion in cli
+- [**breaking**] implement TOON Spec v2.0 with v1.5 optional features
+
+### Other
+
+- update readme
+- update readme
+
 ## [0.2.4](https://github.com/toon-format/toon-rust/compare/v0.2.3...v0.2.4) - 2025-11-11
 
 ### Fixed

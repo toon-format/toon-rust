@@ -113,8 +113,15 @@ impl Writer {
     }
 
     /// Write an empty array header.
-    pub fn write_empty_array_with_key(&mut self, key: Option<&str>) -> ToonResult<()> {
+    pub fn write_empty_array_with_key(
+        &mut self,
+        key: Option<&str>,
+        depth: usize,
+    ) -> ToonResult<()> {
         if let Some(k) = key {
+            if depth > 0 {
+                self.write_indent(depth)?;
+            }
             self.write_key(k)?;
         }
         self.write_char('[')?;
@@ -319,7 +326,7 @@ mod tests {
         let opts = EncodeOptions::default();
         let mut writer = Writer::new(opts);
 
-        writer.write_empty_array_with_key(Some("items")).unwrap();
+        writer.write_empty_array_with_key(Some("items"), 0).unwrap();
         assert_eq!(writer.finish(), "items[0]:");
     }
 }

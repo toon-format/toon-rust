@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1](https://github.com/toon-format/toon-rust/compare/v0.3.0...v0.3.1) - 2025-11-12
+
+### Fixed
+
+- *(decode)* prevent sibling fields from being added to nested objects
+- *(encode)* correct indentation for nested objects in list items
+
+### Other
+
+- update inline doc
+- update changelog
+
 ## [0.3.0](https://github.com/toon-format/toon-rust/compare/v0.2.4...v0.3.0) - 2025-11-11
 
 ### Added

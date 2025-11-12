@@ -248,10 +248,8 @@ fn write_object_impl(
             // Standard (non-folded) encoding
             match value {
                 Value::Array(arr) => {
-                    if depth > 0 {
-                        writer.write_indent(depth)?;
-                    }
-                    write_array(writer, Some(key), arr, 0)?;
+                    // write_array handles its own indentation via write_array_header
+                    write_array(writer, Some(key), arr, depth)?;
                 }
                 Value::Object(nested_obj) => {
                     if depth > 0 {
@@ -292,7 +290,7 @@ fn write_array(
     validate_depth(depth, MAX_DEPTH)?;
 
     if arr.is_empty() {
-        writer.write_empty_array_with_key(key)?;
+        writer.write_empty_array_with_key(key, depth)?;
         return Ok(());
     }
 
@@ -493,7 +491,7 @@ fn encode_nested_array(
                             writer.write_char(':')?;
                             if !nested_obj.is_empty() {
                                 writer.write_newline()?;
-                                write_object(writer, nested_obj, depth + 2)?;
+                                write_object(writer, nested_obj, depth + 3)?;
                             }
                         }
                         _ => {
@@ -513,7 +511,7 @@ fn encode_nested_array(
                         match value {
                             Value::Array(arr) => {
                                 writer.write_key(key)?;
-                                write_array(writer, None, arr, depth + 2)?;
+                                write_array(writer, None, arr, depth + 1)?;
                             }
                             Value::Object(nested_obj) => {
                                 writer.write_key(key)?;

@@ -351,6 +351,12 @@ impl<'a> Parser<'a> {
                 if current_indent != expected {
                     break;
                 }
+            } else {
+                // verify first additional field matches expected depth
+                let expected_depth_indent = self.options.indent.get_spaces() * depth;
+                if current_indent != expected_depth_indent {
+                    break;
+                }
             }
 
             if self.options.strict {
@@ -799,7 +805,7 @@ impl<'a> Parser<'a> {
                                 if matches!(self.current_token, Token::LeftBracket) {
                                     self.parse_array(depth + 2)?
                                 } else {
-                                    self.parse_field_value(depth + 1)?
+                                    self.parse_field_value(depth + 2)?
                                 }
                             };
 
@@ -823,9 +829,12 @@ impl<'a> Parser<'a> {
                                         }
                                         true
                                     }
-                                } else {
+                                } else if matches!(self.current_token, Token::String(_, _)) {
+                                    // When already positioned at a field key, check its indent
                                     let current_indent = self.scanner.get_last_line_indent();
                                     current_indent == field_indent
+                                } else {
+                                    false
                                 };
 
                             // Parse additional fields if they're at the right indentation
@@ -860,7 +869,7 @@ impl<'a> Parser<'a> {
                                             if matches!(self.current_token, Token::LeftBracket) {
                                                 self.parse_array(depth + 2)?
                                             } else {
-                                                self.parse_field_value(depth + 1)?
+                                                self.parse_field_value(depth + 2)?
                                             }
                                         } else {
                                             break;
@@ -1238,5 +1247,41 @@ mod tests {
     fn test_nested_array_in_list_item() {
         let result = parse("items[1]:\n  - tags[3]: a,b,c").unwrap();
         assert_eq!(result["items"], json!([{"tags": ["a", "b", "c"]}]));
+    }
+
+    #[test]
+    fn test_two_level_siblings() {
+        let input = "x:\n  y: 1\n  z: 2";
+        let opts = DecodeOptions::default();
+        let mut parser = Parser::new(input, opts).unwrap();
+        let result = parser.parse().unwrap();
+
+        let x = result.as_object().unwrap().get("x").unwrap();
+        let x_obj = x.as_object().unwrap();
+
+        assert_eq!(x_obj.len(), 2, "x should have 2 keys");
+        assert_eq!(x_obj.get("y").unwrap(), &serde_json::json!(1));
+        assert_eq!(x_obj.get("z").unwrap(), &serde_json::json!(2));
+    }
+
+    #[test]
+    fn test_nested_object_with_sibling() {
+        let input = "a:\n  b:\n    c: 1\n  d: 2";
+        let opts = DecodeOptions::default();
+        let mut parser = Parser::new(input, opts).unwrap();
+        let result = parser.parse().unwrap();
+
+        // Expected: {"a":{"b":{"c":1},"d":2}}
+        let a = result.as_object().unwrap().get("a").unwrap();
+        let a_obj = a.as_object().unwrap();
+
+        assert_eq!(a_obj.len(), 2, "a should have 2 keys (b and d)");
+        assert!(a_obj.contains_key("b"), "a should have key 'b'");
+        assert!(a_obj.contains_key("d"), "a should have key 'd'");
+
+        let b = a_obj.get("b").unwrap().as_object().unwrap();
+        assert_eq!(b.len(), 1, "b should have only 1 key (c)");
+        assert!(b.contains_key("c"), "b should have key 'c'");
+        assert!(!b.contains_key("d"), "b should NOT have key 'd'");
     }
 }

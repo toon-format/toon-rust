@@ -248,7 +248,6 @@ fn write_object_impl(
             // Standard (non-folded) encoding
             match value {
                 Value::Array(arr) => {
-                    // write_array handles its own indentation via write_array_header
                     write_array(writer, Some(key), arr, depth)?;
                 }
                 Value::Object(nested_obj) => {

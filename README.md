@@ -497,5 +497,3 @@ cargo doc --open
 ## License
 
 MIT License © 2025-PRESENT [Johann Schopplich](https://github.com/johannschopplich) and [Shreyas K S](https://github.com/shreyasbhat0)
-
----

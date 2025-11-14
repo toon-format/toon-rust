@@ -236,7 +236,7 @@ fn run_decode(cli: &Cli, input: &str) -> Result<()> {
         opts = opts.with_expand_paths(PathExpansionMode::Safe);
     }
 
-    let json_value = decode(input, &opts).context("Failed to decode TOON")?;
+    let json_value: serde_json::Value = decode(input, &opts).context("Failed to decode TOON")?;
 
     let output_json = match cli.json_indent {
         Some(n) if n > 0 => {

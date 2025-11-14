@@ -67,7 +67,10 @@ pub use utils::{
 
 #[cfg(test)]
 mod tests {
-    use serde_json::json;
+    use serde_json::{
+        json,
+        Value,
+    };
 
     use crate::{
         constants::is_keyword,
@@ -95,7 +98,7 @@ mod tests {
     fn test_round_trip_simple() {
         let original = json!({"name": "Alice", "age": 30});
         let encoded = encode_default(&original).unwrap();
-        let decoded = decode_default(&encoded).unwrap();
+        let decoded: Value = decode_default(&encoded).unwrap();
         assert_eq!(original, decoded);
     }
 
@@ -103,7 +106,7 @@ mod tests {
     fn test_round_trip_array() {
         let original = json!({"tags": ["reading", "gaming", "coding"]});
         let encoded = encode_default(&original).unwrap();
-        let decoded = decode_default(&encoded).unwrap();
+        let decoded: Value = decode_default(&encoded).unwrap();
         assert_eq!(original, decoded);
     }
 
@@ -116,7 +119,7 @@ mod tests {
             ]
         });
         let encoded = encode_default(&original).unwrap();
-        let decoded = decode_default(&encoded).unwrap();
+        let decoded: Value = decode_default(&encoded).unwrap();
         assert_eq!(original, decoded);
     }
 
@@ -127,17 +130,17 @@ mod tests {
         let encoded = encode(&original, &opts).unwrap();
         assert!(encoded.contains("|"));
 
-        let decoded = decode_default(&encoded).unwrap();
+        let decoded: Value = decode_default(&encoded).unwrap();
         assert_eq!(original, decoded);
     }
 
     #[test]
     fn test_decode_strict_helper() {
         let input = "items[2]: a,b";
-        assert!(decode_strict(input).is_ok());
+        assert!(decode_strict::<Value>(input).is_ok());
 
         let input = "items[3]: a,b";
-        assert!(decode_strict(input).is_err());
+        assert!(decode_strict::<Value>(input).is_err());
     }
 
     #[test]
@@ -153,5 +156,127 @@ mod tests {
         assert!(is_literal_like("true"));
         assert_eq!(escape_string("hello\nworld"), "hello\\nworld");
         assert!(needs_quoting("true", Delimiter::Comma.as_char()));
+    }
+
+    // Tests for direct serde serialization/deserialization
+    use serde::{
+        Deserialize,
+        Serialize,
+    };
+
+    #[derive(Debug, Serialize, Deserialize, PartialEq)]
+    struct TestUser {
+        name: String,
+        age: u32,
+        active: bool,
+    }
+
+    #[test]
+    fn test_encode_decode_simple_struct() {
+        use crate::{
+            decode_default,
+            encode_default,
+        };
+
+        let user = TestUser {
+            name: "Alice".to_string(),
+            age: 30,
+            active: true,
+        };
+
+        let toon = encode_default(&user).unwrap();
+        assert!(toon.contains("name: Alice"));
+        assert!(toon.contains("age: 30"));
+        assert!(toon.contains("active: true"));
+
+        let decoded: TestUser = decode_default(&toon).unwrap();
+        assert_eq!(user, decoded);
+    }
+
+    #[derive(Debug, Serialize, Deserialize, PartialEq)]
+    struct TestProduct {
+        id: u64,
+        name: String,
+        tags: Vec<String>,
+    }
+
+    #[test]
+    fn test_encode_decode_with_array() {
+        use crate::{
+            decode_default,
+            encode_default,
+        };
+
+        let product = TestProduct {
+            id: 42,
+            name: "Widget".to_string(),
+            tags: vec!["electronics".to_string(), "gadgets".to_string()],
+        };
+
+        let toon = encode_default(&product).unwrap();
+        let decoded: TestProduct = decode_default(&toon).unwrap();
+        assert_eq!(product, decoded);
+    }
+
+    #[test]
+    fn test_encode_decode_vec_of_structs() {
+        use crate::{
+            decode_default,
+            encode_default,
+        };
+
+        let users = vec![
+            TestUser {
+                name: "Alice".to_string(),
+                age: 30,
+                active: true,
+            },
+            TestUser {
+                name: "Bob".to_string(),
+                age: 25,
+                active: false,
+            },
+        ];
+
+        let toon = encode_default(&users).unwrap();
+        let decoded: Vec<TestUser> = decode_default(&toon).unwrap();
+        assert_eq!(users, decoded);
+    }
+
+    #[derive(Debug, Serialize, Deserialize, PartialEq)]
+    struct Nested {
+        outer: OuterStruct,
+    }
+
+    #[derive(Debug, Serialize, Deserialize, PartialEq)]
+    struct OuterStruct {
+        inner: InnerStruct,
+        value: i32,
+    }
+
+    #[derive(Debug, Serialize, Deserialize, PartialEq)]
+    struct InnerStruct {
+        data: String,
+    }
+
+    #[test]
+    fn test_encode_decode_nested_structs() {
+        use crate::{
+            decode_default,
+            encode_default,
+        };
+
+        let nested = Nested {
+            outer: OuterStruct {
+                inner: InnerStruct {
+                    data: "test".to_string(),
+                },
+                value: 42,
+            },
+        };
+
+        let toon = encode_default(&nested).unwrap();
+        let decoded: Nested = decode_default(&toon).unwrap();
+        assert_eq!(nested, decoded);
     }
 }

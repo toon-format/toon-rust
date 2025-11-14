@@ -22,13 +22,39 @@ use crate::{
     },
 };
 
-/// Encode a JSON value to TOON format with custom options.
+/// Encode any serializable value to TOON format.
 ///
-/// This function accepts either `JsonValue` or `serde_json::Value` and converts
-/// automatically.
+/// This function accepts any type implementing `serde::Serialize`, including:
+/// - Custom structs with `#[derive(Serialize)]`
+/// - `serde_json::Value`
+/// - Built-in types (Vec, HashMap, etc.)
 ///
 /// # Examples
 ///
+/// **With custom structs:**
+/// ```
+/// use serde::Serialize;
+/// use toon_format::{
+///     encode,
+///     EncodeOptions,
+/// };
+///
+/// #[derive(Serialize)]
+/// struct User {
+///     name: String,
+///     age: u32,
+/// }
+///
+/// let user = User {
+///     name: "Alice".to_string(),
+///     age: 30,
+/// };
+/// let toon = encode(&user, &EncodeOptions::default())?;
+/// assert!(toon.contains("name: Alice"));
+/// # Ok::<(), toon_format::ToonError>(())
+/// ```
+///
+/// **With JSON values:**
 /// ```
 /// use toon_format::{encode, EncodeOptions, Delimiter};
 /// use serde_json::json;
@@ -39,8 +65,10 @@ use crate::{
 /// assert!(toon.contains("|"));
 /// # Ok::<(), toon_format::ToonError>(())
 /// ```
-pub fn encode<V: IntoJsonValue>(value: V, options: &EncodeOptions) -> ToonResult<String> {
-    let json_value = value.into_json_value();
+pub fn encode<T: serde::Serialize>(value: &T, options: &EncodeOptions) -> ToonResult<String> {
+    let json_value =
+        serde_json::to_value(value).map_err(|e| ToonError::SerializationError(e.to_string()))?;
+    let json_value: Value = json_value.into();
     encode_impl(&json_value, options)
 }
 
@@ -63,40 +91,43 @@ fn encode_impl(value: &Value, options: &EncodeOptions) -> ToonResult<String> {
     Ok(writer.finish())
 }
 
-/// Encode a JSON value to TOON format with default options.
+/// Encode with default options (2-space indent, comma delimiter).
 ///
-/// This function accepts either `JsonValue` or `serde_json::Value` and converts
-/// automatically.
+/// Works with any type implementing `serde::Serialize`.
 ///
 /// # Examples
 ///
+/// **With structs:**
+/// ```
+/// use serde::Serialize;
+/// use toon_format::encode_default;
+///
+/// #[derive(Serialize)]
+/// struct Person {
+///     name: String,
+///     age: u32,
+/// }
+///
+/// let person = Person {
+///     name: "Alice".to_string(),
+///     age: 30,
+/// };
+/// let toon = encode_default(&person)?;
+/// assert!(toon.contains("name: Alice"));
+/// # Ok::<(), toon_format::ToonError>(())
+/// ```
+///
+/// **With JSON values:**
 /// ```
 /// use toon_format::encode_default;
 /// use serde_json::json;
 ///
-/// // Simple object
-/// let data = json!({"name": "Alice", "age": 30});
-/// let toon = encode_default(&data)?;
-/// assert!(toon.contains("name: Alice"));
-/// assert!(toon.contains("age: 30"));
-///
-/// // Primitive array
 /// let data = json!({"tags": ["reading", "gaming", "coding"]});
 /// let toon = encode_default(&data)?;
 /// assert_eq!(toon, "tags[3]: reading,gaming,coding");
-///
-/// // Tabular array
-/// let data = json!({
-///     "users": [
-///         {"id": 1, "name": "Alice"},
-///         {"id": 2, "name": "Bob"}
-///     ]
-/// });
-/// let toon = encode_default(&data)?;
-/// assert!(toon.contains("users[2]{id,name}:"));
 /// # Ok::<(), toon_format::ToonError>(())
 /// ```
-pub fn encode_default<V: IntoJsonValue>(value: V) -> ToonResult<String> {
+pub fn encode_default<T: serde::Serialize>(value: &T) -> ToonResult<String> {
     encode(value, &EncodeOptions::default())
 }
 
@@ -560,24 +591,27 @@ mod tests {
 
     #[test]
     fn test_encode_bool() {
-        assert_eq!(encode_default(json!(true)).unwrap(), "true");
-        assert_eq!(encode_default(json!(false)).unwrap(), "false");
+        assert_eq!(encode_default(&json!(true)).unwrap(), "true");
+        assert_eq!(encode_default(&json!(false)).unwrap(), "false");
     }
 
     #[test]
     fn test_encode_number() {
-        assert_eq!(encode_default(json!(42)).unwrap(), "42");
+        assert_eq!(encode_default(&json!(42)).unwrap(), "42");
         assert_eq!(
-            encode_default(json!(f64::consts::PI)).unwrap(),
+            encode_default(&json!(f64::consts::PI)).unwrap(),
             "3.141592653589793"
         );
-        assert_eq!(encode_default(json!(-5)).unwrap(), "-5");
+        assert_eq!(encode_default(&json!(-5)).unwrap(), "-5");
     }
 
     #[test]
     fn test_encode_string() {
-        assert_eq!(encode_default(json!("hello")).unwrap(), "hello");
-        assert_eq!(encode_default(json!("hello world")).unwrap(), "hello world");
+        assert_eq!(encode_default(&json!("hello")).unwrap(), "hello");
+        assert_eq!(
+            encode_default(&json!("hello world")).unwrap(),
+            "hello world"
+        );
     }
 
     #[test]

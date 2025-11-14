@@ -14,6 +14,8 @@ mod mixed_arrays;
 mod objects;
 #[path = "parts/round_trip.rs"]
 mod round_trip;
+#[path = "parts/structs.rs"]
+mod structs;
 #[path = "parts/tabular.rs"]
 mod tabular;
 
@@ -46,6 +48,9 @@ fn main() {
 
     println!("\n-- decode strict --");
     decode_strict::decode_strict();
+
+    println!("\n-- serde structs --");
+    structs::serde_structs();
 
     println!("\n=== Examples Complete ===");
 }

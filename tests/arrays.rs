@@ -1,6 +1,9 @@
 use std::f64;
 
-use serde_json::json;
+use serde_json::{
+    json,
+    Value,
+};
 use toon_format::{
     decode_default,
     encode_default,
@@ -35,7 +38,7 @@ fn test_tabular_arrays() {
         let encoded = encode_default(&case).unwrap();
         assert!(encoded.contains("{"));
         assert!(encoded.contains("}"));
-        let decoded = decode_default(&encoded).unwrap();
+        let decoded: Value = decode_default(&encoded).unwrap();
         assert_eq!(case, decoded);
     }
 }
@@ -47,7 +50,7 @@ fn test_mixed_arrays() {
     });
 
     let encoded = encode_default(&data).unwrap();
-    let decoded = decode_default(&encoded).unwrap();
+    let decoded: Value = decode_default(&encoded).unwrap();
     assert_eq!(data, decoded);
 }
 
@@ -62,7 +65,7 @@ fn test_empty_values() {
 
     for case in cases {
         let encoded = encode_default(&case).unwrap();
-        let decoded = decode_default(&encoded).unwrap();
+        let decoded: Value = decode_default(&encoded).unwrap();
         assert_eq!(case, decoded);
     }
 }
@@ -74,7 +77,7 @@ fn test_large_arrays() {
     });
 
     let encoded = encode_default(&large_array).unwrap();
-    let decoded = decode_default(&encoded).unwrap();
+    let decoded: Value = decode_default(&encoded).unwrap();
     assert_eq!(large_array, decoded);
 
     let large_tabular = json!({
@@ -86,6 +89,6 @@ fn test_large_arrays() {
     });
 
     let encoded = encode_default(&large_tabular).unwrap();
-    let decoded = decode_default(&encoded).unwrap();
+    let decoded: Value = decode_default(&encoded).unwrap();
     assert_eq!(large_tabular, decoded);
 }

@@ -1,4 +1,7 @@
-use serde_json::json;
+use serde_json::{
+    json,
+    Value,
+};
 use toon_format::{
     decode_default,
     encode,
@@ -13,19 +16,19 @@ fn test_delimiter_variants() {
 
     let encoded = encode_default(&data).unwrap();
     assert!(encoded.contains("a,b,c"));
-    let decoded = decode_default(&encoded).unwrap();
+    let decoded: Value = decode_default(&encoded).unwrap();
     assert_eq!(data, decoded);
 
     let opts = EncodeOptions::new().with_delimiter(Delimiter::Pipe);
     let encoded = encode(&data, &opts).unwrap();
     assert!(encoded.contains("a|b|c"));
-    let decoded = decode_default(&encoded).unwrap();
+    let decoded: Value = decode_default(&encoded).unwrap();
     assert_eq!(data, decoded);
 
     let opts = EncodeOptions::new().with_delimiter(Delimiter::Tab);
     let encoded = encode(&data, &opts).unwrap();
     assert!(encoded.contains("a\tb\tc"));
-    let decoded = decode_default(&encoded).unwrap();
+    let decoded: Value = decode_default(&encoded).unwrap();
     assert_eq!(data, decoded);
 }
 
@@ -35,12 +38,12 @@ fn test_delimiter_in_values() {
 
     let encoded = encode_default(&data).unwrap();
     assert!(encoded.contains("\"a,b\""));
-    let decoded = decode_default(&encoded).unwrap();
+    let decoded: Value = decode_default(&encoded).unwrap();
     assert_eq!(data, decoded);
 
     let opts = EncodeOptions::new().with_delimiter(Delimiter::Pipe);
     let encoded = encode(&data, &opts).unwrap();
     assert!(encoded.contains("\"c|d\""));
-    let decoded = decode_default(&encoded).unwrap();
+    let decoded: Value = decode_default(&encoded).unwrap();
     assert_eq!(data, decoded);
 }

@@ -31,13 +31,13 @@ users[2]{id,name}:
 
 ## Features
 
+- **Generic API**: Works with any `Serialize`/`Deserialize` type - custom structs, enums, JSON values, and more
 - **Spec-Compliant**: Fully compliant with [TOON Specification v2.0](https://github.com/toon-format/spec/blob/main/SPEC.md)
 - **v1.5 Optional Features**: Key folding and path expansion
 - **Safe & Performant**: Built with safe, fast Rust
-- **Serde Integration**: Native support for `serde_json::Value`
 - **Powerful CLI**: Full-featured command-line tool
 - **Strict Validation**: Enforces all spec rules (configurable)
-- **100% Test Coverage**: 109 unit tests + 22 spec fixture tests passing
+- **Well-Tested**: Comprehensive test suite with unit tests, spec fixtures, and real-world scenarios
 
 ## Installation
 
@@ -59,8 +59,48 @@ cargo install toon-format
 
 ### Basic Encode & Decode
 
+The `encode` and `decode` functions work with any type implementing `Serialize`/`Deserialize`:
+
+**With custom structs:**
+
 ```rust
-use serde_json::json;
+use serde::{Serialize, Deserialize};
+use toon_format::{encode_default, decode_default};
+
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
+struct User {
+    name: String,
+    age: u32,
+    email: String,
+}
+
+fn main() -> Result<(), toon_format::ToonError> {
+    let user = User {
+        name: "Alice".to_string(),
+        age: 30,
+        email: "alice@example.com".to_string(),
+    };
+
+    // Encode to TOON
+    let toon = encode_default(&user)?;
+    println!("{}", toon);
+    // Output:
+    // name: Alice
+    // age: 30
+    // email: alice@example.com
+
+    // Decode back to struct
+    let decoded: User = decode_default(&toon)?;
+    assert_eq!(user, decoded);
+
+    Ok(())
+}
+```
+
+**With JSON values:**
+
+```rust
+use serde_json::{json, Value};
 use toon_format::{encode_default, decode_default};
 
 fn main() -> Result<(), toon_format::ToonError> {
@@ -80,22 +120,21 @@ fn main() -> Result<(), toon_format::ToonError> {
     //   2,Bob
 
     // Decode back to JSON
-    let decoded = decode_default(&toon_str)?;
+    let decoded: Value = decode_default(&toon_str)?;
     assert_eq!(decoded, data);
     
     Ok(())
 }
 ```
-
 ---
 
 ## API Reference
 
 ### Encoding
 
-#### `encode(&value, &options) -> Result<String, ToonError>`
+#### `encode<T: Serialize>(&value, &options) -> Result<String, ToonError>`
 
-Encode a `serde_json::Value` to TOON format.
+Encode any serializable type to TOON format. Works with custom structs, enums, collections, and `serde_json::Value`.
 
 ```rust
 use toon_format::{encode, EncodeOptions, Delimiter, Indent};
@@ -131,30 +170,49 @@ let toon = encode(&data, &opts)?;
 
 ### Decoding
 
-#### `decode(&input, &options) -> Result<Value, ToonError>`
+#### `decode<T: Deserialize>(&input, &options) -> Result<T, ToonError>`
 
-Decode TOON format to `serde_json::Value`.
+Decode TOON format into any deserializable type. Works with custom structs, enums, collections, and `serde_json::Value`.
 
+**With custom structs:**
 ```rust
+use serde::Deserialize;
+use toon_format::{decode, DecodeOptions};
+
+#[derive(Deserialize)]
+struct Config {
+    host: String,
+    port: u16,
+}
+
+let toon = "host: localhost\nport: 8080";
+let config: Config = decode(toon, &DecodeOptions::default())?;
+```
+
+**With JSON values:**
+```rust
+use serde_json::Value;
 use toon_format::{decode, DecodeOptions};
 
 let toon = "name: Alice\nage: 30";
 
 // Default (strict) decode
-let json = decode(toon, &DecodeOptions::default())?;
+let json: Value = decode(toon, &DecodeOptions::default())?;
 
 // Non-strict mode (relaxed validation)
-let opts = DecodeOptions::new()
-    .with_strict(false);
-let json = decode(toon, &opts)?;
+let opts = DecodeOptions::new().with_strict(false);
+let json: Value = decode(toon, &opts)?;
 
 // Disable type coercion
-let opts = DecodeOptions::new()
-    .with_coerce_types(false);
-let json = decode("active: true", &opts)?;
+let opts = DecodeOptions::new().with_coerce_types(false);
+let json: Value = decode("active: true", &opts)?;
 // With coercion: {"active": true}
 // Without: {"active": "true"}
 ```
+
+**Helper functions:**
+- `encode_default<T>(&value)` - Encode with default options
+- `decode_default<T>(&input)` - Decode with default options
 
 #### `DecodeOptions`
 
@@ -184,11 +242,11 @@ data:
 data.metadata.items[2]: a,b
 ```
 
-#### Example
+**Example:**
 
 ```rust
-use toon_format::{encode, EncodeOptions, KeyFoldingMode};
 use serde_json::json;
+use toon_format::{encode, EncodeOptions, KeyFoldingMode};
 
 let data = json!({
     "data": {
@@ -257,9 +315,10 @@ a.e: 3
 }
 ```
 
-#### Example
+**Example:**
 
 ```rust
+use serde_json::Value;
 use toon_format::{decode, DecodeOptions, PathExpansionMode};
 
 let toon = "a.b.c: 1\na.b.d: 2";
@@ -268,15 +327,15 @@ let toon = "a.b.c: 1\na.b.d: 2";
 let opts = DecodeOptions::new()
     .with_expand_paths(PathExpansionMode::Safe);
 
-let json = decode(toon, &opts)?;
+let json: Value = decode(toon, &opts)?;
 // {"a": {"b": {"c": 1, "d": 2}}}
 ```
 
-#### Round-Trip Example
+**Round-Trip Example:**
 
 ```rust
+use serde_json::{json, Value};
 use toon_format::{encode, decode, EncodeOptions, DecodeOptions, KeyFoldingMode, PathExpansionMode};
-use serde_json::json;
 
 let original = json!({
     "user": {
@@ -290,28 +349,31 @@ let original = json!({
 let encode_opts = EncodeOptions::new()
     .with_key_folding(KeyFoldingMode::Safe);
 let toon = encode(&original, &encode_opts)?;
-// → "user.profile.name: Alice"
+// Output: "user.profile.name: Alice"
 
 // Decode with expansion
 let decode_opts = DecodeOptions::new()
     .with_expand_paths(PathExpansionMode::Safe);
-let restored = decode(&toon, &decode_opts)?;
+let restored: Value = decode(&toon, &decode_opts)?;
 
 assert_eq!(restored, original); // Perfect round-trip!
 ```
 
-#### Quoted Keys Remain Literal
+**Quoted Keys Remain Literal:**
 
 ```rust
+use serde_json::Value;
+use toon_format::{decode, DecodeOptions, PathExpansionMode};
+
 let toon = r#"a.b: 1
 "c.d": 2"#;
 
 let opts = DecodeOptions::new()
     .with_expand_paths(PathExpansionMode::Safe);
-let json = decode(toon, &opts)?;
+let json: Value = decode(toon, &opts)?;
 // {
 //   "a": {"b": 1},
-//   "c.d": 2        ← quoted key preserved
+//   "c.d": 2        <- quoted key preserved
 // }
 ```
 
@@ -388,35 +450,20 @@ Stats:
 
 ---
 
-## Test Coverage
+## Testing
 
-### Comprehensive Test Suite
-
-- **109 Unit Tests**: Core functionality, edge cases, error handling
-- **22 Spec Fixture Tests**: Official TOON spec compliance tests
-  - 11 decode fixtures (objects, arrays, primitives, validation)
-  - 11 encode fixtures (formatting, delimiters, arrays)
-- **13 Key Folding Tests**: v1.5 feature coverage
-- **11 Path Expansion Tests**: v1.5 feature coverage
-- **Integration Tests**: Real-world scenarios
-- **Doc Tests**: All examples in documentation tested
-
-### Running Tests
+The library includes a comprehensive test suite covering core functionality, edge cases, spec compliance, and real-world scenarios.
 
 ```bash
 # Run all tests
 cargo test
 
-# Run specific test suite
+# Run specific test suites
 cargo test --test spec_fixtures
-cargo test --lib folding
-cargo test --lib expansion
+cargo test --lib
 
 # With output
 cargo test -- --nocapture
-
-# Release mode
-cargo test --release
 ```
 
 ## Error Handling
@@ -424,9 +471,10 @@ cargo test --release
 All operations return `Result<T, ToonError>` with descriptive error messages:
 
 ```rust
+use serde_json::Value;
 use toon_format::{decode_strict, ToonError};
 
-match decode_strict("items[3]: a,b") {
+match decode_strict::<Value>("items[3]: a,b") {
     Ok(value) => println!("Success: {:?}", value),
     Err(ToonError::LengthMismatch { expected, found, .. }) => {
         eprintln!("Array length mismatch: expected {}, found {}", expected, found);
@@ -447,14 +495,17 @@ match decode_strict("items[3]: a,b") {
 
 
 ## Examples
-
-See the [`examples/`](./examples/) directory for more:
-
-- `basic.rs` - Simple encode/decode
-- `options.rs` - Custom configuration
-- `folding.rs` - Key folding examples
-- `expansion.rs` - Path expansion examples
-- `cli_usage.sh` - CLI examples
+Run with `cargo run --example examples` to see all examples:
+- `structs.rs` - Custom struct serialization
+- `tabular.rs` - Tabular array formatting
+- `arrays.rs` - Various array formats
+- `arrays_of_arrays.rs` - Nested arrays
+- `objects.rs` - Object encoding
+- `mixed_arrays.rs` - Mixed-type arrays
+- `delimiters.rs` - Custom delimiters
+- `round_trip.rs` - Encode/decode round-trips
+- `decode_strict.rs` - Strict validation
+- `empty_and_root.rs` - Edge cases
 
 ---
 

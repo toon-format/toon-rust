@@ -1,4 +1,7 @@
-use serde_json::json;
+use serde_json::{
+    json,
+    Value,
+};
 use toon_format::{
     decode,
     decode_default,
@@ -16,7 +19,7 @@ fn test_invalid_syntax_errors() {
     ];
 
     for (input, expected_msg) in cases {
-        let result = decode_default(input);
+        let result = decode_default::<Value>(input);
         if let Err(err) = result {
             let err_str = err.to_string();
             assert!(
@@ -36,7 +39,7 @@ fn test_invalid_syntax_errors() {
     ];
 
     for (input, expected_msg) in invalid_cases {
-        let result = decode_default(input);
+        let result = decode_default::<Value>(input);
         assert!(result.is_err(), "Expected error for input: {input}");
 
         let err = result.unwrap_err();
@@ -56,7 +59,7 @@ fn test_type_mismatch_errors() {
     ];
 
     for (input, description) in cases {
-        let result = decode_default(input);
+        let result = decode_default::<Value>(input);
         println!("Test case '{description}': {result:?}");
     }
 }
@@ -66,7 +69,7 @@ fn test_length_mismatch_strict_mode() {
     let test_cases = vec![("items[3]: a,b", 3, 2), ("items[5]: x", 5, 1)];
 
     for (input, expected, actual) in test_cases {
-        let result = decode_strict(input);
+        let result = decode_strict::<Value>(input);
 
         assert!(
             result.is_err(),
@@ -90,7 +93,7 @@ fn test_length_mismatch_strict_mode() {
         }
     }
 
-    let result = decode_strict("items[1]: a,b,c");
+    let result = decode_strict::<Value>("items[1]: a,b,c");
 
     if let Ok(val) = result {
         assert_eq!(val["items"], json!(["a"]));
@@ -105,7 +108,7 @@ fn test_length_mismatch_non_strict_mode() {
     ];
 
     for (input, _expected) in test_cases {
-        let result = decode_default(input);
+        let result = decode_default::<Value>(input);
         println!("Non-strict test for '{input}': {result:?}");
     }
 }
@@ -113,7 +116,7 @@ fn test_length_mismatch_non_strict_mode() {
 #[test]
 fn test_delimiter_errors() {
     let mixed_delimiters = "items[3]: a,b|c";
-    let result = decode_default(mixed_delimiters);
+    let result = decode_default::<Value>(mixed_delimiters);
 
     println!("Mixed delimiter test: {result:?}");
 }
@@ -126,14 +129,14 @@ fn test_quoting_errors() {
     ];
 
     for (input, description) in test_cases {
-        let result = decode_default(input);
+        let result = decode_default::<Value>(input);
         println!("Quoting error test '{description}': {result:?}");
     }
 }
 
 #[test]
 fn test_tabular_array_errors() {
-    let result = decode_default("items[2]{id,name}:\n  1,Alice\n  2");
+    let result = decode_default::<Value>("items[2]{id,name}:\n  1,Alice\n  2");
     assert!(result.is_err(), "Should error on incomplete row");
 
     if let Err(e) = result {
@@ -147,7 +150,7 @@ fn test_tabular_array_errors() {
         );
     }
 
-    let result = decode_default("items[2]{id,name}:\n  1,Alice\n  2,Bob,Extra");
+    let result = decode_default::<Value>("items[2]{id,name}:\n  1,Alice\n  2,Bob,Extra");
     if let Err(err) = result {
         let err_str = err.to_string();
         assert!(
@@ -158,7 +161,7 @@ fn test_tabular_array_errors() {
         println!("Note: Extra fields are ignored in tabular arrays");
     }
 
-    let result = decode_strict("items[3]{id,name}:\n  1,Alice\n  2,Bob");
+    let result = decode_strict::<Value>("items[3]{id,name}:\n  1,Alice\n  2,Bob");
     assert!(
         result.is_err(),
         "Should error on row count mismatch in strict mode"
@@ -175,10 +178,10 @@ fn test_tabular_array_errors() {
 
 #[test]
 fn test_nested_structure_errors() {
-    let result = decode_default("obj:\n  key");
+    let result = decode_default::<Value>("obj:\n  key");
     assert!(result.is_err(), "Should error on incomplete nested object");
 
-    let result = decode_default("arr[2]:\n  - item");
+    let result = decode_default::<Value>("arr[2]:\n  - item");
     assert!(result.is_err(), "Should error on incomplete nested array");
 }
 
@@ -190,7 +193,7 @@ fn test_depth_limit_errors() {
     }
     nested.push_str(&format!("{}c: value", "  ".repeat(61)));
 
-    let result = decode_default(&nested);
+    let result = decode_default::<Value>(&nested);
     println!("Deep nesting test: {result:?}");
 }
 
@@ -204,14 +207,14 @@ fn test_empty_structure_errors() {
     ];
 
     for (input, description) in cases {
-        let result = decode_default(input);
+        let result = decode_default::<Value>(input);
         println!("Empty structure test '{description}': {result:?}");
     }
 }
 
 #[test]
 fn test_error_messages_are_helpful() {
-    let result = decode_strict("items[5]: a,b,c");
+    let result = decode_strict::<Value>("items[5]: a,b,c");
 
     if let Err(err) = result {
         let err_msg = err.to_string();
@@ -229,7 +232,7 @@ fn test_error_messages_are_helpful() {
 #[test]
 fn test_parse_error_line_column() {
     let input = "line1: value\nline2: bad syntax!\nline3: value";
-    let result = decode_default(input);
+    let result = decode_default::<Value>(input);
 
     if let Err(ToonError::ParseError { line, column, .. }) = result {
         println!("Parse error at line {line}, column {column}");
@@ -241,7 +244,7 @@ fn test_parse_error_line_column() {
 #[test]
 fn test_multiple_errors_in_input() {
     let input = "items[10]: a,b\nobj{missing,fields: x,y";
-    let result = decode_default(input);
+    let result = decode_default::<Value>(input);
 
     assert!(result.is_err(), "Should error on malformed input");
 }
@@ -250,13 +253,13 @@ fn test_multiple_errors_in_input() {
 fn test_coercion_errors() {
     let opts = DecodeOptions::new().with_coerce_types(true);
 
-    let result = decode("value: 123", &opts);
+    let result = decode::<Value>("value: 123", &opts);
     assert!(result.is_ok());
 
-    let result = decode("value: true", &opts);
+    let result = decode::<Value>("value: true", &opts);
     assert!(result.is_ok());
 
-    let result = decode("value: 3.14", &opts);
+    let result = decode::<Value>("value: 3.14", &opts);
     assert!(result.is_ok());
 }
 
@@ -264,23 +267,23 @@ fn test_coercion_errors() {
 fn test_no_coercion_preserves_strings() {
     let opts = DecodeOptions::new().with_coerce_types(false);
 
-    let result = decode("value: hello", &opts).unwrap();
+    let result = decode::<Value>("value: hello", &opts).unwrap();
     assert!(result["value"].is_string());
     assert_eq!(result["value"], json!("hello"));
 
-    let result = decode(r#"value: "123""#, &opts).unwrap();
+    let result = decode::<Value>(r#"value: "123""#, &opts).unwrap();
     assert!(result["value"].is_string());
     assert_eq!(result["value"], json!("123"));
 
-    let result = decode(r#"value: "true""#, &opts).unwrap();
+    let result = decode::<Value>(r#"value: "true""#, &opts).unwrap();
     assert!(result["value"].is_string());
     assert_eq!(result["value"], json!("true"));
 
-    let result = decode("value: 123", &opts).unwrap();
+    let result = decode::<Value>("value: 123", &opts).unwrap();
     assert!(result["value"].is_number());
     assert_eq!(result["value"], json!(123));
 
-    let result = decode("value: true", &opts).unwrap();
+    let result = decode::<Value>("value: true", &opts).unwrap();
     assert!(result["value"].is_boolean());
     assert_eq!(result["value"], json!(true));
 }
@@ -293,14 +296,14 @@ fn test_edge_case_values() {
     ];
 
     for (input, expected) in cases {
-        let result = decode_default(input);
+        let result = decode_default::<Value>(input);
         match result {
             Ok(val) => assert_eq!(val, expected, "Failed for input: {input}"),
             Err(e) => println!("Edge case '{input}' error: {e:?}"),
         }
     }
 
-    let result = decode_default("value: -0");
+    let result = decode_default::<Value>("value: -0");
     match result {
         Ok(val) => {
             assert_eq!(
@@ -316,7 +319,7 @@ fn test_edge_case_values() {
 #[test]
 fn test_unicode_in_errors() {
     let input = "emoji: 😀🎉\nkey: value\nbad: @syntax!";
-    let result = decode_default(input);
+    let result = decode_default::<Value>(input);
 
     if let Err(err) = result {
         let err_msg = err.to_string();
@@ -330,14 +333,14 @@ fn test_recovery_from_errors() {
     let valid_after_invalid = vec!["good: value\nbad syntax here\nalso_good: value"];
 
     for input in valid_after_invalid {
-        let result = decode_default(input);
+        let result = decode_default::<Value>(input);
         println!("Recovery test for: {result:?}");
     }
 }
 
 #[test]
 fn test_strict_mode_indentation_errors() {
-    let result = decode_strict("items[2]: a");
+    let result = decode_strict::<Value>("items[2]: a");
     assert!(
         result.is_err(),
         "Should error on insufficient items in strict mode"
@@ -354,13 +357,13 @@ fn test_strict_mode_indentation_errors() {
 
 #[test]
 fn test_quoted_key_without_colon() {
-    let result = decode_default(r#""key" value"#);
+    let result = decode_default::<Value>(r#""key" value"#);
     println!("Quoted key test: {result:?}");
 }
 
 #[test]
 fn test_nested_array_length_mismatches() {
-    let result = decode_strict("outer[1]:\n  - items[2]: a,b\n  - items[3]: x,y");
+    let result = decode_strict::<Value>("outer[1]:\n  - items[2]: a,b\n  - items[3]: x,y");
     if let Err(err) = result {
         let err_str = err.to_string();
         assert!(err_str.contains("3") || err_str.contains("2") || err_str.contains("length"));
@@ -369,13 +372,13 @@ fn test_nested_array_length_mismatches() {
 
 #[test]
 fn test_empty_array_with_length() {
-    let result = decode_strict("items[2]:");
+    let result = decode_strict::<Value>("items[2]:");
     assert!(
         result.is_err(),
         "Should error when array header specifies length but no items provided"
     );
 
-    let result = decode_strict("items[0]:");
+    let result = decode_strict::<Value>("items[0]:");
     assert!(
         result.is_ok(),
         "Empty array with length 0 should parse successfully"
@@ -388,7 +391,7 @@ fn test_empty_array_with_length() {
 
 #[test]
 fn test_tabular_array_field_count_mismatch() {
-    let result = decode_default("items[2]{id,name}:\n  1\n  2,Bob");
+    let result = decode_default::<Value>("items[2]{id,name}:\n  1\n  2,Bob");
     assert!(
         result.is_err(),
         "Should error when row has fewer fields than header"
@@ -403,7 +406,7 @@ fn test_invalid_array_header_syntax() {
     ];
 
     for (input, expected_msg) in cases {
-        let result = decode_default(input);
+        let result = decode_default::<Value>(input);
         assert!(
             result.is_err(),
             "Should error on invalid array header: {input}"
@@ -418,24 +421,24 @@ fn test_invalid_array_header_syntax() {
         }
     }
 
-    let result = decode_default("items{id}: a,b");
+    let result = decode_default::<Value>("items{id}: a,b");
     println!("Braces without brackets test: {result:?}");
 
-    let result = decode_default("items]2[: a,b");
+    let result = decode_default::<Value>("items]2[: a,b");
     println!("Quirky bracket syntax test: {result:?}");
 }
 
 #[test]
 fn test_missing_colon_after_key() {
-    let _result = decode_default("key value");
+    let _result = decode_default::<Value>("key value");
 
-    let result = decode_default("obj:\n  key value");
+    let result = decode_default::<Value>("obj:\n  key value");
     println!("Missing colon in object: {result:?}");
 }
 
 #[test]
 fn test_error_context_information() {
-    let result = decode_strict("items[5]: a,b");
+    let result = decode_strict::<Value>("items[5]: a,b");
 
     if let Err(e) = result {
         let err_str = e.to_string();

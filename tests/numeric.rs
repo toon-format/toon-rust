@@ -1,6 +1,9 @@
 use core::f64;
 
-use serde_json::json;
+use serde_json::{
+    json,
+    Value,
+};
 use toon_format::{
     decode_default,
     encode_default,
@@ -19,7 +22,7 @@ fn test_numeric_edge_cases() {
     });
 
     let encoded = encode_default(&numbers).unwrap();
-    let decoded = decode_default(&encoded).unwrap();
+    let decoded: Value = decode_default(&encoded).unwrap();
 
     assert_eq!(decoded["zero"], json!(0));
     assert_eq!(decoded["negative"], json!(-42));

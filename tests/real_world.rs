@@ -1,4 +1,7 @@
-use serde_json::json;
+use serde_json::{
+    json,
+    Value,
+};
 use toon_format::{
     decode_default,
     encode_default,
@@ -34,7 +37,7 @@ fn test_real_world_github_data() {
     });
 
     let encoded = encode_default(&github_repos).unwrap();
-    let decoded = decode_default(&encoded).unwrap();
+    let decoded: Value = decode_default(&encoded).unwrap();
     assert_eq!(github_repos, decoded);
 
     assert!(encoded.contains("repositories[2]{"));
@@ -75,7 +78,7 @@ fn test_real_world_e_commerce_data() {
     });
 
     let encoded = encode_default(&order).unwrap();
-    let decoded = decode_default(&encoded).unwrap();
+    let decoded: Value = decode_default(&encoded).unwrap();
     assert_eq!(decoded["order_id"], order["order_id"]);
     assert_eq!(decoded["customer"], order["customer"]);
     assert_eq!(decoded["shipping"], order["shipping"]);

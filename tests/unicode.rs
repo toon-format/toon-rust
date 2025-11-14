@@ -1,4 +1,7 @@
-use serde_json::json;
+use serde_json::{
+    json,
+    Value,
+};
 use toon_format::{
     decode_default,
     encode_default,
@@ -14,6 +17,6 @@ fn test_unicode_strings() {
     });
 
     let encoded = encode_default(&unicode).unwrap();
-    let decoded = decode_default(&encoded).unwrap();
+    let decoded: Value = decode_default(&encoded).unwrap();
     assert_eq!(unicode, decoded);
 }

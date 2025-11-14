@@ -1,4 +1,7 @@
-use serde_json::json;
+use serde_json::{
+    json,
+    Value,
+};
 use toon_format::{
     decode_default,
     encode_default,
@@ -21,7 +24,7 @@ fn test_special_characters_and_quoting() {
 
     for case in cases {
         let encoded = encode_default(&case).unwrap();
-        let decoded = decode_default(&encoded).unwrap();
+        let decoded: Value = decode_default(&encoded).unwrap();
         assert_eq!(case, decoded, "Failed for: {case}");
     }
 }
@@ -39,6 +42,6 @@ fn test_nested_structures() {
     });
 
     let encoded = encode_default(&nested).unwrap();
-    let decoded = decode_default(&encoded).unwrap();
+    let decoded: Value = decode_default(&encoded).unwrap();
     assert_eq!(nested, decoded);
 }

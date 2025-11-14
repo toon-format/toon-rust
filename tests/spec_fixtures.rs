@@ -74,7 +74,7 @@ fn test_decode_fixtures(path: &Utf8Path, contents: String) -> datatest_stable::R
             .as_str()
             .ok_or_else(|| format!("Test '{test_name}': input field is not a string"))?;
 
-        let result = decode(toon_input, &opts);
+        let result = decode::<Value>(toon_input, &opts);
 
         if test.should_error {
             if result.is_ok() {

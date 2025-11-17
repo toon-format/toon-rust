@@ -14,6 +14,9 @@ cd toon-rust
 # Build the project
 cargo build
 
+# Initialize and clone the spec submodule (required for tests)
+git submodule update --init --recursive
+
 # Run tests
 cargo test
 ```

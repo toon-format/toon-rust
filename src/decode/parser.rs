@@ -1,12 +1,29 @@
-use serde_json::{Map, Number, Value};
+use serde_json::{
+    Map,
+    Number,
+    Value,
+};
 
 use crate::{
-    constants::{KEYWORDS, MAX_DEPTH, QUOTED_KEY_MARKER},
+    constants::{
+        KEYWORDS,
+        MAX_DEPTH,
+        QUOTED_KEY_MARKER,
+    },
     decode::{
-        scanner::{Scanner, Token},
+        scanner::{
+            Scanner,
+            Token,
+        },
         validation,
     },
-    types::{DecodeOptions, Delimiter, ErrorContext, ToonError, ToonResult},
+    types::{
+        DecodeOptions,
+        Delimiter,
+        ErrorContext,
+        ToonError,
+        ToonResult,
+    },
     utils::validation::validate_depth,
 };
 

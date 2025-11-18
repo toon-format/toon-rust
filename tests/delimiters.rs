@@ -1,5 +1,14 @@
-use serde_json::{json, Value};
-use toon_format::{decode_default, encode, encode_default, Delimiter, EncodeOptions};
+use serde_json::{
+    json,
+    Value,
+};
+use toon_format::{
+    decode_default,
+    encode,
+    encode_default,
+    Delimiter,
+    EncodeOptions,
+};
 
 #[test]
 fn test_delimiter_variants() {
@@ -41,8 +50,8 @@ fn test_delimiter_in_values() {
 
 #[test]
 fn test_non_active_delimiters_in_tabular_arrays() {
-    // When comma is the active delimiter, pipe and tab should be treated as regular data
-    // Per TOON spec §11: "non-active delimiters MUST NOT cause splits"
+    // When comma is the active delimiter, pipe and tab should be treated as regular
+    // data Per TOON spec §11: "non-active delimiters MUST NOT cause splits"
 
     // Test 1: Pipe character in value when comma is active delimiter (default)
     let data = r#"item-list[1]{a,b}:

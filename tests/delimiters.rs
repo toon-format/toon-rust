@@ -48,7 +48,7 @@ fn test_non_active_delimiters_in_tabular_arrays() {
     let data = r#"item-list[1]{a,b}:
   ":",|
 "#;
-    let decoded: Value = decode_default(&data).unwrap();
+    let decoded: Value = decode_default(data).unwrap();
     assert_eq!(decoded["item-list"][0]["a"], ":");
     assert_eq!(decoded["item-list"][0]["b"], "|");
 
@@ -56,13 +56,13 @@ fn test_non_active_delimiters_in_tabular_arrays() {
     let data = r#"item-list[1]{a,b}:
   ":","|"
 "#;
-    let decoded: Value = decode_default(&data).unwrap();
+    let decoded: Value = decode_default(data).unwrap();
     assert_eq!(decoded["item-list"][0]["a"], ":");
     assert_eq!(decoded["item-list"][0]["b"], "|");
 
     // Test 3: Tab character in value when comma is active
     let data = "item-list[1]{a,b}:\n  \":\",\t\n";
-    let decoded: Value = decode_default(&data).unwrap();
+    let decoded: Value = decode_default(data).unwrap();
     assert_eq!(decoded["item-list"][0]["a"], ":");
     assert_eq!(decoded["item-list"][0]["b"], "\t");
 
@@ -70,7 +70,7 @@ fn test_non_active_delimiters_in_tabular_arrays() {
     let data = r#"item-list[1|]{a|b}:
   ":"|","
 "#;
-    let decoded: Value = decode_default(&data).unwrap();
+    let decoded: Value = decode_default(data).unwrap();
     assert_eq!(decoded["item-list"][0]["a"], ":");
     assert_eq!(decoded["item-list"][0]["b"], ",");
 }
@@ -79,17 +79,17 @@ fn test_non_active_delimiters_in_tabular_arrays() {
 fn test_non_active_delimiters_in_inline_arrays() {
     // Test pipe in inline array when comma is active
     let data = r#"tags[3]: a,|,c"#;
-    let decoded: Value = decode_default(&data).unwrap();
+    let decoded: Value = decode_default(data).unwrap();
     assert_eq!(decoded["tags"], json!(["a", "|", "c"]));
 
     // Test comma in inline array when pipe is active - comma needs quoting
     let data = "tags[3|]: a|\",\"|c";
-    let decoded: Value = decode_default(&data).unwrap();
+    let decoded: Value = decode_default(data).unwrap();
     assert_eq!(decoded["tags"], json!(["a", ",", "c"]));
 
     // Test multiple non-active delimiters - pipes when comma is active
     let data = r#"items[4]: |,|,|,"#;
-    let decoded: Value = decode_default(&data).unwrap();
+    let decoded: Value = decode_default(data).unwrap();
     assert_eq!(decoded["items"], json!(["|", "|", "|", ""]));
 }
 
@@ -100,6 +100,6 @@ fn test_delimiter_mismatch_error() {
     let data = r#"item-list[1|]{a,b}:
   ":",|
 "#;
-    let result: Result<Value, _> = decode_default(&data);
+    let result: Result<Value, _> = decode_default(data);
     assert!(result.is_err(), "Mismatched delimiters should error");
 }

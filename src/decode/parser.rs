@@ -516,12 +516,7 @@ impl<'a> Parser<'a> {
                             break;
                         }
 
-                        let is_delim = match &self.current_token {
-                            Token::Delimiter(_) => true,
-                            Token::String(s, _) if s == "," || s == "|" || s == "\t" => true,
-                            _ => false,
-                        };
-                        if is_delim {
+                        if matches!(self.current_token, Token::Delimiter(_)) {
                             self.advance()?;
                         } else {
                             return Err(self.parse_error_with_context(format!(
@@ -613,9 +608,7 @@ impl<'a> Parser<'a> {
             for (field_index, field) in fields.iter().enumerate() {
                 // Skip delimiter before each field except the first
                 if field_index > 0 {
-                    if matches!(self.current_token, Token::Delimiter(_))
-                        || matches!(&self.current_token, Token::String(s, _) if s == "," || s == "|" || s == "\t")
-                    {
+                    if matches!(self.current_token, Token::Delimiter(_)) {
                         self.advance()?;
                     } else {
                         return Err(self
@@ -633,7 +626,6 @@ impl<'a> Parser<'a> {
 
                 // Empty values show up as delimiters or newlines
                 let value = if matches!(self.current_token, Token::Delimiter(_))
-                    || matches!(&self.current_token, Token::String(s, _) if s == "," || s == "|" || s == "\t")
                     || matches!(self.current_token, Token::Newline | Token::Eof)
                 {
                     Value::String(String::new())
@@ -669,8 +661,7 @@ impl<'a> Parser<'a> {
                         }
                     }
                 } else if !matches!(self.current_token, Token::Newline | Token::Eof)
-                    && (matches!(self.current_token, Token::Delimiter(_))
-                        || matches!(&self.current_token, Token::String(s, _) if s == "," || s == "|" || s == "\t"))
+                    && matches!(self.current_token, Token::Delimiter(_))
                 {
                     // Last field but there's another delimiter - too many values
                     return Err(self
@@ -955,9 +946,7 @@ impl<'a> Parser<'a> {
             _ => {
                 for i in 0..length {
                     if i > 0 {
-                        if matches!(self.current_token, Token::Delimiter(_))
-                            || matches!(&self.current_token, Token::String(s, _) if s == "," || s == "|" || s == "\t")
-                        {
+                        if matches!(self.current_token, Token::Delimiter(_)) {
                             self.advance()?;
                         } else {
                             return Err(self
@@ -974,7 +963,6 @@ impl<'a> Parser<'a> {
                     }
 
                     let value = if matches!(self.current_token, Token::Delimiter(_))
-                        || matches!(&self.current_token, Token::String(s, _) if s == "," || s == "|" || s == "\t")
                         || (matches!(self.current_token, Token::Eof | Token::Newline) && i < length)
                     {
                         Value::String(String::new())

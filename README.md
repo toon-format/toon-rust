@@ -379,6 +379,42 @@ let json: Value = decode(toon, &opts)?;
 
 ---
 
+## Interactive TUI
+
+TOON includes a full-featured Terminal User Interface for interactive conversions!
+
+```bash
+# Launch interactive mode
+toon --interactive
+# or
+toon -i
+```
+
+### Features:
+- Real-time conversion as you type
+- Live statistics (tokens, bytes, savings)
+- Interactive settings - adjust all options on-the-fly
+- File browser with visual navigation
+- Side-by-side diff viewer
+- Conversion history tracking
+- File operations (open, save, new)
+- Clipboard integration (copy/paste)
+- REPL mode for command-line interaction
+- Round-trip testing
+- Theme support (Dark/Light)
+- Built-in help with keyboard shortcuts
+
+**Perfect for:**
+- Learning TOON format interactively
+- Testing conversions in real-time
+- Experimenting with different settings
+- Visual before/after comparisons
+- Quick data transformations
+
+See [docs/TUI.md](docs/TUI.md) for complete documentation and keyboard shortcuts!
+
+---
+
 ## CLI Usage
 
 ### Basic Commands

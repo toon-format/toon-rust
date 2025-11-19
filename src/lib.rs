@@ -28,6 +28,7 @@
 pub mod constants;
 pub mod decode;
 pub mod encode;
+pub mod tui;
 pub mod types;
 pub mod utils;
 

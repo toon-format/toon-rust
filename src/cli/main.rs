@@ -42,6 +42,9 @@ use toon_format::{
     long_about = "TOON Format CLI - Token-efficient JSON alternative for LLMs
 
 EXAMPLES:
+  toon --interactive                       # Launch interactive TUI
+  toon -i                                  # Short flag for interactive mode
+  
   toon input.json -o output.toon
   toon input.toon --json-indent 2
   cat data.json | toon -e --stats
@@ -55,6 +58,9 @@ EXAMPLES:
 )]
 struct Cli {
     input: Option<String>,
+
+    #[arg(short, long, help = "Launch interactive TUI mode")]
+    interactive: bool,
 
     #[arg(short, long, help = "Output file path")]
     output: Option<PathBuf>,
@@ -263,6 +269,10 @@ fn determine_operation(cli: &Cli) -> Result<(Operation, bool)> {
     let mut from_stdin = false;
     let mut operation: Option<Operation> = None;
 
+    if cli.interactive {
+        bail!("Interactive mode cannot be combined with other operations");
+    }
+
     if cli.encode && cli.decode {
         bail!("Cannot use --encode and --decode simultaneously");
     }
@@ -348,6 +358,11 @@ fn validate_flags(cli: &Cli, operation: &Operation) -> Result<()> {
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
+    // Check if interactive mode is requested
+    if cli.interactive {
+        return run_interactive();
+    }
+
     let (operation, from_stdin) = determine_operation(&cli)?;
     validate_flags(&cli, &operation)?;
 
@@ -364,5 +379,10 @@ fn main() -> Result<()> {
         Operation::Decode => run_decode(&cli, &input)?,
     }
 
+    Ok(())
+}
+
+fn run_interactive() -> Result<()> {
+    toon_format::tui::run().context("Failed to run interactive TUI")?;
     Ok(())
 }

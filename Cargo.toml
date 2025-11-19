@@ -36,7 +36,7 @@ comfy-table = "7.1"
 
 # TUI dependencies
 ratatui = "0.29"
-crossterm = "0.29"
+crossterm = "0.28"
 tui-textarea = "0.7"
 arboard = "3.4"
 syntect = "5.2"

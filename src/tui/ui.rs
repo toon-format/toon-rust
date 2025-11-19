@@ -58,10 +58,7 @@ pub fn render(f: &mut Frame, app: &mut AppState, file_browser: &mut FileBrowser)
     if app.repl.active {
         let repl_area = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Length(3),
-                Constraint::Min(10),
-            ])
+            .constraints([Constraint::Length(3), Constraint::Min(10)])
             .split(f.area())[1];
 
         ReplPanel::render(f, repl_area, app);
@@ -155,14 +152,14 @@ fn render_header(f: &mut Frame, area: Rect, app: &AppState) {
             };
 
             let indent = match app.encode_options.indent {
-                crate::Indent::Spaces(n) => format!("{}sp", n),
+                crate::Indent::Spaces(n) => format!("{n}sp"),
             };
 
             let mut spans = vec![
                 Span::styled("Delim:", theme.line_number_style()),
-                Span::styled(format!(" {}", delimiter), theme.info_style()),
+                Span::styled(format!(" {delimiter}"), theme.info_style()),
                 Span::styled(" | Indent:", theme.line_number_style()),
-                Span::styled(format!(" {}", indent), theme.info_style()),
+                Span::styled(format!(" {indent}"), theme.info_style()),
             ];
 
             // Show folding depth only when folding is enabled
@@ -204,9 +201,9 @@ fn render_header(f: &mut Frame, area: Rect, app: &AppState) {
 
             vec![
                 Span::styled("Strict:", theme.line_number_style()),
-                Span::styled(format!(" {}", strict), theme.info_style()),
+                Span::styled(format!(" {strict}"), theme.info_style()),
                 Span::styled(" | Coerce:", theme.line_number_style()),
-                Span::styled(format!(" {}", coerce), theme.info_style()),
+                Span::styled(format!(" {coerce}"), theme.info_style()),
                 Span::styled(expand, theme.line_number_style()),
             ]
         }

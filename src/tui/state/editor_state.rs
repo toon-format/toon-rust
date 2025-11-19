@@ -20,10 +20,10 @@ impl<'a> EditorState<'a> {
     pub fn new() -> Self {
         let mut input = TextArea::default();
         input.set_placeholder_text("Enter JSON here or open a file (Ctrl+O)");
-        
+
         let mut output = TextArea::default();
         output.set_placeholder_text("TOON output will appear here");
-        
+
         Self {
             input,
             output,
@@ -51,12 +51,14 @@ impl<'a> EditorState<'a> {
 
     pub fn clear_input(&mut self) {
         self.input = TextArea::default();
-        self.input.set_placeholder_text("Enter JSON here or open a file (Ctrl+O)");
+        self.input
+            .set_placeholder_text("Enter JSON here or open a file (Ctrl+O)");
     }
 
     pub fn clear_output(&mut self) {
         self.output = TextArea::default();
-        self.output.set_placeholder_text("TOON output will appear here");
+        self.output
+            .set_placeholder_text("TOON output will appear here");
     }
 
     pub fn toggle_active(&mut self) {
@@ -80,4 +82,3 @@ impl<'a> Default for EditorState<'a> {
         Self::new()
     }
 }
-

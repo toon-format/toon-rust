@@ -1,7 +1,11 @@
 //! File management and conversion history.
 
 use std::path::PathBuf;
-use chrono::{DateTime, Local};
+
+use chrono::{
+    DateTime,
+    Local,
+};
 
 /// A file or directory entry.
 #[derive(Debug, Clone)]
@@ -63,9 +67,10 @@ impl FileState {
 
     pub fn set_current_file(&mut self, path: PathBuf) {
         self.current_file = Some(path.clone());
-        self.current_dir = path.parent().map(|p| p.to_path_buf()).unwrap_or_else(|| {
-            std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
-        });
+        self.current_dir = path
+            .parent()
+            .map(|p| p.to_path_buf())
+            .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
         self.is_modified = false;
     }
 
@@ -107,4 +112,3 @@ impl Default for FileState {
         Self::new()
     }
 }
-

@@ -1,12 +1,36 @@
 use ratatui::{
-    layout::{Constraint, Direction, Layout, Margin, Rect},
-    style::{Color, Modifier, Style},
-    text::{Line, Span},
-    widgets::{Block, Borders, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, Wrap},
+    layout::{
+        Constraint,
+        Direction,
+        Layout,
+        Margin,
+        Rect,
+    },
+    style::{
+        Color,
+        Modifier,
+        Style,
+    },
+    text::{
+        Line,
+        Span,
+    },
+    widgets::{
+        Block,
+        Borders,
+        Paragraph,
+        Scrollbar,
+        ScrollbarOrientation,
+        ScrollbarState,
+        Wrap,
+    },
     Frame,
 };
 
-use crate::tui::state::{AppState, ReplLineKind};
+use crate::tui::state::{
+    AppState,
+    ReplLineKind,
+};
 
 pub struct ReplPanel;
 
@@ -14,10 +38,7 @@ impl ReplPanel {
     pub fn render(f: &mut Frame, area: Rect, app: &mut AppState) {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Min(10),
-                Constraint::Length(3),
-            ])
+            .constraints([Constraint::Min(10), Constraint::Length(3)])
             .split(area);
 
         Self::render_output(f, chunks[0], app);
@@ -25,7 +46,9 @@ impl ReplPanel {
     }
 
     fn render_output(f: &mut Frame, area: Rect, app: &AppState) {
-        let lines: Vec<Line> = app.repl.output
+        let lines: Vec<Line> = app
+            .repl
+            .output
             .iter()
             .skip(app.repl.scroll_offset)
             .map(|line| {
@@ -54,10 +77,10 @@ impl ReplPanel {
             let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
                 .begin_symbol(Some("↑"))
                 .end_symbol(Some("↓"));
-            
-            let mut scrollbar_state = ScrollbarState::new(app.repl.output.len())
-                .position(app.repl.scroll_offset);
-            
+
+            let mut scrollbar_state =
+                ScrollbarState::new(app.repl.output.len()).position(app.repl.scroll_offset);
+
             f.render_stateful_widget(
                 scrollbar,
                 area.inner(Margin {
@@ -91,4 +114,3 @@ impl ReplPanel {
         f.render_widget(paragraph, area);
     }
 }
-

@@ -39,11 +39,11 @@ impl ReplCommand {
                 || rest.contains(':')
             {
                 let data_end = if rest.starts_with('{') {
-                    find_matching_brace(rest)  // Handle nested braces
+                    find_matching_brace(rest) // Handle nested braces
                 } else if rest.starts_with('$') {
-                    rest.find(' ').unwrap_or(rest.len())  // Variable name
+                    rest.find(' ').unwrap_or(rest.len()) // Variable name
                 } else {
-                    rest.find(" --").unwrap_or(rest.len())  // Until flag or end
+                    rest.find(" --").unwrap_or(rest.len()) // Until flag or end
                 };
 
                 let data = rest[..data_end].trim().to_string();

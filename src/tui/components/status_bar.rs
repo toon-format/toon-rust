@@ -1,13 +1,29 @@
 //! Status bar showing mode, file, and key commands.
 
 use ratatui::{
-    layout::{Alignment, Constraint, Direction, Layout, Rect},
-    text::{Line, Span},
-    widgets::{Block, Borders, Paragraph},
+    layout::{
+        Alignment,
+        Constraint,
+        Direction,
+        Layout,
+        Rect,
+    },
+    text::{
+        Line,
+        Span,
+    },
+    widgets::{
+        Block,
+        Borders,
+        Paragraph,
+    },
     Frame,
 };
 
-use crate::tui::{state::AppState, theme::Theme};
+use crate::tui::{
+    state::AppState,
+    theme::Theme,
+};
 
 pub struct StatusBar;
 
@@ -15,10 +31,7 @@ impl StatusBar {
     pub fn render(f: &mut Frame, area: Rect, app: &AppState, theme: &Theme) {
         let chunks = Layout::default()
             .direction(Direction::Horizontal)
-            .constraints([
-                Constraint::Percentage(70),
-                Constraint::Percentage(30),
-            ])
+            .constraints([Constraint::Percentage(70), Constraint::Percentage(30)])
             .split(area);
 
         let mut left_spans = vec![];
@@ -36,7 +49,7 @@ impl StatusBar {
                 .and_then(|n| n.to_str())
                 .unwrap_or("Untitled");
             left_spans.push(Span::styled(file_name, theme.normal_style()));
-            
+
             if app.file_state.is_modified {
                 left_spans.push(Span::styled(" [Modified]", theme.warning_style()));
             }
@@ -47,15 +60,9 @@ impl StatusBar {
         left_spans.push(Span::raw(" | "));
 
         if let Some(ref error) = app.error_message {
-            left_spans.push(Span::styled(
-                format!("✗ {} ", error),
-                theme.error_style(),
-            ));
+            left_spans.push(Span::styled(format!("✗ {error} "), theme.error_style()));
         } else if let Some(ref status) = app.status_message {
-            left_spans.push(Span::styled(
-                format!("✓ {} ", status),
-                theme.success_style(),
-            ));
+            left_spans.push(Span::styled(format!("✓ {status} "), theme.success_style()));
         } else {
             left_spans.push(Span::styled("Ready ", theme.normal_style()));
         }
@@ -66,13 +73,13 @@ impl StatusBar {
             Theme::Light => "Light",
         };
         left_spans.push(Span::styled(
-            format!("{}", theme_name),
+            theme_name.to_string(),
             theme.line_number_style(),
         ));
 
         let left_line = Line::from(left_spans);
-        let left_paragraph = Paragraph::new(left_line)
-            .block(Block::default().borders(Borders::ALL));
+        let left_paragraph =
+            Paragraph::new(left_line).block(Block::default().borders(Borders::ALL));
 
         let key_commands = vec![
             Span::styled("F1", theme.info_style()),
@@ -90,4 +97,3 @@ impl StatusBar {
         f.render_widget(right_paragraph, chunks[1]);
     }
 }
-

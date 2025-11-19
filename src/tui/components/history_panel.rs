@@ -1,13 +1,31 @@
 //! Conversion history panel.
 
 use ratatui::{
-    layout::{Alignment, Constraint, Direction, Layout, Rect},
-    text::{Line, Span},
-    widgets::{Block, Borders, List, ListItem, Paragraph},
+    layout::{
+        Alignment,
+        Constraint,
+        Direction,
+        Layout,
+        Rect,
+    },
+    text::{
+        Line,
+        Span,
+    },
+    widgets::{
+        Block,
+        Borders,
+        List,
+        ListItem,
+        Paragraph,
+    },
     Frame,
 };
 
-use crate::tui::{state::AppState, theme::Theme};
+use crate::tui::{
+    state::AppState,
+    theme::Theme,
+};
 
 pub struct HistoryPanel;
 
@@ -57,7 +75,7 @@ impl HistoryPanel {
                         .unwrap_or("stdin");
 
                     ListItem::new(Line::from(vec![
-                        Span::styled(format!("  {} ", time_str), theme.line_number_style()),
+                        Span::styled(format!("  {time_str} "), theme.line_number_style()),
                         Span::styled(format!("[{}] ", entry.mode), theme.info_style()),
                         Span::styled(file_str, theme.normal_style()),
                         Span::styled(
@@ -77,4 +95,3 @@ impl HistoryPanel {
         }
     }
 }
-

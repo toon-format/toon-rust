@@ -2,12 +2,22 @@
 
 use ratatui::{
     layout::Rect,
-    text::{Line, Span},
-    widgets::{Block, Borders, Paragraph},
+    text::{
+        Line,
+        Span,
+    },
+    widgets::{
+        Block,
+        Borders,
+        Paragraph,
+    },
     Frame,
 };
 
-use crate::tui::{state::AppState, theme::Theme};
+use crate::tui::{
+    state::AppState,
+    theme::Theme,
+};
 
 pub struct StatsBar;
 
@@ -45,27 +55,27 @@ impl StatsBar {
             ];
 
             let line = Line::from(spans);
-            let paragraph = Paragraph::new(line)
-                .block(Block::default()
+            let paragraph = Paragraph::new(line).block(
+                Block::default()
                     .borders(Borders::ALL)
                     .border_style(theme.border_style(false))
-                    .title(" Statistics "));
+                    .title(" Statistics "),
+            );
 
             f.render_widget(paragraph, area);
         } else {
-            let paragraph = Paragraph::new(Line::from(vec![
-                Span::styled(
-                    " No statistics available yet ",
-                    theme.line_number_style(),
-                ),
-            ]))
-            .block(Block::default()
-                .borders(Borders::ALL)
-                .border_style(theme.border_style(false))
-                .title(" Statistics "));
+            let paragraph = Paragraph::new(Line::from(vec![Span::styled(
+                " No statistics available yet ",
+                theme.line_number_style(),
+            )]))
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_style(theme.border_style(false))
+                    .title(" Statistics "),
+            );
 
             f.render_widget(paragraph, area);
         }
     }
 }
-

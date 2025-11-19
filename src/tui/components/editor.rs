@@ -2,16 +2,28 @@
 
 use ratatui::{
     layout::Rect,
-    widgets::{Block, Borders},
+    widgets::{
+        Block,
+        Borders,
+    },
     Frame,
 };
 
-use crate::tui::{state::AppState, theme::Theme};
+use crate::tui::{
+    state::AppState,
+    theme::Theme,
+};
 
 pub struct EditorComponent;
 
 impl EditorComponent {
-    pub fn render(f: &mut Frame, input_area: Rect, output_area: Rect, app: &mut AppState, theme: &Theme) {
+    pub fn render(
+        f: &mut Frame,
+        input_area: Rect,
+        output_area: Rect,
+        app: &mut AppState,
+        theme: &Theme,
+    ) {
         let input_active = app.editor.is_input_active();
         let input_title = format!(
             " Input ({}) {} ",
@@ -29,7 +41,9 @@ impl EditorComponent {
             .style(theme.normal_style());
 
         app.editor.input.set_block(input_block);
-        app.editor.input.set_cursor_line_style(theme.selection_style());
+        app.editor
+            .input
+            .set_cursor_line_style(theme.selection_style());
         app.editor.input.set_style(theme.normal_style());
 
         f.render_widget(&app.editor.input, input_area);
@@ -51,10 +65,11 @@ impl EditorComponent {
             .style(theme.normal_style());
 
         app.editor.output.set_block(output_block);
-        app.editor.output.set_cursor_line_style(theme.selection_style());
+        app.editor
+            .output
+            .set_cursor_line_style(theme.selection_style());
         app.editor.output.set_style(theme.normal_style());
 
         f.render_widget(&app.editor.output, output_area);
     }
 }
-

@@ -1,14 +1,33 @@
 //! File browser for opening JSON/TOON files.
 
-use ratatui::{
-    layout::{Alignment, Constraint, Direction, Layout, Rect},
-    text::{Line, Span},
-    widgets::{Block, Borders, List, ListItem, Paragraph},
-    Frame,
-};
 use std::fs;
 
-use crate::tui::{state::AppState, theme::Theme};
+use ratatui::{
+    layout::{
+        Alignment,
+        Constraint,
+        Direction,
+        Layout,
+        Rect,
+    },
+    text::{
+        Line,
+        Span,
+    },
+    widgets::{
+        Block,
+        Borders,
+        List,
+        ListItem,
+        Paragraph,
+    },
+    Frame,
+};
+
+use crate::tui::{
+    state::AppState,
+    theme::Theme,
+};
 
 /// File browser state and rendering.
 pub struct FileBrowser {
@@ -69,7 +88,11 @@ impl FileBrowser {
 
         let chunks = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([Constraint::Length(2), Constraint::Min(10), Constraint::Length(3)])
+            .constraints([
+                Constraint::Length(2),
+                Constraint::Min(10),
+                Constraint::Length(3),
+            ])
             .split(inner);
 
         let current_dir = Paragraph::new(Line::from(vec![
@@ -105,7 +128,7 @@ impl FileBrowser {
                 };
 
                 ListItem::new(Line::from(vec![
-                    Span::styled(format!("  {} ", icon), style),
+                    Span::styled(format!("  {icon} "), style),
                     Span::styled(name, style),
                 ]))
             })
@@ -138,10 +161,10 @@ impl FileBrowser {
                     let path = entry.path();
                     let name = path.file_name()?.to_str()?.to_string();
                     let is_dir = path.is_dir();
-                    let is_json = !is_dir
-                        && path.extension().and_then(|e| e.to_str()) == Some("json");
-                    let is_toon = !is_dir
-                        && path.extension().and_then(|e| e.to_str()) == Some("toon");
+                    let is_json =
+                        !is_dir && path.extension().and_then(|e| e.to_str()) == Some("json");
+                    let is_toon =
+                        !is_dir && path.extension().and_then(|e| e.to_str()) == Some("toon");
                     Some((name, is_dir, is_json, is_toon))
                 })
                 .collect();
@@ -166,4 +189,3 @@ impl Default for FileBrowser {
         Self::new()
     }
 }
-

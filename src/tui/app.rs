@@ -307,49 +307,46 @@ impl<'a> TuiApp<'a> {
         self.app_state.editor.clear_output();
 
         match serde_json::from_str::<serde_json::Value>(input) {
-            Ok(json_value) => {
-                match encode(&json_value, &self.app_state.encode_options) {
-                    Ok(toon_str) => {
-                        self.app_state.editor.set_output(toon_str.clone());
-                        self.app_state.clear_error();
+            Ok(json_value) => match encode(&json_value, &self.app_state.encode_options) {
+                Ok(toon_str) => {
+                    self.app_state.editor.set_output(toon_str.clone());
+                    self.app_state.clear_error();
 
-                        if let Ok(bpe) = cl100k_base() {
-                            let json_tokens = bpe.encode_with_special_tokens(input).len();
-                            let toon_tokens = bpe.encode_with_special_tokens(&toon_str).len();
-                            let json_bytes = input.len();
-                            let toon_bytes = toon_str.len();
+                    if let Ok(bpe) = cl100k_base() {
+                        let json_tokens = bpe.encode_with_special_tokens(input).len();
+                        let toon_tokens = bpe.encode_with_special_tokens(&toon_str).len();
+                        let json_bytes = input.len();
+                        let toon_bytes = toon_str.len();
 
-                            let token_savings =
-                                100.0 * (1.0 - (toon_tokens as f64 / json_tokens as f64));
-                            let byte_savings =
-                                100.0 * (1.0 - (toon_bytes as f64 / json_bytes as f64));
+                        let token_savings =
+                            100.0 * (1.0 - (toon_tokens as f64 / json_tokens as f64));
+                        let byte_savings = 100.0 * (1.0 - (toon_bytes as f64 / json_bytes as f64));
 
-                            self.app_state.stats = Some(ConversionStats {
-                                json_tokens,
-                                toon_tokens,
-                                json_bytes,
-                                toon_bytes,
-                                token_savings,
-                                byte_savings,
-                            });
+                        self.app_state.stats = Some(ConversionStats {
+                            json_tokens,
+                            toon_tokens,
+                            json_bytes,
+                            toon_bytes,
+                            token_savings,
+                            byte_savings,
+                        });
 
-                            self.app_state.file_state.add_to_history(ConversionHistory {
-                                timestamp: Local::now(),
-                                mode: "Encode".to_string(),
-                                input_file: self.app_state.file_state.current_file.clone(),
-                                output_file: None,
-                                token_savings,
-                                byte_savings,
-                            });
-                        }
-                    }
-                    Err(e) => {
-                        self.app_state.set_error(format!("Encode error: {}", e));
+                        self.app_state.file_state.add_to_history(ConversionHistory {
+                            timestamp: Local::now(),
+                            mode: "Encode".to_string(),
+                            input_file: self.app_state.file_state.current_file.clone(),
+                            output_file: None,
+                            token_savings,
+                            byte_savings,
+                        });
                     }
                 }
-            }
+                Err(e) => {
+                    self.app_state.set_error(format!("Encode error: {e}"));
+                }
+            },
             Err(e) => {
-                self.app_state.set_error(format!("Invalid JSON: {}", e));
+                self.app_state.set_error(format!("Invalid JSON: {e}"));
             }
         }
     }
@@ -358,50 +355,47 @@ impl<'a> TuiApp<'a> {
         self.app_state.editor.clear_output();
 
         match decode::<serde_json::Value>(input, &self.app_state.decode_options) {
-            Ok(json_value) => {
-                match serde_json::to_string_pretty(&json_value) {
-                    Ok(json_str) => {
-                        self.app_state.editor.set_output(json_str.clone());
-                        self.app_state.clear_error();
+            Ok(json_value) => match serde_json::to_string_pretty(&json_value) {
+                Ok(json_str) => {
+                    self.app_state.editor.set_output(json_str.clone());
+                    self.app_state.clear_error();
 
-                        if let Ok(bpe) = cl100k_base() {
-                            let toon_tokens = bpe.encode_with_special_tokens(input).len();
-                            let json_tokens = bpe.encode_with_special_tokens(&json_str).len();
-                            let toon_bytes = input.len();
-                            let json_bytes = json_str.len();
+                    if let Ok(bpe) = cl100k_base() {
+                        let toon_tokens = bpe.encode_with_special_tokens(input).len();
+                        let json_tokens = bpe.encode_with_special_tokens(&json_str).len();
+                        let toon_bytes = input.len();
+                        let json_bytes = json_str.len();
 
-                            let token_savings =
-                                100.0 * (1.0 - (toon_tokens as f64 / json_tokens as f64));
-                            let byte_savings =
-                                100.0 * (1.0 - (toon_bytes as f64 / json_bytes as f64));
+                        let token_savings =
+                            100.0 * (1.0 - (toon_tokens as f64 / json_tokens as f64));
+                        let byte_savings = 100.0 * (1.0 - (toon_bytes as f64 / json_bytes as f64));
 
-                            self.app_state.stats = Some(ConversionStats {
-                                json_tokens,
-                                toon_tokens,
-                                json_bytes,
-                                toon_bytes,
-                                token_savings,
-                                byte_savings,
-                            });
+                        self.app_state.stats = Some(ConversionStats {
+                            json_tokens,
+                            toon_tokens,
+                            json_bytes,
+                            toon_bytes,
+                            token_savings,
+                            byte_savings,
+                        });
 
-                            self.app_state.file_state.add_to_history(ConversionHistory {
-                                timestamp: Local::now(),
-                                mode: "Decode".to_string(),
-                                input_file: self.app_state.file_state.current_file.clone(),
-                                output_file: None,
-                                token_savings,
-                                byte_savings,
-                            });
-                        }
-                    }
-                    Err(e) => {
-                        self.app_state
-                            .set_error(format!("JSON serialization error: {}", e));
+                        self.app_state.file_state.add_to_history(ConversionHistory {
+                            timestamp: Local::now(),
+                            mode: "Decode".to_string(),
+                            input_file: self.app_state.file_state.current_file.clone(),
+                            output_file: None,
+                            token_savings,
+                            byte_savings,
+                        });
                     }
                 }
-            }
+                Err(e) => {
+                    self.app_state
+                        .set_error(format!("JSON serialization error: {e}"));
+                }
+            },
             Err(e) => {
-                self.app_state.set_error(format!("Decode error: {}", e));
+                self.app_state.set_error(format!("Decode error: {e}"));
             }
         }
     }
@@ -426,7 +420,7 @@ impl<'a> TuiApp<'a> {
         let path = if let Some(current) = &self.app_state.file_state.current_file {
             current.with_extension(extension)
         } else {
-            PathBuf::from(format!("output.{}", extension))
+            PathBuf::from(format!("output.{extension}"))
         };
 
         fs::write(&path, output).context("Failed to save file")?;
@@ -536,7 +530,7 @@ impl<'a> TuiApp<'a> {
                     }
                     Err(e) => {
                         self.app_state
-                            .set_error(format!("Failed to read file: {}", e));
+                            .set_error(format!("Failed to read file: {e}"));
                     }
                 }
             }
@@ -668,7 +662,7 @@ impl<'a> TuiApp<'a> {
                     self.app_state.repl.add_to_history(cmd_input.clone());
 
                     if let Err(e) = self.execute_repl_command(&cmd_input) {
-                        self.app_state.repl.add_error(format!("{}", e));
+                        self.app_state.repl.add_error(format!("{e}"));
                     }
 
                     self.app_state.repl.input.clear();
@@ -726,15 +720,11 @@ impl<'a> TuiApp<'a> {
                             self.app_state.repl.last_result = Some(toon_str);
                         }
                         Err(e) => {
-                            self.app_state
-                                .repl
-                                .add_error(format!("Encode error: {}", e));
+                            self.app_state.repl.add_error(format!("Encode error: {e}"));
                         }
                     },
                     Err(e) => {
-                        self.app_state
-                            .repl
-                            .add_error(format!("Invalid JSON: {}", e));
+                        self.app_state.repl.add_error(format!("Invalid JSON: {e}"));
                     }
                 }
             }
@@ -761,13 +751,11 @@ impl<'a> TuiApp<'a> {
                             self.app_state.repl.last_result = Some(json_str);
                         }
                         Err(e) => {
-                            self.app_state.repl.add_error(format!("JSON error: {}", e));
+                            self.app_state.repl.add_error(format!("JSON error: {e}"));
                         }
                     },
                     Err(e) => {
-                        self.app_state
-                            .repl
-                            .add_error(format!("Decode error: {}", e));
+                        self.app_state.repl.add_error(format!("Decode error: {e}"));
                     }
                 }
             }
@@ -785,7 +773,7 @@ impl<'a> TuiApp<'a> {
                             .insert(var_name.to_string(), data_part.to_string());
                         self.app_state
                             .repl
-                            .add_info(format!("Stored in ${}", var_name));
+                            .add_info(format!("Stored in ${var_name}"));
                         self.app_state.repl.last_result = Some(data_part.to_string());
                     } else {
                         self.app_state
@@ -809,7 +797,7 @@ impl<'a> TuiApp<'a> {
                         .repl
                         .variables
                         .keys()
-                        .map(|k| format!("${}", k))
+                        .map(|k| format!("${k}"))
                         .collect();
                     for var in vars {
                         self.app_state.repl.add_info(var);
@@ -882,7 +870,7 @@ impl<'a> TuiApp<'a> {
 
         // Variables are stored without $, add it for matching
         for (var_name, var_value) in &self.app_state.repl.variables {
-            let pattern = format!("${}", var_name);
+            let pattern = format!("${var_name}");
             result = result.replace(&pattern, var_value);
         }
 

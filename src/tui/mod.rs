@@ -1,6 +1,7 @@
 //! Terminal User Interface for TOON format conversion.
 //!
-//! Provides an interactive TUI with real-time conversion, REPL, and settings panels.
+//! Provides an interactive TUI with real-time conversion, REPL, and settings
+//! panels.
 
 pub mod app;
 pub mod components;

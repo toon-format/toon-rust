@@ -1,13 +1,30 @@
 //! Side-by-side diff viewer for input/output comparison.
 
 use ratatui::{
-    layout::{Alignment, Constraint, Direction, Layout, Rect},
-    text::{Line, Span},
-    widgets::{Block, Borders, Paragraph, Wrap},
+    layout::{
+        Alignment,
+        Constraint,
+        Direction,
+        Layout,
+        Rect,
+    },
+    text::{
+        Line,
+        Span,
+    },
+    widgets::{
+        Block,
+        Borders,
+        Paragraph,
+        Wrap,
+    },
     Frame,
 };
 
-use crate::tui::{state::AppState, theme::Theme};
+use crate::tui::{
+    state::AppState,
+    theme::Theme,
+};
 
 pub struct DiffViewer;
 
@@ -49,7 +66,7 @@ impl DiffViewer {
                 Block::default()
                     .borders(Borders::ALL)
                     .border_style(theme.border_style(false))
-                    .title(format!(" {} ", input_title)),
+                    .title(format!(" {input_title} ")),
             )
             .wrap(Wrap { trim: false });
 
@@ -77,11 +94,10 @@ impl DiffViewer {
                 Block::default()
                     .borders(Borders::ALL)
                     .border_style(theme.border_style(false))
-                    .title(format!(" {} ", output_title)),
+                    .title(format!(" {output_title} ")),
             )
             .wrap(Wrap { trim: false });
 
         f.render_widget(output_para, chunks[1]);
     }
 }
-

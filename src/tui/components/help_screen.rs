@@ -1,13 +1,31 @@
 //! Help screen showing keyboard shortcuts.
 
 use ratatui::{
-    layout::{Alignment, Constraint, Direction, Layout, Rect},
-    text::{Line, Span},
-    widgets::{Block, Borders, List, ListItem, Paragraph},
+    layout::{
+        Alignment,
+        Constraint,
+        Direction,
+        Layout,
+        Rect,
+    },
+    text::{
+        Line,
+        Span,
+    },
+    widgets::{
+        Block,
+        Borders,
+        List,
+        ListItem,
+        Paragraph,
+    },
     Frame,
 };
 
-use crate::tui::{keybindings::KeyBindings, theme::Theme};
+use crate::tui::{
+    keybindings::KeyBindings,
+    theme::Theme,
+};
 
 pub struct HelpScreen;
 
@@ -49,7 +67,7 @@ impl HelpScreen {
             .iter()
             .map(|(key, desc)| {
                 ListItem::new(Line::from(vec![
-                    Span::styled(format!("  {:18} ", key), theme.info_style()),
+                    Span::styled(format!("  {key:18} "), theme.info_style()),
                     Span::styled(*desc, theme.normal_style()),
                 ]))
             })
@@ -77,4 +95,3 @@ impl HelpScreen {
         f.render_widget(footer, chunks[2]);
     }
 }
-

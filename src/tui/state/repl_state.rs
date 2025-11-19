@@ -43,12 +43,10 @@ impl ReplState {
         Self {
             active: false,
             input: String::new(),
-            output: vec![
-                ReplLine {
-                    kind: ReplLineKind::Info,
-                    content: "TOON REPL - Type 'help' for commands, 'exit' to close".to_string(),
-                },
-            ],
+            output: vec![ReplLine {
+                kind: ReplLineKind::Info,
+                content: "TOON REPL - Type 'help' for commands, 'exit' to close".to_string(),
+            }],
             variables: HashMap::new(),
             history: Vec::new(),
             history_index: None,
@@ -72,7 +70,7 @@ impl ReplState {
     pub fn add_prompt(&mut self, cmd: &str) {
         self.output.push(ReplLine {
             kind: ReplLineKind::Prompt,
-            content: format!("> {}", cmd),
+            content: format!("> {cmd}"),
         });
     }
 
@@ -88,7 +86,7 @@ impl ReplState {
     pub fn add_error(&mut self, msg: String) {
         self.output.push(ReplLine {
             kind: ReplLineKind::Error,
-            content: format!("✗ {}", msg),
+            content: format!("✗ {msg}"),
         });
     }
 
@@ -96,9 +94,9 @@ impl ReplState {
         let content = if msg.is_empty() || msg.starts_with("  ") || msg.starts_with("📖") {
             msg
         } else {
-            format!("✓ {}", msg)
+            format!("✓ {msg}")
         };
-        
+
         self.output.push(ReplLine {
             kind: ReplLineKind::Info,
             content,
@@ -135,7 +133,7 @@ impl ReplState {
 
     pub fn history_down(&mut self) {
         match self.history_index {
-            None => return,
+            None => (),
             Some(i) if i >= self.history.len() - 1 => {
                 self.input.clear();
                 self.history_index = None;
@@ -175,4 +173,3 @@ impl Default for ReplState {
         Self::new()
     }
 }
-

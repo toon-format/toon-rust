@@ -1,14 +1,39 @@
 //! Settings panel for configuring encode/decode options.
 
 use ratatui::{
-    layout::{Alignment, Constraint, Direction, Layout, Rect},
-    text::{Line, Span},
-    widgets::{Block, Borders, List, ListItem, Paragraph},
+    layout::{
+        Alignment,
+        Constraint,
+        Direction,
+        Layout,
+        Rect,
+    },
+    text::{
+        Line,
+        Span,
+    },
+    widgets::{
+        Block,
+        Borders,
+        List,
+        ListItem,
+        Paragraph,
+    },
     Frame,
 };
 
-use crate::tui::{state::AppState, theme::Theme};
-use crate::types::{Delimiter, Indent, KeyFoldingMode, PathExpansionMode};
+use crate::{
+    tui::{
+        state::AppState,
+        theme::Theme,
+    },
+    types::{
+        Delimiter,
+        Indent,
+        KeyFoldingMode,
+        PathExpansionMode,
+    },
+};
 
 pub struct SettingsPanel;
 
@@ -60,7 +85,7 @@ impl SettingsPanel {
         let Indent::Spaces(indent_spaces) = app.encode_options.indent;
         items.push(ListItem::new(Line::from(vec![
             Span::styled("  Indentation:     ", theme.info_style()),
-            Span::styled(format!("{} spaces", indent_spaces), theme.normal_style()),
+            Span::styled(format!("{indent_spaces} spaces"), theme.normal_style()),
             Span::styled("  [+/- to adjust]", theme.line_number_style()),
         ])));
 
@@ -85,7 +110,10 @@ impl SettingsPanel {
                     },
                     theme.normal_style(),
                 ),
-                Span::styled("  [[/] to adjust, [u] for unlimited]", theme.line_number_style()),
+                Span::styled(
+                    "  [[/] to adjust, [u] for unlimited]",
+                    theme.line_number_style(),
+                ),
             ])));
         }
 
@@ -146,4 +174,3 @@ impl SettingsPanel {
         f.render_widget(instructions, chunks[2]);
     }
 }
-

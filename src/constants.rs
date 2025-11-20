@@ -2,7 +2,7 @@
 use crate::types::Delimiter;
 
 /// Characters that have structural meaning in TOON format.
-pub const STRUCTURAL_CHARS: &[char] = &['[', ']', '{', '}', ':', '-'];
+pub const STRUCTURAL_CHARS: &[char] = &['[', ']', '{', '}', '(', ')', ':', '-'];
 
 /// TOON keywords that must be quoted when used as strings.
 pub const KEYWORDS: &[&str] = &["null", "true", "false"];
@@ -42,6 +42,8 @@ mod tests {
         assert!(is_structural_char(']'));
         assert!(is_structural_char('{'));
         assert!(is_structural_char('}'));
+        assert!(is_structural_char('('));
+        assert!(is_structural_char(')'));
         assert!(is_structural_char(':'));
         assert!(is_structural_char('-'));
         assert!(!is_structural_char('a'));

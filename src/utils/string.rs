@@ -244,6 +244,11 @@ mod tests {
         assert!(needs_quoting("hello[world]", comma));
         assert!(needs_quoting("key:value", comma));
 
+        // Parentheses should trigger quoting (structural chars)
+        assert!(needs_quoting("Mostly Functions (3 of 3)", comma));
+        assert!(needs_quoting("test()", comma));
+        assert!(needs_quoting("(hello)", comma));
+
         assert!(needs_quoting("a,b", comma));
         assert!(!needs_quoting("a,b", Delimiter::Pipe.as_char()));
 

@@ -185,37 +185,6 @@ Configure encoding and decoding options on-the-fly:
 - Use `$varname` to reference stored variables
 - Example: `let $data = {...}` then `encode $data`
 
-## Use Cases
-
-### Learning & Exploration
-Perfect for understanding how TOON format works:
-- Experiment with different JSON structures
-- See real-time token savings
-- Understand key folding and path expansion
-- Learn by doing
-
-### Development & Testing
-Ideal for developers working with TOON:
-- Test conversions interactively
-- Debug format issues with immediate feedback
-- Compare JSON and TOON side-by-side
-- Validate strict mode compliance
-- Round-trip testing with one keystroke
-
-### Data Conversion
-Streamlined workflow for data transformation:
-- Open JSON files quickly
-- Convert with live preview
-- Adjust settings on-the-fly
-- Save with one keystroke
-
-### Teaching & Demos
-Great for presentations and education:
-- Visual, intuitive interface
-- Real-time demonstrations
-- Clear before/after comparisons
-- Token savings visualization
-
 ## Example Workflow
 
 1. **Launch TUI**: `toon -i`

@@ -34,6 +34,15 @@ anyhow = "1.0.86"
 tiktoken-rs = "0.9.1"
 comfy-table = "7.1"
 
+# TUI dependencies
+ratatui = "0.29"
+crossterm = "0.28"
+tui-textarea = "0.7"
+arboard = "3.4"
+syntect = "5.2"
+unicode-width = "0.2"
+chrono = "0.4"
+
 [dev-dependencies]
 datatest-stable = "0.3.3"
 glob = "0.3"

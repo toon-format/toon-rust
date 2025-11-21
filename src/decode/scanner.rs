@@ -131,7 +131,6 @@ impl Scanner {
 
     /// Scan the next token from the input.
     pub fn scan_token(&mut self) -> ToonResult<Token> {
-        // Track indentation at the start of each line (column 1)
         if self.column == 1 {
             let mut count = 0;
             let mut idx = self.position;
@@ -185,7 +184,6 @@ impl Scanner {
             }
             Some('-') => {
                 self.advance();
-                // Dash can be a list marker or start of negative number
                 if let Some(ch) = self.peek() {
                     if ch.is_ascii_digit() {
                         let num_str = self.scan_number_string(true)?;
@@ -195,7 +193,7 @@ impl Scanner {
                 Ok(Token::Dash)
             }
             Some(',') => {
-                // Comma is a delimiter only when active, otherwise part of string
+                // Delimiter only when active, otherwise part of unquoted string
                 if matches!(self.active_delimiter, Some(Delimiter::Comma)) {
                     self.advance();
                     Ok(Token::Delimiter(Delimiter::Comma))
@@ -229,14 +227,13 @@ impl Scanner {
     }
 
     fn scan_quoted_string(&mut self) -> ToonResult<Token> {
-        self.advance(); // Skip opening quote
+        self.advance();
 
         let mut value = String::new();
         let mut escaped = false;
 
         while let Some(ch) = self.advance() {
             if escaped {
-                // Process escape sequences
                 match ch {
                     'n' => value.push('\n'),
                     'r' => value.push('\r'),
@@ -262,14 +259,12 @@ impl Scanner {
             }
         }
 
-        // Unclosed string
         Err(ToonError::UnexpectedEof)
     }
 
     fn scan_unquoted_string(&mut self) -> ToonResult<Token> {
         let mut value = String::new();
 
-        // Stop at structural characters or whitespace
         while let Some(ch) = self.peek() {
             if ch == '\n'
                 || ch == ' '
@@ -282,7 +277,7 @@ impl Scanner {
                 break;
             }
 
-            // If a delimiter is active, it stops the string; otherwise it's part of it
+            // Active delimiters stop the string; otherwise they're part of it
             if let Some(active) = self.active_delimiter {
                 if (active == Delimiter::Comma && ch == ',')
                     || (active == Delimiter::Pipe && ch == '|')
@@ -295,15 +290,13 @@ impl Scanner {
             self.advance();
         }
 
-        // Single-character delimiter strings are kept as-is, others get trailing spaces
-        // trimmed
+        // Single-char delimiters kept as-is, others trimmed
         let value = if value.len() == 1 && (value == "," || value == "|" || value == "\t") {
             value
         } else {
             value.trim_end().to_string()
         };
 
-        // Check for keywords
         match value.as_str() {
             "null" => Ok(Token::Null),
             "true" => Ok(Token::Bool(true)),
@@ -323,7 +316,6 @@ impl Scanner {
             String::new()
         };
 
-        // Collect digits, decimal point, and scientific notation parts
         while let Some(ch) = self.peek() {
             if ch.is_ascii_digit() || ch == '.' || ch == 'e' || ch == 'E' || ch == '+' || ch == '-'
             {
@@ -338,7 +330,27 @@ impl Scanner {
     }
 
     fn parse_number(&self, s: &str) -> ToonResult<Token> {
-        // Reject leading zeros like "05" or "007", but allow "0", "0.5", "-0"
+        // Number followed immediately by other chars like "0(f)" should be a string
+        if let Some(next_ch) = self.peek() {
+            if next_ch != ' '
+                && next_ch != '\n'
+                && next_ch != ':'
+                && next_ch != '['
+                && next_ch != ']'
+                && next_ch != '{'
+                && next_ch != '}'
+                && !matches!(
+                    (self.active_delimiter, next_ch),
+                    (Some(Delimiter::Comma), ',')
+                        | (Some(Delimiter::Pipe), '|')
+                        | (Some(Delimiter::Tab), '\t')
+                )
+            {
+                return Ok(Token::String(s.to_string(), false));
+            }
+        }
+
+        // Leading zeros like "05" are strings, but "0", "0.5", "-0" are numbers
         if s.starts_with('0') && s.len() > 1 {
             let second_char = s.chars().nth(1).unwrap();
             if second_char.is_ascii_digit() {
@@ -346,24 +358,128 @@ impl Scanner {
             }
         }
 
-        // Try parsing as float first (handles scientific notation)
         if s.contains('.') || s.contains('e') || s.contains('E') {
             if let Ok(f) = s.parse::<f64>() {
                 Ok(Token::Number(f))
             } else {
-                // Invalid float format - treat as string
                 Ok(Token::String(s.to_string(), false))
             }
         } else if let Ok(i) = s.parse::<i64>() {
             Ok(Token::Integer(i))
         } else {
-            // Not a valid number - treat as string
             Ok(Token::String(s.to_string(), false))
         }
     }
 
-    /// Detect the delimiter used in the input by scanning ahead.
-    /// Stops at structural characters or when a delimiter is found.
+    /// Read the rest of the current line (until newline or EOF).
+    /// Returns the content with a flag indicating if it started with
+    /// whitespace.
+    pub fn read_rest_of_line_with_space_info(&mut self) -> (String, bool) {
+        let had_leading_space = matches!(self.peek(), Some(' '));
+        self.skip_whitespace();
+
+        let mut result = String::new();
+        while let Some(ch) = self.peek() {
+            if ch == '\n' {
+                break;
+            }
+            result.push(ch);
+            self.advance();
+        }
+
+        (result.trim_end().to_string(), had_leading_space)
+    }
+
+    /// Read the rest of the current line (until newline or EOF).
+    pub fn read_rest_of_line(&mut self) -> String {
+        self.read_rest_of_line_with_space_info().0
+    }
+
+    /// Parse a complete value string into a token.
+    pub fn parse_value_string(&self, s: &str) -> ToonResult<Token> {
+        let trimmed = s.trim();
+
+        if trimmed.is_empty() {
+            return Ok(Token::String(String::new(), false));
+        }
+
+        if trimmed.starts_with('"') {
+            let mut value = String::new();
+            let mut escaped = false;
+            let chars: Vec<char> = trimmed.chars().collect();
+            let mut i = 1;
+
+            while i < chars.len() {
+                let ch = chars[i];
+                if escaped {
+                    match ch {
+                        'n' => value.push('\n'),
+                        'r' => value.push('\r'),
+                        't' => value.push('\t'),
+                        '"' => value.push('"'),
+                        '\\' => value.push('\\'),
+                        _ => {
+                            return Err(ToonError::parse_error(
+                                self.line,
+                                self.column,
+                                format!("Invalid escape sequence: \\{ch}"),
+                            ));
+                        }
+                    }
+                    escaped = false;
+                } else if ch == '\\' {
+                    escaped = true;
+                } else if ch == '"' {
+                    if i != chars.len() - 1 {
+                        return Err(ToonError::parse_error(
+                            self.line,
+                            self.column,
+                            "Unexpected characters after closing quote",
+                        ));
+                    }
+                    return Ok(Token::String(value, true));
+                } else {
+                    value.push(ch);
+                }
+                i += 1;
+            }
+
+            return Err(ToonError::parse_error(
+                self.line,
+                self.column,
+                "Unterminated string: missing closing quote",
+            ));
+        }
+
+        match trimmed {
+            "true" => return Ok(Token::Bool(true)),
+            "false" => return Ok(Token::Bool(false)),
+            "null" => return Ok(Token::Null),
+            _ => {}
+        }
+
+        if trimmed.starts_with('-') || trimmed.chars().next().unwrap().is_ascii_digit() {
+            // Leading zeros like "05" are strings
+            if trimmed.starts_with('0') && trimmed.len() > 1 {
+                let second_char = trimmed.chars().nth(1).unwrap();
+                if second_char.is_ascii_digit() {
+                    return Ok(Token::String(trimmed.to_string(), false));
+                }
+            }
+
+            if trimmed.contains('.') || trimmed.contains('e') || trimmed.contains('E') {
+                if let Ok(f) = trimmed.parse::<f64>() {
+                    let normalized = if f == -0.0 { 0.0 } else { f };
+                    return Ok(Token::Number(normalized));
+                }
+            } else if let Ok(i) = trimmed.parse::<i64>() {
+                return Ok(Token::Integer(i));
+            }
+        }
+
+        Ok(Token::String(trimmed.to_string(), false))
+    }
+
     pub fn detect_delimiter(&mut self) -> Option<Delimiter> {
         let saved_pos = self.position;
 
@@ -381,7 +497,6 @@ impl Scanner {
                     self.position = saved_pos;
                     return Some(Delimiter::Tab);
                 }
-                // Stop scanning at structural characters
                 '\n' | ':' | '[' | ']' | '{' | '}' => break,
                 _ => {
                     self.advance();
@@ -472,5 +587,82 @@ mod tests {
 
         let mut scanner = Scanner::new("a\tb\tc");
         assert_eq!(scanner.detect_delimiter(), Some(Delimiter::Tab));
+    }
+
+    #[test]
+    fn test_read_rest_of_line_with_space_info() {
+        let mut scanner = Scanner::new(" world");
+        let (content, had_space) = scanner.read_rest_of_line_with_space_info();
+        assert_eq!(content, "world");
+        assert!(had_space);
+
+        let mut scanner = Scanner::new("world");
+        let (content, had_space) = scanner.read_rest_of_line_with_space_info();
+        assert_eq!(content, "world");
+        assert!(!had_space);
+
+        let mut scanner = Scanner::new("(hello)");
+        let (content, had_space) = scanner.read_rest_of_line_with_space_info();
+        assert_eq!(content, "(hello)");
+        assert!(!had_space);
+
+        let mut scanner = Scanner::new("");
+        let (content, had_space) = scanner.read_rest_of_line_with_space_info();
+        assert_eq!(content, "");
+        assert!(!had_space);
+    }
+
+    #[test]
+    fn test_parse_value_string() {
+        let scanner = Scanner::new("");
+        assert_eq!(
+            scanner.parse_value_string("hello").unwrap(),
+            Token::String("hello".to_string(), false)
+        );
+
+        assert_eq!(
+            scanner.parse_value_string("(hello)").unwrap(),
+            Token::String("(hello)".to_string(), false)
+        );
+
+        assert_eq!(
+            scanner
+                .parse_value_string("Mostly Functions (3 of 3)")
+                .unwrap(),
+            Token::String("Mostly Functions (3 of 3)".to_string(), false)
+        );
+        assert_eq!(
+            scanner.parse_value_string("0(f)").unwrap(),
+            Token::String("0(f)".to_string(), false)
+        );
+
+        assert_eq!(
+            scanner.parse_value_string("42").unwrap(),
+            Token::Integer(42)
+        );
+
+        assert_eq!(
+            scanner.parse_value_string("true").unwrap(),
+            Token::Bool(true)
+        );
+        assert_eq!(
+            scanner.parse_value_string("false").unwrap(),
+            Token::Bool(false)
+        );
+        assert_eq!(scanner.parse_value_string("null").unwrap(), Token::Null);
+
+        assert_eq!(
+            scanner.parse_value_string(r#""hello world""#).unwrap(),
+            Token::String("hello world".to_string(), true)
+        );
+    }
+
+    #[test]
+    fn test_number_followed_by_parenthesis() {
+        let mut scanner = Scanner::new("0(f)");
+        let num_token = scanner.scan_number_string(false).unwrap();
+        let token = scanner.parse_number(&num_token).unwrap();
+
+        assert_eq!(token, Token::String("0".to_string(), false));
     }
 }

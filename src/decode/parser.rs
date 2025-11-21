@@ -182,7 +182,7 @@ impl<'a> Parser<'a> {
                                 ));
                         }
 
-                        // Multiple consecutive string tokens get joined with spaces
+                        // Root-level string value - join consecutive tokens
                         let mut accumulated = first;
                         while let Token::String(next, _) = &self.current_token {
                             if !accumulated.is_empty() {
@@ -401,7 +401,6 @@ impl<'a> Parser<'a> {
         validate_depth(depth, MAX_DEPTH)?;
 
         if matches!(self.current_token, Token::Newline | Token::Eof) {
-            // After a colon on a new line, check if there are indented children
             let has_children = if matches!(self.current_token, Token::Newline) {
                 let current_depth_indent = self.options.indent.get_spaces() * (depth + 1);
                 let next_indent = self.scanner.count_leading_spaces();
@@ -413,11 +412,85 @@ impl<'a> Parser<'a> {
             if has_children {
                 self.parse_value_with_depth(depth + 1)
             } else {
-                // Empty object when colon is followed by newline with no children
                 Ok(Value::Object(Map::new()))
             }
-        } else {
+        } else if matches!(self.current_token, Token::LeftBracket) {
             self.parse_value_with_depth(depth + 1)
+        } else {
+            // Check if there's more content after the current token
+            let (rest, had_space) = self.scanner.read_rest_of_line_with_space_info();
+
+            let result = if rest.is_empty() {
+                // Single token - convert directly to avoid redundant parsing
+                match &self.current_token {
+                    Token::String(s, _) => Ok(Value::String(s.clone())),
+                    Token::Integer(i) => Ok(serde_json::Number::from(*i).into()),
+                    Token::Number(n) => {
+                        let val = *n;
+                        if val.is_finite() && val.fract() == 0.0 && val.abs() <= i64::MAX as f64 {
+                            Ok(serde_json::Number::from(val as i64).into())
+                        } else {
+                            Ok(serde_json::Number::from_f64(val)
+                                .ok_or_else(|| {
+                                    ToonError::InvalidInput(format!("Invalid number: {val}"))
+                                })?
+                                .into())
+                        }
+                    }
+                    Token::Bool(b) => Ok(Value::Bool(*b)),
+                    Token::Null => Ok(Value::Null),
+                    _ => Err(self.parse_error_with_context("Unexpected token after colon")),
+                }
+            } else {
+                // Multi-token value - reconstruct and re-parse as complete string
+                let mut value_str = String::new();
+
+                match &self.current_token {
+                    Token::String(s, true) => {
+                        // Quoted strings need quotes preserved for re-parsing
+                        value_str.push('"');
+                        value_str.push_str(&crate::utils::escape_string(s));
+                        value_str.push('"');
+                    }
+                    Token::String(s, false) => value_str.push_str(s),
+                    Token::Integer(i) => value_str.push_str(&i.to_string()),
+                    Token::Number(n) => value_str.push_str(&n.to_string()),
+                    Token::Bool(b) => value_str.push_str(if *b { "true" } else { "false" }),
+                    Token::Null => value_str.push_str("null"),
+                    _ => {
+                        return Err(self.parse_error_with_context("Unexpected token after colon"));
+                    }
+                }
+
+                // Only add space if there was whitespace in the original input
+                if had_space {
+                    value_str.push(' ');
+                }
+                value_str.push_str(&rest);
+
+                let token = self.scanner.parse_value_string(&value_str)?;
+                match token {
+                    Token::String(s, _) => Ok(Value::String(s)),
+                    Token::Integer(i) => Ok(serde_json::Number::from(i).into()),
+                    Token::Number(n) => {
+                        if n.is_finite() && n.fract() == 0.0 && n.abs() <= i64::MAX as f64 {
+                            Ok(serde_json::Number::from(n as i64).into())
+                        } else {
+                            Ok(serde_json::Number::from_f64(n)
+                                .ok_or_else(|| {
+                                    ToonError::InvalidInput(format!("Invalid number: {n}"))
+                                })?
+                                .into())
+                        }
+                    }
+                    Token::Bool(b) => Ok(Value::Bool(b)),
+                    Token::Null => Ok(Value::Null),
+                    _ => Err(ToonError::InvalidInput("Unexpected token type".to_string())),
+                }
+            }?;
+
+            self.current_token = self.scanner.scan_token()?;
+            Ok(result)
         }
     }
 
@@ -891,16 +964,8 @@ impl<'a> Parser<'a> {
                             obj.insert(key, array_value);
                             Value::Object(obj)
                         } else {
-                            // Plain string value - join consecutive string tokens
-                            let mut accumulated = key;
-                            while let Token::String(next, _) = &self.current_token {
-                                if !accumulated.is_empty() {
-                                    accumulated.push(' ');
-                                }
-                                accumulated.push_str(next);
-                                self.advance()?;
-                            }
-                            Value::String(accumulated)
+                            // Plain string value
+                            Value::String(key)
                         }
                     } else {
                         self.parse_primitive()?
@@ -1259,7 +1324,6 @@ mod tests {
         let mut parser = Parser::new(input, opts).unwrap();
         let result = parser.parse().unwrap();
 
-        // Expected: {"a":{"b":{"c":1},"d":2}}
         let a = result.as_object().unwrap().get("a").unwrap();
         let a_obj = a.as_object().unwrap();
 
@@ -1271,5 +1335,99 @@ mod tests {
         assert_eq!(b.len(), 1, "b should have only 1 key (c)");
         assert!(b.contains_key("c"), "b should have key 'c'");
         assert!(!b.contains_key("d"), "b should NOT have key 'd'");
+    }
+
+    #[test]
+    fn test_field_value_with_parentheses() {
+        let result = parse("msg: Mostly Functions (3 of 3)").unwrap();
+        assert_eq!(result, json!({"msg": "Mostly Functions (3 of 3)"}));
+
+        let result = parse("val: (hello)").unwrap();
+        assert_eq!(result, json!({"val": "(hello)"}));
+
+        let result = parse("test: a (b) c (d)").unwrap();
+        assert_eq!(result, json!({"test": "a (b) c (d)"}));
+    }
+
+    #[test]
+    fn test_field_value_number_with_parentheses() {
+        let result = parse("code: 0(f)").unwrap();
+        assert_eq!(result, json!({"code": "0(f)"}));
+
+        let result = parse("val: 5(test)").unwrap();
+        assert_eq!(result, json!({"val": "5(test)"}));
+
+        let result = parse("msg: test 123)").unwrap();
+        assert_eq!(result, json!({"msg": "test 123)"}));
+    }
+
+    #[test]
+    fn test_field_value_single_token_optimization() {
+        let result = parse("name: hello").unwrap();
+        assert_eq!(result, json!({"name": "hello"}));
+
+        let result = parse("age: 42").unwrap();
+        assert_eq!(result, json!({"age": 42}));
+
+        let result = parse("active: true").unwrap();
+        assert_eq!(result, json!({"active": true}));
+
+        let result = parse("value: null").unwrap();
+        assert_eq!(result, json!({"value": null}));
+    }
+
+    #[test]
+    fn test_field_value_multi_token() {
+        let result = parse("msg: hello world").unwrap();
+        assert_eq!(result, json!({"msg": "hello world"}));
+
+        let result = parse("msg: test 123 end").unwrap();
+        assert_eq!(result, json!({"msg": "test 123 end"}));
+    }
+
+    #[test]
+    fn test_field_value_spacing_preserved() {
+        let result = parse("val: hello world").unwrap();
+        assert_eq!(result, json!({"val": "hello world"}));
+
+        let result = parse("val: 0(f)").unwrap();
+        assert_eq!(result, json!({"val": "0(f)"}));
+    }
+
+    #[test]
+    fn test_round_trip_parentheses() {
+        use crate::{
+            decode::decode_default,
+            encode::encode_default,
+        };
+
+        let original = json!({
+            "message": "Mostly Functions (3 of 3)",
+            "code": "0(f)",
+            "simple": "(hello)",
+            "mixed": "test 123)"
+        });
+
+        let encoded = encode_default(&original).unwrap();
+        let decoded: Value = decode_default(&encoded).unwrap();
+
+        assert_eq!(original, decoded);
+    }
+
+    #[test]
+    fn test_multiple_fields_with_edge_cases() {
+        let input = r#"message: Mostly Functions (3 of 3)
+sone: (hello)
+hello: 0(f)"#;
+
+        let result = parse(input).unwrap();
+        assert_eq!(
+            result,
+            json!({
+                "message": "Mostly Functions (3 of 3)",
+                "sone": "(hello)",
+                "hello": "0(f)"
+            })
+        );
     }
 }

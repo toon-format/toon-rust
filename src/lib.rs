@@ -159,7 +159,6 @@ mod tests {
         assert!(needs_quoting("true", Delimiter::Comma.as_char()));
     }
 
-    // Tests for direct serde serialization/deserialization
     use serde::{
         Deserialize,
         Serialize,
@@ -279,5 +278,97 @@ mod tests {
         let toon = encode_default(&nested).unwrap();
         let decoded: Nested = decode_default(&toon).unwrap();
         assert_eq!(nested, decoded);
+    }
+
+    #[test]
+    fn test_round_trip_list_item_tabular_v3() {
+        use crate::{
+            decode_default,
+            encode_default,
+        };
+
+        let original = json!({
+            "items": [
+                {
+                    "users": [
+                        {"id": 1, "name": "Alice", "role": "admin"},
+                        {"id": 2, "name": "Bob", "role": "user"}
+                    ],
+                    "status": "active",
+                    "count": 2
+                }
+            ]
+        });
+
+        let encoded = encode_default(&original).unwrap();
+        let decoded: Value = decode_default(&encoded).unwrap();
+
+        assert_eq!(original, decoded);
+    }
+
+    #[test]
+    fn test_round_trip_complex_list_item_tabular_v3() {
+        use crate::{
+            decode_default,
+            encode_default,
+        };
+
+        let original = json!({
+            "data": [
+                {
+                    "records": [
+                        {"id": 1, "value": "x", "score": 100},
+                        {"id": 2, "value": "y", "score": 200}
+                    ],
+                    "total": 2,
+                    "status": "active"
+                },
+                {
+                    "records": [
+                        {"id": 3, "value": "z", "score": 300}
+                    ],
+                    "total": 1,
+                    "status": "pending"
+                }
+            ]
+        });
+
+        let encoded = encode_default(&original).unwrap();
+        let decoded: Value = decode_default(&encoded).unwrap();
+
+        assert_eq!(original, decoded);
+    }
+
+    #[test]
+    fn test_round_trip_mixed_list_items_v3() {
+        use crate::{
+            decode_default,
+            encode_default,
+        };
+
+        let original = json!({
+            "entries": [
+                {
+                    "type": "simple",
+                    "value": 42
+                },
+                {
+                    "people": [
+                        {"name": "Alice", "age": 30},
+                        {"name": "Bob", "age": 25}
+                    ],
+                    "type": "complex"
+                },
+                {
+                    "tags": ["a", "b", "c"],
+                    "type": "array"
+                }
+            ]
+        });
+
+        let encoded = encode_default(&original).unwrap();
+        let decoded: Value = decode_default(&encoded).unwrap();
+
+        assert_eq!(original, decoded);
     }
 }

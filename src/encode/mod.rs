@@ -485,6 +485,73 @@ fn encode_tabular_array(
     Ok(())
 }
 
+/// Encode a tabular array as the first field of a list-item object.
+///
+/// Tabular rows appear at depth +2 relative to the hyphen line when the array
+/// is the first field of a list-item object. This function handles that special
+/// indentation requirement.
+///
+/// Note: The array header is written separately before calling this function.
+fn encode_list_item_tabular_array(
+    writer: &mut writer::Writer,
+    arr: &[Value],
+    keys: &[String],
+    depth: usize,
+) -> ToonResult<()> {
+    // Write array header without key (key already written on hyphen line)
+    writer.write_char('[')?;
+    writer.write_str(&arr.len().to_string())?;
+
+    if writer.options.delimiter != crate::types::Delimiter::Comma {
+        writer.write_char(writer.options.delimiter.as_char())?;
+    }
+
+    writer.write_char(']')?;
+
+    // Write field list for tabular arrays: {field1,field2}
+    writer.write_char('{')?;
+    for (i, field) in keys.iter().enumerate() {
+        if i > 0 {
+            writer.write_char(writer.options.delimiter.as_char())?;
+        }
+        writer.write_key(field)?;
+    }
+    writer.write_char('}')?;
+    writer.write_char(':')?;
+    writer.write_newline()?;
+
+    writer.push_active_delimiter(writer.options.delimiter);
+
+    // Write rows at depth + 2 (relative to hyphen line)
+    // The hyphen line is at depth, so rows appear at depth + 2
+    for (row_index, obj_val) in arr.iter().enumerate() {
+        if let Some(obj) = obj_val.as_object() {
+            writer.write_indent(depth + 2)?;
+
+            for (i, key) in keys.iter().enumerate() {
+                if i > 0 {
+                    writer.write_delimiter()?;
+                }
+
+                // Missing fields become null
+                if let Some(val) = obj.get(key) {
+                    write_primitive_value(writer, val, QuotingContext::ArrayValue)?;
+                } else {
+                    writer.write_str("null")?;
+                }
+            }
+
+            if row_index < arr.len() - 1 {
+                writer.write_newline()?;
+            }
+        }
+    }
+
+    writer.pop_active_delimiter();
+
+    Ok(())
+}
+
 fn encode_nested_array(
     writer: &mut writer::Writer,
     key: Option<&str>,
@@ -498,23 +565,35 @@ fn encode_nested_array(
     for (i, val) in arr.iter().enumerate() {
         writer.write_indent(depth + 1)?;
         writer.write_char('-')?;
-        writer.write_char(' ')?;
 
         match val {
             Value::Array(inner_arr) => {
+                writer.write_char(' ')?;
                 write_array(writer, None, inner_arr, depth + 1)?;
             }
             Value::Object(obj) => {
                 // Objects in list items: first field on same line as "- ", rest indented
+                // For empty objects, write only the hyphen (no space)
                 let keys: Vec<&String> = obj.keys().collect();
                 if let Some(first_key) = keys.first() {
+                    writer.write_char(' ')?;
                     let first_val = &obj[*first_key];
 
                     match first_val {
                         Value::Array(arr) => {
-                            // First field with array: key on "- " line, array follows
+                            // Arrays as first field of list items require special indentation
+                            // (depth +2 relative to hyphen) for their nested content
+                            // (rows for tabular, items for non-uniform)
                             writer.write_key(first_key)?;
-                            write_array(writer, None, arr, depth + 1)?;
+
+                            if let Some(keys) = is_tabular_array(arr) {
+                                // Tabular array: write inline with correct indentation
+                                encode_list_item_tabular_array(writer, arr, &keys, depth + 1)?;
+                            } else {
+                                // Non-tabular array: write with depth offset
+                                // (items at depth +2 instead of depth +1)
+                                write_array(writer, None, arr, depth + 2)?;
+                            }
                         }
                         Value::Object(nested_obj) => {
                             writer.write_key(first_key)?;
@@ -562,6 +641,7 @@ fn encode_nested_array(
                 }
             }
             _ => {
+                writer.write_char(' ')?;
                 write_primitive_value(writer, val, QuotingContext::ArrayValue)?;
             }
         }
@@ -662,5 +742,135 @@ mod tests {
         assert!(result.contains("user:"));
         assert!(result.contains("name: Alice"));
         assert!(result.contains("age: 30"));
+    }
+
+    #[test]
+    fn test_encode_list_item_tabular_array_v3() {
+        let obj = json!({
+            "items": [
+                {
+                    "users": [
+                        {"id": 1, "name": "Ada"},
+                        {"id": 2, "name": "Bob"}
+                    ],
+                    "status": "active"
+                }
+            ]
+        });
+
+        let result = encode_default(&obj).unwrap();
+
+        assert!(
+            result.contains("  - users[2]{id,name}:"),
+            "Header should be on hyphen line"
+        );
+
+        assert!(
+            result.contains("      1,Ada"),
+            "First row should be at 6 spaces (depth +2 from hyphen). Got:\n{}",
+            result
+        );
+        assert!(
+            result.contains("      2,Bob"),
+            "Second row should be at 6 spaces (depth +2 from hyphen). Got:\n{}",
+            result
+        );
+
+        assert!(
+            result.contains("    status: active"),
+            "Sibling field should be at 4 spaces (depth +1 from hyphen). Got:\n{}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_encode_list_item_tabular_array_multiple_items() {
+        let obj = json!({
+            "data": [
+                {
+                    "records": [
+                        {"id": 1, "val": "x"}
+                    ],
+                    "count": 1
+                },
+                {
+                    "records": [
+                        {"id": 2, "val": "y"}
+                    ],
+                    "count": 1
+                }
+            ]
+        });
+
+        let result = encode_default(&obj).unwrap();
+
+        let lines: Vec<&str> = result.lines().collect();
+
+        let row_lines: Vec<&str> = lines
+            .iter()
+            .filter(|line| line.trim().starts_with(char::is_numeric))
+            .copied()
+            .collect();
+
+        for row in row_lines {
+            let spaces = row.len() - row.trim_start().len();
+            assert_eq!(
+                spaces, 6,
+                "Tabular rows should be at 6 spaces. Found {} spaces in: {}",
+                spaces, row
+            );
+        }
+    }
+
+    #[test]
+    fn test_encode_list_item_non_tabular_array_unchanged() {
+        let obj = json!({
+            "items": [
+                {
+                    "tags": ["a", "b", "c"],
+                    "name": "test"
+                }
+            ]
+        });
+
+        let result = encode_default(&obj).unwrap();
+
+        assert!(
+            result.contains("  - tags[3]: a,b,c"),
+            "Inline array should be on hyphen line. Got:\n{}",
+            result
+        );
+
+        assert!(
+            result.contains("    name: test"),
+            "Sibling field should be at 4 spaces. Got:\n{}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_encode_list_item_tabular_array_with_nested_fields() {
+        let obj = json!({
+            "entries": [
+                {
+                    "people": [
+                        {"name": "Alice", "age": 30},
+                        {"name": "Bob", "age": 25}
+                    ],
+                    "total": 2,
+                    "category": "staff"
+                }
+            ]
+        });
+
+        let result = encode_default(&obj).unwrap();
+
+        assert!(result.contains("  - people[2]{name,age}:"));
+
+        assert!(result.contains("      Alice,30"));
+        assert!(result.contains("      Bob,25"));
+
+        assert!(result.contains("    total: 2"));
+        assert!(result.contains("    category: staff"));
     }
 }

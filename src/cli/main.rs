@@ -77,7 +77,7 @@ struct Cli {
     #[arg(long, value_parser = parse_delimiter, help = "Delimiter: comma, tab, or pipe")]
     delimiter: Option<Delimiter>,
 
-    #[arg(short, long, value_parser = parse_indent, help = "Indentation spaces")]
+    #[arg(long, value_parser = parse_indent, help = "Indentation spaces")]
     indent: Option<usize>,
 
     #[arg(long, help = "Disable strict validation (decode)")]

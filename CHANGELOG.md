@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0](https://github.com/toon-format/toon-rust/compare/v0.3.7...v0.4.0) - 2025-11-25
+
+### Added
+
+- update to TOON v3.0 spec (breaking change) ([#36](https://github.com/toon-format/toon-rust/pull/36))
+
 ## [0.3.7](https://github.com/toon-format/toon-rust/compare/v0.3.6...v0.3.7) - 2025-11-21
 
 ### Fixed

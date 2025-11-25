@@ -27,6 +27,21 @@ use crate::{
     utils::validation::validate_depth,
 };
 
+/// Context for parsing arrays to determine correct indentation depth.
+///
+/// Arrays as the first field of list-item objects require special indentation:
+/// their content (rows for tabular, items for non-uniform) appears at depth +2
+/// relative to the hyphen line, while arrays in other contexts use depth +1.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ArrayParseContext {
+    /// Normal array parsing context (content at depth +1)
+    Normal,
+
+    /// Array as first field of list-item object
+    /// (content at depth +2 relative to hyphen line)
+    ListItemFirstField,
+}
+
 /// Parser that builds JSON values from a sequence of tokens.
 #[allow(unused)]
 pub struct Parser<'a> {
@@ -512,17 +527,16 @@ impl<'a> Parser<'a> {
         }
         self.advance()?;
 
-        // Parse array length (plain integer only per TOON spec v2.0)
+        // Parse array length (plain integer only)
         // Supports formats: [N], [N|], [N\t] (no # marker)
         let length = if let Token::Integer(n) = &self.current_token {
             *n as usize
         } else if let Token::String(s, _) = &self.current_token {
-            // Check if string starts with # - this is now invalid per spec v2.0
+            // Check if string starts with # - this marker is not supported
             if s.starts_with('#') {
                 return Err(self
                     .parse_error_with_context(
-                        "Length marker '#' is no longer supported in TOON spec v2.0. Use [N] \
-                         format instead of [#N]",
+                        "Length marker '#' is not supported. Use [N] format instead of [#N]",
                     )
                     .with_suggestion("Remove the '#' prefix from the array length"));
             }
@@ -623,15 +637,29 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_array(&mut self, depth: usize) -> ToonResult<Value> {
+        self.parse_array_with_context(depth, ArrayParseContext::Normal)
+    }
+
+    fn parse_array_with_context(
+        &mut self,
+        depth: usize,
+        context: ArrayParseContext,
+    ) -> ToonResult<Value> {
         validate_depth(depth, MAX_DEPTH)?;
 
         let (length, _detected_delim, fields) = self.parse_array_header()?;
 
         if let Some(fields) = fields {
             validation::validate_field_list(&fields)?;
-            self.parse_tabular_array(length, fields, depth)
+            self.parse_tabular_array(length, fields, depth, context)
         } else {
-            self.parse_regular_array(length, depth)
+            // Non-tabular arrays as first field of list items require depth adjustment
+            // (items at depth +2 relative to hyphen, not the usual +1)
+            let adjusted_depth = match context {
+                ArrayParseContext::Normal => depth,
+                ArrayParseContext::ListItemFirstField => depth + 1,
+            };
+            self.parse_regular_array(length, adjusted_depth)
         }
     }
 
@@ -640,6 +668,7 @@ impl<'a> Parser<'a> {
         length: usize,
         fields: Vec<String>,
         depth: usize,
+        context: ArrayParseContext,
     ) -> ToonResult<Value> {
         let mut rows = Vec::new();
 
@@ -663,7 +692,14 @@ impl<'a> Parser<'a> {
             }
 
             let current_indent = self.scanner.get_last_line_indent();
-            let expected_indent = self.options.indent.get_spaces() * (depth + 1);
+
+            // Tabular arrays as first field of list-item objects require rows at depth +2
+            // (relative to hyphen), while normal tabular arrays use depth +1
+            let row_depth_offset = match context {
+                ArrayParseContext::Normal => 1,
+                ArrayParseContext::ListItemFirstField => 2,
+            };
+            let expected_indent = self.options.indent.get_spaces() * (depth + row_depth_offset);
 
             if self.options.strict {
                 self.validate_indentation(current_indent)?;
@@ -861,12 +897,21 @@ impl<'a> Parser<'a> {
 
                         if matches!(self.current_token, Token::Colon | Token::LeftBracket) {
                             // This is an object: key followed by colon or array bracket
+                            // First field of list-item object may be an array requiring special
+                            // indentation
                             let first_value = if matches!(self.current_token, Token::LeftBracket) {
-                                self.parse_array(depth + 1)?
+                                // Array directly after key (e.g., "- key[N]:")
+                                // Use ListItemFirstField context to apply correct indentation
+                                self.parse_array_with_context(
+                                    depth + 1,
+                                    ArrayParseContext::ListItemFirstField,
+                                )?
                             } else {
                                 self.advance()?;
                                 // Handle nested arrays: "key: [2]: ..."
                                 if matches!(self.current_token, Token::LeftBracket) {
+                                    // Array after colon - not directly on hyphen line, use normal
+                                    // context
                                     self.parse_array(depth + 2)?
                                 } else {
                                     self.parse_field_value(depth + 2)?
@@ -1427,6 +1472,188 @@ hello: 0(f)"#;
                 "message": "Mostly Functions (3 of 3)",
                 "sone": "(hello)",
                 "hello": "0(f)"
+            })
+        );
+    }
+
+    #[test]
+    fn test_decode_list_item_tabular_array_v3() {
+        // Tabular arrays as first field of list items
+        // Rows must be at depth +2 relative to hyphen (6 spaces from root)
+        let input = r#"items[1]:
+  - users[2]{id,name}:
+      1,Ada
+      2,Bob
+    status: active"#;
+
+        let result = parse(input).unwrap();
+
+        assert_eq!(
+            result,
+            json!({
+                "items": [
+                    {
+                        "users": [
+                            {"id": 1, "name": "Ada"},
+                            {"id": 2, "name": "Bob"}
+                        ],
+                        "status": "active"
+                    }
+                ]
+            })
+        );
+    }
+
+    #[test]
+    fn test_decode_list_item_tabular_array_multiple_items() {
+        // Multiple list items each with tabular array as first field
+        let input = r#"data[2]:
+  - records[1]{id,val}:
+      1,x
+    count: 1
+  - records[1]{id,val}:
+      2,y
+    count: 1"#;
+
+        let result = parse(input).unwrap();
+
+        assert_eq!(
+            result,
+            json!({
+                "data": [
+                    {
+                        "records": [{"id": 1, "val": "x"}],
+                        "count": 1
+                    },
+                    {
+                        "records": [{"id": 2, "val": "y"}],
+                        "count": 1
+                    }
+                ]
+            })
+        );
+    }
+
+    #[test]
+    fn test_decode_list_item_tabular_array_with_multiple_fields() {
+        // List item with tabular array first and multiple sibling fields
+        let input = r#"entries[1]:
+  - people[2]{name,age}:
+      Alice,30
+      Bob,25
+    total: 2
+    category: staff"#;
+
+        let result = parse(input).unwrap();
+
+        assert_eq!(
+            result,
+            json!({
+                "entries": [
+                    {
+                        "people": [
+                            {"name": "Alice", "age": 30},
+                            {"name": "Bob", "age": 25}
+                        ],
+                        "total": 2,
+                        "category": "staff"
+                    }
+                ]
+            })
+        );
+    }
+
+    #[test]
+    fn test_decode_list_item_non_tabular_array_unchanged() {
+        // Non-tabular arrays as first field should work normally
+        let input = r#"items[1]:
+  - tags[3]: a,b,c
+    name: test"#;
+
+        let result = parse(input).unwrap();
+
+        assert_eq!(
+            result,
+            json!({
+                "items": [
+                    {
+                        "tags": ["a", "b", "c"],
+                        "name": "test"
+                    }
+                ]
+            })
+        );
+    }
+
+    #[test]
+    fn test_decode_strict_rejects_v2_tabular_indent() {
+        use crate::decode::decode_strict;
+
+        // Old format: rows at depth +1 (4 spaces from root)
+        // Strict mode should reject this incorrect indentation
+        let input_v2 = r#"items[1]:
+  - users[2]{id,name}:
+    1,Ada
+    2,Bob"#;
+
+        let result = decode_strict::<Value>(input_v2);
+
+        // Should error due to incorrect indentation
+        assert!(
+            result.is_err(),
+            "Old format with incorrect indentation should be rejected in strict mode"
+        );
+        let err_msg = result.unwrap_err().to_string();
+        assert!(
+            err_msg.contains("indentation") || err_msg.contains("Invalid indentation"),
+            "Error should mention indentation. Got: {}",
+            err_msg
+        );
+    }
+
+    #[test]
+    fn test_decode_tabular_array_not_in_list_item_unchanged() {
+        // Regular tabular arrays (not in list items) should still use depth +1
+        let input = r#"users[2]{id,name}:
+  1,Ada
+  2,Bob"#;
+
+        let result = parse(input).unwrap();
+
+        assert_eq!(
+            result,
+            json!({
+                "users": [
+                    {"id": 1, "name": "Ada"},
+                    {"id": 2, "name": "Bob"}
+                ]
+            })
+        );
+    }
+
+    #[test]
+    fn test_decode_nested_tabular_not_first_field() {
+        // Tabular array as a subsequent field (not first) should use normal depth
+        let input = r#"items[1]:
+  - name: test
+    data[2]{id,val}:
+      1,x
+      2,y"#;
+
+        let result = parse(input).unwrap();
+
+        assert_eq!(
+            result,
+            json!({
+                "items": [
+                    {
+                        "name": "test",
+                        "data": [
+                            {"id": 1, "val": "x"},
+                            {"id": 2, "val": "y"}
+                        ]
+                    }
+                ]
             })
         );
     }

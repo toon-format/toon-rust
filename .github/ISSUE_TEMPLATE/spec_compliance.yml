@@ -12,7 +12,7 @@ body:
     attributes:
       label: SPEC Version
       description: Which version of the TOON spec does this relate to?
-      placeholder: v1.3
+      placeholder: v3.0
     validations:
       required: true
 
@@ -21,7 +21,7 @@ body:
     attributes:
       label: SPEC Section
       description: Which section of SPEC.md is affected?
-      placeholder: "Section 2.3: Array Notation"
+      placeholder: "Section 7.1: Escaping (Encoding and Decoding)"
     validations:
       required: true
 

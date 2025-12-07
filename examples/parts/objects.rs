@@ -1,9 +1,6 @@
-use serde::{
-    Deserialize,
-    Serialize,
-};
+use rune_format::encode_default;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
-use toon_format::encode_default;
 
 #[derive(Debug, Serialize, Deserialize)]
 struct SimpleUser {

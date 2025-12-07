@@ -1,10 +1,6 @@
 //! Keyboard shortcuts and action mapping.
 
-use crossterm::event::{
-    KeyCode,
-    KeyEvent,
-    KeyModifiers,
-};
+use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 /// Actions that can be triggered by keyboard shortcuts.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

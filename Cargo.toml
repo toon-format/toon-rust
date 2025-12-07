@@ -1,19 +1,24 @@
 [package]
-name = "toon-format"
-version = "0.4.0"
-edition = "2021"
+name = "rune-format"
+version = "0.0.1"
+edition = "2024"
 authors = [
-    "Johann Schopplich <hello@johannschopplich.com>",
-    "Shreyas K S <ks.shreyas0@gmail.com>",
+    "Lord Xyn <LordXyn@proton.me", # RUNE Author
+    "Johann Schopplich <hello@johannschopplich.com>", # TOON Author 1
+    "Shreyas K S <ks.shreyas0@gmail.com>", # TOON Author 2
 ]
-license = "MIT"
-description = "Token-Oriented Object Notation (TOON) - a token-efficient JSON alternative for LLM prompts"
-repository = "https://github.com/toon-format/toon-rust"
-homepage = "https://toonformat.dev"
-documentation = "https://docs.rs/toon-format"
-keywords = ["toon", "format", "llm", "token", "serialization"]
-categories = ["encoding", "parser-implementations"]
+license = "MIT OR Apache-2.0"
+description = "Root Universal Notation Encoding (RUNE) - geometric control language with E8 lattice mathematics and Token-Oriented Object Notation (TOON) serialization"
+repository = "https://github.com/arcmoonstudios/rune-format"
+documentation = "https://docs.rs/rune-format"
+keywords = ["rune", "geometry", "e8", "toon", "serialization"]
+categories = ["mathematics", "encoding", "parser-implementations", "science"]
 readme = "README.md"
+
+[features]
+default = []
+hydron = []  # Geometry Math Engine for RUNE
+simd = ["hydron"]  # SIMD acceleration for Gf8 operations (requires hydron)
 
 [[example]]
 name = "examples"
@@ -25,28 +30,62 @@ path = "src/cli/main.rs"
 
 [dependencies]
 serde = { version = "1.0.228", features = ["derive"] }
-indexmap = "2.0"
+indexmap = "2.12.1"
 serde_json = { version = "1.0.145", features = ["preserve_order"] }
 thiserror = "2.0.17"
 
+# RUNE-specific dependencies
+pest = "2.8.4"
+pest_derive = "2.8.4"
+
 clap = { version = "4.5.11", features = ["derive"] }
-anyhow = "1.0.86"
+anyhow = "1.0.100"
 tiktoken-rs = "0.9.1"
-comfy-table = "7.1"
+comfy-table = "7.2.1"
 
 # TUI dependencies
 ratatui = "0.29"
-crossterm = "0.28"
+crossterm = "0.29"
 tui-textarea = "0.7"
-arboard = "3.4"
-syntect = "5.2"
+arboard = "3.6.1"
+syntect = "5.3.0"
 unicode-width = "0.2"
 chrono = "0.4"
 
 [dev-dependencies]
-datatest-stable = "0.3.3"
-glob = "0.3"
+glob = "0.3.3"
+criterion = { version = "0.8.0", features = ["html_reports"] }
 
-[[test]]
-name = "spec_fixtures"
+[[bench]]
+name = "rune_parser"
 harness = false
+
+[[bench]]
+name = "rune_operators"
+harness = false
+
+[[bench]]
+name = "rune_vs_toon"
+harness = false
+
+[[bench]]
+name = "hydron_geometry"
+harness = false
+required-features = ["hydron"]
+
+[profile.dev]
+lto = "thin"
+opt-level = 3
+incremental = true
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = "symbols"
+
+[profile.bench]
+opt-level = 3
+lto = false
+codegen-units = 1

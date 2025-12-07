@@ -1,5 +1,6 @@
 //! UI components for the TUI.
 
+pub mod confirmation_dialog;
 pub mod diff_viewer;
 pub mod editor;
 pub mod file_browser;
@@ -10,6 +11,7 @@ pub mod settings_panel;
 pub mod stats_bar;
 pub mod status_bar;
 
+pub use confirmation_dialog::ConfirmationDialog;
 pub use diff_viewer::DiffViewer;
 pub use editor::EditorComponent;
 pub use file_browser::FileBrowser;

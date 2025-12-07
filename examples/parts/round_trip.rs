@@ -1,15 +1,6 @@
-use serde::{
-    Deserialize,
-    Serialize,
-};
-use serde_json::{
-    json,
-    Value,
-};
-use toon_format::{
-    decode_default,
-    encode_default,
-};
+use rune_format::{decode_default, encode_default};
+use serde::{Deserialize, Serialize};
+use serde_json::{Value, json};
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 struct Product {

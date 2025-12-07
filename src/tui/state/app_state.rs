@@ -1,34 +1,25 @@
 //! Main application state.
 
-use super::{
-    EditorState,
-    FileState,
-    ReplState,
-};
+use super::{EditorState, FileState, ReplState};
 use crate::{
     tui::theme::Theme,
-    types::{
-        DecodeOptions,
-        Delimiter,
-        EncodeOptions,
-        Indent,
-        KeyFoldingMode,
-        PathExpansionMode,
-    },
+    types::{DecodeOptions, Delimiter, EncodeOptions, Indent, KeyFoldingMode, PathExpansionMode},
 };
 
-/// Conversion mode (encode/decode).
+/// Conversion mode (encode/decode/parse).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Mode {
-    Encode,
-    Decode,
+    Encode, // JSON → TOON
+    Decode, // TOON → JSON
+    Rune,   // RUNE → Parsed AST + TOON blocks
 }
 
 impl Mode {
     pub fn toggle(&self) -> Self {
         match self {
             Mode::Encode => Mode::Decode,
-            Mode::Decode => Mode::Encode,
+            Mode::Decode => Mode::Rune,
+            Mode::Rune => Mode::Encode,
         }
     }
 
@@ -36,6 +27,7 @@ impl Mode {
         match self {
             Mode::Encode => "Encode (JSON → TOON)",
             Mode::Decode => "Decode (TOON → JSON)",
+            Mode::Rune => "Parse (RUNE → Results)",
         }
     }
 
@@ -43,6 +35,7 @@ impl Mode {
         match self {
             Mode::Encode => "Encode",
             Mode::Decode => "Decode",
+            Mode::Rune => "RUNE",
         }
     }
 }
@@ -72,10 +65,21 @@ pub struct AppState<'a> {
     pub show_file_browser: bool,
     pub show_history: bool,
     pub show_diff: bool,
+    pub show_confirmation: bool,
+    pub confirmation_action: ConfirmationAction,
     pub error_message: Option<String>,
     pub status_message: Option<String>,
     pub stats: Option<ConversionStats>,
     pub should_quit: bool,
+}
+
+/// Actions that require user confirmation
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum ConfirmationAction {
+    None,
+    NewFile,
+    Quit,
+    DeleteFile,
 }
 
 impl<'a> AppState<'a> {
@@ -95,6 +99,8 @@ impl<'a> AppState<'a> {
             show_file_browser: false,
             show_history: false,
             show_diff: false,
+            show_confirmation: false,
+            confirmation_action: ConfirmationAction::None,
 
             error_message: None,
             status_message: None,

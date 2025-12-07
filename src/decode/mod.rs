@@ -6,10 +6,7 @@ pub mod validation;
 
 use serde_json::Value;
 
-use crate::types::{
-    DecodeOptions,
-    ToonResult,
-};
+use crate::types::{DecodeOptions, ToonResult};
 
 /// Decode a TOON string into any deserializable type.
 ///
@@ -23,7 +20,7 @@ use crate::types::{
 /// **With custom structs:**
 /// ```
 /// use serde::Deserialize;
-/// use toon_format::{
+/// use rune_format::{
 ///     decode,
 ///     DecodeOptions,
 /// };
@@ -38,7 +35,7 @@ use crate::types::{
 /// let user: User = decode(toon, &DecodeOptions::default())?;
 /// assert_eq!(user.name, "Alice");
 /// assert_eq!(user.age, 30);
-/// # Ok::<(), toon_format::ToonError>(())
+/// # Ok::<(), rune_format::ToonError>(())
 /// ```
 ///
 /// **With JSON values:**
@@ -47,7 +44,7 @@ use crate::types::{
 ///     json,
 ///     Value,
 /// };
-/// use toon_format::{
+/// use rune_format::{
 ///     decode,
 ///     DecodeOptions,
 /// };
@@ -55,7 +52,7 @@ use crate::types::{
 /// let input = "name: Alice\nage: 30";
 /// let result: Value = decode(input, &DecodeOptions::default())?;
 /// assert_eq!(result["name"], json!("Alice"));
-/// # Ok::<(), toon_format::ToonError>(())
+/// # Ok::<(), rune_format::ToonError>(())
 /// ```
 pub fn decode<T: serde::de::DeserializeOwned>(
     input: &str,
@@ -89,7 +86,7 @@ pub fn decode<T: serde::de::DeserializeOwned>(
 ///     json,
 ///     Value,
 /// };
-/// use toon_format::decode_strict;
+/// use rune_format::decode_strict;
 ///
 /// // Valid array length
 /// let result: Value = decode_strict("items[2]: a,b")?;
@@ -97,7 +94,7 @@ pub fn decode<T: serde::de::DeserializeOwned>(
 ///
 /// // Invalid array length (will error)
 /// assert!(decode_strict::<Value>("items[3]: a,b").is_err());
-/// # Ok::<(), toon_format::ToonError>(())
+/// # Ok::<(), rune_format::ToonError>(())
 /// ```
 pub fn decode_strict<T: serde::de::DeserializeOwned>(input: &str) -> ToonResult<T> {
     decode(input, &DecodeOptions::new().with_strict(true))
@@ -112,17 +109,17 @@ pub fn decode_strict<T: serde::de::DeserializeOwned>(input: &str) -> ToonResult<
 ///     json,
 ///     Value,
 /// };
-/// use toon_format::{
+/// use rune_format::{
 ///     decode_strict_with_options,
 ///     DecodeOptions,
 /// };
 ///
 /// let options = DecodeOptions::new()
 ///     .with_strict(true)
-///     .with_delimiter(toon_format::Delimiter::Pipe);
+///     .with_delimiter(rune_format::Delimiter::Pipe);
 /// let result: Value = decode_strict_with_options("items[2|]: a|b", &options)?;
 /// assert_eq!(result["items"], json!(["a", "b"]));
-/// # Ok::<(), toon_format::ToonError>(())
+/// # Ok::<(), rune_format::ToonError>(())
 /// ```
 pub fn decode_strict_with_options<T: serde::de::DeserializeOwned>(
     input: &str,
@@ -141,16 +138,16 @@ pub fn decode_strict_with_options<T: serde::de::DeserializeOwned>(
 ///     json,
 ///     Value,
 /// };
-/// use toon_format::decode_no_coerce;
+/// use rune_format::decode_no_coerce;
 ///
 /// // Without coercion: quoted strings that look like numbers stay as strings
 /// let result: Value = decode_no_coerce("value: \"123\"")?;
 /// assert_eq!(result["value"], json!("123"));
 ///
 /// // With default coercion: unquoted "true" becomes boolean
-/// let result: Value = toon_format::decode_default("value: true")?;
+/// let result: Value = rune_format::decode_default("value: true")?;
 /// assert_eq!(result["value"], json!(true));
-/// # Ok::<(), toon_format::ToonError>(())
+/// # Ok::<(), rune_format::ToonError>(())
 /// ```
 pub fn decode_no_coerce<T: serde::de::DeserializeOwned>(input: &str) -> ToonResult<T> {
     decode(input, &DecodeOptions::new().with_coerce_types(false))
@@ -165,7 +162,7 @@ pub fn decode_no_coerce<T: serde::de::DeserializeOwned>(input: &str) -> ToonResu
 ///     json,
 ///     Value,
 /// };
-/// use toon_format::{
+/// use rune_format::{
 ///     decode_no_coerce_with_options,
 ///     DecodeOptions,
 /// };
@@ -175,7 +172,7 @@ pub fn decode_no_coerce<T: serde::de::DeserializeOwned>(input: &str) -> ToonResu
 ///     .with_strict(false);
 /// let result: Value = decode_no_coerce_with_options("value: \"123\"", &options)?;
 /// assert_eq!(result["value"], json!("123"));
-/// # Ok::<(), toon_format::ToonError>(())
+/// # Ok::<(), rune_format::ToonError>(())
 /// ```
 pub fn decode_no_coerce_with_options<T: serde::de::DeserializeOwned>(
     input: &str,
@@ -194,7 +191,7 @@ pub fn decode_no_coerce_with_options<T: serde::de::DeserializeOwned>(
 /// **With structs:**
 /// ```
 /// use serde::Deserialize;
-/// use toon_format::decode_default;
+/// use rune_format::decode_default;
 ///
 /// #[derive(Deserialize)]
 /// struct Person {
@@ -205,7 +202,7 @@ pub fn decode_no_coerce_with_options<T: serde::de::DeserializeOwned>(
 /// let input = "name: Alice\nage: 30";
 /// let person: Person = decode_default(input)?;
 /// assert_eq!(person.name, "Alice");
-/// # Ok::<(), toon_format::ToonError>(())
+/// # Ok::<(), rune_format::ToonError>(())
 /// ```
 ///
 /// **With JSON values:**
@@ -214,12 +211,12 @@ pub fn decode_no_coerce_with_options<T: serde::de::DeserializeOwned>(
 ///     json,
 ///     Value,
 /// };
-/// use toon_format::decode_default;
+/// use rune_format::decode_default;
 ///
 /// let input = "tags[3]: reading,gaming,coding";
 /// let result: Value = decode_default(input)?;
 /// assert_eq!(result["tags"], json!(["reading", "gaming", "coding"]));
-/// # Ok::<(), toon_format::ToonError>(())
+/// # Ok::<(), rune_format::ToonError>(())
 /// ```
 pub fn decode_default<T: serde::de::DeserializeOwned>(input: &str) -> ToonResult<T> {
     decode(input, &DecodeOptions::default())

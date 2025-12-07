@@ -1,0 +1,159 @@
+WHITESPACE = _{ " " | "\t" }
+NEWLINE = _{ "\r\n" | "\n" }
+
+COMMENT = _{ "#" ~ (!NEWLINE ~ ANY)* }
+
+// --- LEXICAL PRIMITIVES ---
+ident = @{ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_" )* }
+
+// Semantic prefix: single uppercase letter followed by colon (A:, T:, V:, R:, etc.)
+semantic_prefix = @{ ASCII_ALPHA_UPPER ~ ":" }
+
+// Semantic identifier: prefix + name (e.g., T:Gf8, V:vector, R:continuum)
+semantic_ident = { semantic_prefix ~ ident }
+
+number = @{
+    "-"? ~ ASCII_DIGIT+ ~ ("." ~ ASCII_DIGIT+)?   // simple int/float
+}
+
+string = @{
+    "\"" ~ string_inner ~ "\""
+}
+
+string_inner = @{
+    (
+        !("\"" | "\\") ~ ANY
+        | "\\" ~ ("\"" | "\\" | "/" | "b" | "f" | "n" | "r" | "t")
+    )*
+}
+
+// --- OPERATORS (matched in order of length) ---
+
+// 1. Glyph operators (must be ordered longest-first, now included in relation_op for chaining)
+// Note: glyph_op removed from grammar, integrated into relation_op for better parsing of chains
+
+// 2. Flow operators (lower precedence - flow between things)
+flow_op = {
+      "->"     // FlowRight
+    | "<-"     // FlowLeft
+}
+
+// 3. Structural / binding operators (higher precedence - create associations)
+struct_op = {
+      "\\|/"   // SymmetricSplit
+    | "/|\\"   // BranchAnchorBranch
+    | "/\\"    // SplitJoin
+    | "\\/"    // JoinSplit
+    | "|/"     // AnchorDescend
+    | "/|"     // BranchStabilize
+    | "\\|"    // RootStabilize
+    | "|\\"    // StabilizeRoot
+    | "::"     // Namespace
+    | ":="     // Define
+    | "<="     // LessEqual
+    | ">="     // GreaterEqual
+    | "||"     // Parallel
+    | ":"      // Bind
+    | "="      // Equal
+    | "<"      // Less
+    | ">"      // Greater
+    | "\\"     // Ancestor
+    | "|"      // Alias
+    | "~"      // Transform
+}
+
+// All relation operators combined (for fallback parsing)
+relation_op = { flow_op | struct_op }
+
+// Path operators used for hierarchical access (distinct from math)
+path_op = { "/" | "\\" }
+
+// Unified operator token (arithmetic operators only within math blocks `[]`)
+op = { relation_op }
+
+// --- EXPRESSIONS ---
+// Domains: Structural (outside []) vs Arithmetic (inside [])
+
+// Array literal: [1,2,3] or [a,b,c] (comma-separated)
+// Distinct from math blocks which use operators without commas
+array_literal = { "[" ~ relation_expr ~ ("," ~ relation_expr)+ ~ "]" }
+
+term = {
+      string
+    | number
+    | math_block      // Try math block first (has operators/unary)
+    | array_literal   // Then try array (has commas)
+    | semantic_ident
+    | ident
+    | "(" ~ relation_expr ~ ")"
+}
+
+// Arithmetic within [ ... ] value blocks ---
+// Math precedence: PEMDAS (Parentheses, Exponents, Multiply/Divide, Add/Subtract)
+math_block  = { "[" ~ math_expr ~ "]" }
+
+math_expr   = { math_add }
+
+math_add    = { math_mul ~ (WHITESPACE* ~ math_add_op ~ WHITESPACE* ~ math_mul)* }
+math_add_op = { "+" | "-" }
+
+math_mul    = { math_exp ~ (WHITESPACE* ~ math_mul_op ~ WHITESPACE* ~ math_exp)* }
+math_mul_op = { "*" | "/" | "%" }
+
+math_exp    = { math_unary ~ (WHITESPACE* ~ math_exp_op ~ WHITESPACE* ~ math_unary)* }
+math_exp_op = { "^" | "√" | "R" }
+
+math_unary  = { math_unary_op? ~ math_atom }
+math_unary_op = { "-" | "+" }
+
+// Math atom now supports arrays and semantic identifiers inside math blocks
+math_array_literal = { "[" ~ math_expr ~ ("," ~ math_expr)+ ~ "]" }
+math_atom   = { number | semantic_ident | math_array_literal | ident | "(" ~ math_expr ~ ")" }
+
+// Structural expressions ---
+// Precedence layers: flow_expr < struct_expr < access < term
+// Lower precedence (parsed first) = looser binding
+
+// Path access (hierarchical navigation - / is structural path here, not division)
+access = { term ~ (WHITESPACE* ~ path_op ~ WHITESPACE* ~ term)* }
+
+// Structural operators (tighter binding - associations, definitions)
+struct_expr = { access ~ (WHITESPACE* ~ struct_op ~ WHITESPACE* ~ access)* }
+
+// Flow operators (looser binding - data flow between structures)
+flow_expr = { struct_expr ~ (WHITESPACE* ~ flow_op ~ WHITESPACE* ~ struct_expr)* }
+
+// Relations: top-level expression (kept for backward compatibility)
+relation_expr = { flow_expr }
+
+// Expression: structural operations only (no arithmetic)
+expr = { relation_expr }
+
+// --- STATEMENTS ---
+
+// Root declaration (supports namespaces like e8::continuum)
+root_decl = { "root:" ~ WHITESPACE* ~ ident ~ ("::" ~ ident)* }
+
+// TOON block (indentation-based)
+// Use $ to disable implicit whitespace, @ for atomic capture
+toon_content = @{
+    (
+        // Match any line that isn't empty and doesn't start a new top-level statement
+        (!NEWLINE ~ ANY)+ ~ NEWLINE
+    )+
+}
+
+toon_block = ${
+    ident ~ " "* ~ "~TOON:" ~ NEWLINE ~
+    toon_content
+}
+
+// Expression statement (catch-all for operator expressions)
+stmt_expr = { relation_expr }
+
+// Top-level statement
+stmt = _{ root_decl | toon_block | stmt_expr }
+
+// File: sequence of statements
+// Note: No WHITESPACE* before stmt to preserve TOON block indentation
+file = { SOI ~ (NEWLINE* ~ stmt ~ WHITESPACE* ~ NEWLINE*)* ~ EOI }

@@ -1,8 +1,8 @@
 # Default owners for everything
-* @toon-format/rust-maintainers
+* @rune-format/rust-maintainers
 
 # Project governance and documentation
-CODE_OF_CONDUCT.md @johannschopplich
-CONTRIBUTING.md @johannschopplich
-LICENSE @johannschopplich
-README.md @johannschopplich
+CODE_OF_CONDUCT.md @arcmoonstudios
+CONTRIBUTING.md @arcmoonstudios
+LICENSE @arcmoonstudios
+README.md @arcmoonstudios

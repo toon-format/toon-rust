@@ -7,19 +7,9 @@ use indexmap::IndexMap;
 use crate::{
     constants::MAX_DEPTH,
     types::{
-        EncodeOptions,
-        IntoJsonValue,
-        JsonValue as Value,
-        KeyFoldingMode,
-        ToonError,
-        ToonResult,
+        EncodeOptions, IntoJsonValue, JsonValue as Value, KeyFoldingMode, ToonError, ToonResult,
     },
-    utils::{
-        format_canonical_number,
-        normalize,
-        validation::validate_depth,
-        QuotingContext,
-    },
+    utils::{QuotingContext, format_canonical_number, normalize, validation::validate_depth},
 };
 
 /// Encode any serializable value to TOON format.
@@ -34,7 +24,7 @@ use crate::{
 /// **With custom structs:**
 /// ```
 /// use serde::Serialize;
-/// use toon_format::{
+/// use rune_format::{
 ///     encode,
 ///     EncodeOptions,
 /// };
@@ -51,19 +41,19 @@ use crate::{
 /// };
 /// let toon = encode(&user, &EncodeOptions::default())?;
 /// assert!(toon.contains("name: Alice"));
-/// # Ok::<(), toon_format::ToonError>(())
+/// # Ok::<(), rune_format::ToonError>(())
 /// ```
 ///
 /// **With JSON values:**
 /// ```
-/// use toon_format::{encode, EncodeOptions, Delimiter};
+/// use rune_format::{encode, EncodeOptions, Delimiter};
 /// use serde_json::json;
 ///
 /// let data = json!({"tags": ["a", "b", "c"]});
 /// let options = EncodeOptions::new().with_delimiter(Delimiter::Pipe);
 /// let toon = encode(&data, &options)?;
 /// assert!(toon.contains("|"));
-/// # Ok::<(), toon_format::ToonError>(())
+/// # Ok::<(), rune_format::ToonError>(())
 /// ```
 pub fn encode<T: serde::Serialize>(value: &T, options: &EncodeOptions) -> ToonResult<String> {
     let json_value =
@@ -100,7 +90,7 @@ fn encode_impl(value: &Value, options: &EncodeOptions) -> ToonResult<String> {
 /// **With structs:**
 /// ```
 /// use serde::Serialize;
-/// use toon_format::encode_default;
+/// use rune_format::encode_default;
 ///
 /// #[derive(Serialize)]
 /// struct Person {
@@ -114,18 +104,18 @@ fn encode_impl(value: &Value, options: &EncodeOptions) -> ToonResult<String> {
 /// };
 /// let toon = encode_default(&person)?;
 /// assert!(toon.contains("name: Alice"));
-/// # Ok::<(), toon_format::ToonError>(())
+/// # Ok::<(), rune_format::ToonError>(())
 /// ```
 ///
 /// **With JSON values:**
 /// ```
-/// use toon_format::encode_default;
+/// use rune_format::encode_default;
 /// use serde_json::json;
 ///
 /// let data = json!({"tags": ["reading", "gaming", "coding"]});
 /// let toon = encode_default(&data)?;
 /// assert_eq!(toon, "tags[3]: reading,gaming,coding");
-/// # Ok::<(), toon_format::ToonError>(())
+/// # Ok::<(), rune_format::ToonError>(())
 /// ```
 pub fn encode_default<T: serde::Serialize>(value: &T) -> ToonResult<String> {
     encode(value, &EncodeOptions::default())
@@ -139,7 +129,7 @@ pub fn encode_default<T: serde::Serialize>(value: &T) -> ToonResult<String> {
 /// # Examples
 ///
 /// ```
-/// use toon_format::{encode_object, EncodeOptions};
+/// use rune_format::{encode_object, EncodeOptions};
 /// use serde_json::json;
 ///
 /// let data = json!({"name": "Alice", "age": 30});
@@ -148,7 +138,7 @@ pub fn encode_default<T: serde::Serialize>(value: &T) -> ToonResult<String> {
 ///
 /// // Will error if not an object
 /// assert!(encode_object(&json!(42), &EncodeOptions::default()).is_err());
-/// # Ok::<(), toon_format::ToonError>(())
+/// # Ok::<(), rune_format::ToonError>(())
 /// ```
 pub fn encode_object<V: IntoJsonValue>(value: V, options: &EncodeOptions) -> ToonResult<String> {
     let json_value = value.into_json_value();
@@ -169,7 +159,7 @@ pub fn encode_object<V: IntoJsonValue>(value: V, options: &EncodeOptions) -> Too
 /// # Examples
 ///
 /// ```
-/// use toon_format::{encode_array, EncodeOptions};
+/// use rune_format::{encode_array, EncodeOptions};
 /// use serde_json::json;
 ///
 /// let data = json!(["a", "b", "c"]);
@@ -178,7 +168,7 @@ pub fn encode_object<V: IntoJsonValue>(value: V, options: &EncodeOptions) -> Too
 ///
 /// // Will error if not an array
 /// assert!(encode_array(&json!({"key": "value"}), &EncodeOptions::default()).is_err());
-/// # Ok::<(), toon_format::ToonError>(())
+/// # Ok::<(), rune_format::ToonError>(())
 /// ```
 pub fn encode_array<V: IntoJsonValue>(value: V, options: &EncodeOptions) -> ToonResult<String> {
     let json_value = value.into_json_value();

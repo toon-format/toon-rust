@@ -1,9 +1,6 @@
 use std::{
     fmt,
-    ops::{
-        Index,
-        IndexMut,
-    },
+    ops::{Index, IndexMut},
 };
 
 use indexmap::IndexMap;
@@ -62,11 +59,7 @@ impl Number {
             Number::NegInt(i) => Some(*i),
             Number::Float(f) => {
                 let i = *f as i64;
-                if i as f64 == *f {
-                    Some(i)
-                } else {
-                    None
-                }
+                if i as f64 == *f { Some(i) } else { None }
             }
         }
     }
@@ -78,11 +71,7 @@ impl Number {
             Number::Float(f) => {
                 if *f >= 0.0 {
                     let u = *f as u64;
-                    if u as f64 == *f {
-                        Some(u)
-                    } else {
-                        None
-                    }
+                    if u as f64 == *f { Some(u) } else { None }
                 } else {
                     None
                 }

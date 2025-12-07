@@ -1,14 +1,5 @@
-use serde_json::{
-    json,
-    Value,
-};
-use toon_format::{
-    decode_default,
-    encode,
-    encode_default,
-    Delimiter,
-    EncodeOptions,
-};
+use rune_format::{Delimiter, EncodeOptions, decode_default, encode, encode_default};
+use serde_json::{Value, json};
 
 #[test]
 fn test_delimiter_variants() {

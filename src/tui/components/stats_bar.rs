@@ -1,23 +1,13 @@
 //! Statistics bar showing token and byte savings.
 
 use ratatui::{
-    layout::Rect,
-    text::{
-        Line,
-        Span,
-    },
-    widgets::{
-        Block,
-        Borders,
-        Paragraph,
-    },
     Frame,
+    layout::Rect,
+    text::{Line, Span},
+    widgets::{Block, Borders, Paragraph},
 };
 
-use crate::tui::{
-    state::AppState,
-    theme::Theme,
-};
+use crate::tui::{state::AppState, theme::Theme};
 
 pub struct StatsBar;
 

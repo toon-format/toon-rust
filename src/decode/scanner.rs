@@ -1,8 +1,4 @@
-use crate::types::{
-    Delimiter,
-    ToonError,
-    ToonResult,
-};
+use crate::types::{Delimiter, ToonError, ToonResult};
 
 /// Tokens produced by the scanner during lexical analysis.
 #[derive(Debug, Clone, PartialEq)]

@@ -1,36 +1,12 @@
 use ratatui::{
-    layout::{
-        Constraint,
-        Direction,
-        Layout,
-        Margin,
-        Rect,
-    },
-    style::{
-        Color,
-        Modifier,
-        Style,
-    },
-    text::{
-        Line,
-        Span,
-    },
-    widgets::{
-        Block,
-        Borders,
-        Paragraph,
-        Scrollbar,
-        ScrollbarOrientation,
-        ScrollbarState,
-        Wrap,
-    },
     Frame,
+    layout::{Constraint, Direction, Layout, Margin, Rect},
+    style::{Color, Modifier, Style},
+    text::{Line, Span},
+    widgets::{Block, Borders, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, Wrap},
 };
 
-use crate::tui::state::{
-    AppState,
-    ReplLineKind,
-};
+use crate::tui::state::{AppState, ReplLineKind};
 
 pub struct ReplPanel;
 

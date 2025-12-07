@@ -1,0 +1,54 @@
+{
+	"folders": [
+		{
+			"name": "toon-rune",
+			"path": "."
+		}
+	],
+	"settings": {
+		"rust-analyzer.checkOnSave": true,
+		"rust-analyzer.check.allTargets": true,
+		"rust-analyzer.check.command": "clippy",
+		"rust-analyzer.procMacro.enable": true,
+		"rust-analyzer.cargo.extraArgs": [
+			"--message-format=json"
+		],
+		"rust-analyzer.completion.autoimport.enable": true,
+		"rust-analyzer.imports.granularity.group": "module",
+		"rust-analyzer.imports.prefix": "crate",
+		"files.associations": {
+			".toon-rune/*.json": "json"
+		},
+		"codium.codeCompletion.enable": false,
+		"emeraldwalk.runonsave": {
+			"commands": [
+				{
+					"match": "\\.md$",
+					"cmd": "powershell -File \"${workspaceFolder}/scripts/lint-markdown.ps1\" \"${file}\""
+				}
+			]
+		},
+		"editor.codeActionsOnSave": {
+			"source.fixAll.markdownlint": "explicit"
+		},
+		"markdownlint.config": {
+			"default": true,
+			"MD001": false,
+			"MD013": false,
+			"MD029": false,
+			"MD033": false,
+			"MD036": false,
+			"MD040": false
+		},
+		"kiroAgent.configureMCP": "Disabled"
+		,
+		// Suppress reportMissingImports/Pyright diagnostic at the workspace level
+		"python.analysis.diagnosticSeverityOverrides": {
+			"reportMissingImports": "none",
+			"reportMissingModuleSource": "none"
+		}
+		,
+		// Make use of library code for types (reduces missing type issues for compiled modules)
+		"python.analysis.useLibraryCodeForTypes": true
+	}
+}

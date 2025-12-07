@@ -1,30 +1,13 @@
 //! Side-by-side diff viewer for input/output comparison.
 
 use ratatui::{
-    layout::{
-        Alignment,
-        Constraint,
-        Direction,
-        Layout,
-        Rect,
-    },
-    text::{
-        Line,
-        Span,
-    },
-    widgets::{
-        Block,
-        Borders,
-        Paragraph,
-        Wrap,
-    },
     Frame,
+    layout::{Alignment, Constraint, Direction, Layout, Rect},
+    text::{Line, Span},
+    widgets::{Block, Borders, Paragraph, Wrap},
 };
 
-use crate::tui::{
-    state::AppState,
-    theme::Theme,
-};
+use crate::tui::{state::AppState, theme::Theme};
 
 pub struct DiffViewer;
 
@@ -48,6 +31,7 @@ impl DiffViewer {
         let input_title = match app.mode {
             crate::tui::state::app_state::Mode::Encode => "JSON Input",
             crate::tui::state::app_state::Mode::Decode => "TOON Input",
+            crate::tui::state::app_state::Mode::Rune => "RUNE Input",
         };
 
         let input_lines: Vec<Line> = input_text
@@ -76,6 +60,7 @@ impl DiffViewer {
         let output_title = match app.mode {
             crate::tui::state::app_state::Mode::Encode => "TOON Output",
             crate::tui::state::app_state::Mode::Decode => "JSON Output",
+            crate::tui::state::app_state::Mode::Rune => "Parsed Results",
         };
 
         let output_lines: Vec<Line> = output_text

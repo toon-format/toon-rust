@@ -1,8 +1,4 @@
-use crate::types::{
-    is_identifier_segment,
-    JsonValue as Value,
-    KeyFoldingMode,
-};
+use crate::types::{JsonValue as Value, KeyFoldingMode, is_identifier_segment};
 
 /// Result of chain analysis for folding.
 pub struct FoldableChain {

@@ -1,8 +1,5 @@
+use rune_format::{DecodeOptions, decode};
 use serde_json::Value;
-use toon_format::{
-    decode,
-    DecodeOptions,
-};
 
 pub fn decode_strict() {
     // Malformed: header says 2 rows, but only 1 provided

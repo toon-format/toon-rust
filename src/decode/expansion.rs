@@ -2,13 +2,7 @@ use indexmap::IndexMap;
 
 use crate::{
     constants::QUOTED_KEY_MARKER,
-    types::{
-        is_identifier_segment,
-        JsonValue as Value,
-        PathExpansionMode,
-        ToonError,
-        ToonResult,
-    },
+    types::{JsonValue as Value, PathExpansionMode, ToonError, ToonResult, is_identifier_segment},
 };
 
 pub fn should_expand_key(key: &str, mode: PathExpansionMode) -> Option<Vec<String>> {

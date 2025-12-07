@@ -1,37 +1,18 @@
 use std::{
     fs,
-    io::{
-        self,
-        Read,
-        Write,
-    },
-    path::{
-        Path,
-        PathBuf,
-    },
+    io::{self, Read, Write},
+    path::{Path, PathBuf},
 };
 
-use anyhow::{
-    bail,
-    Context,
-    Result,
-};
+use anyhow::{Context, Result, bail};
 use clap::Parser;
 use comfy_table::Table;
+use rune_format::{
+    decode, encode,
+    types::{DecodeOptions, Delimiter, EncodeOptions, Indent, KeyFoldingMode, PathExpansionMode},
+};
 use serde::Serialize;
 use tiktoken_rs::cl100k_base;
-use toon_format::{
-    decode,
-    encode,
-    types::{
-        DecodeOptions,
-        Delimiter,
-        EncodeOptions,
-        Indent,
-        KeyFoldingMode,
-        PathExpansionMode,
-    },
-};
 
 #[derive(Parser, Debug)]
 #[command(
@@ -383,6 +364,6 @@ fn main() -> Result<()> {
 }
 
 fn run_interactive() -> Result<()> {
-    toon_format::tui::run().context("Failed to run interactive TUI")?;
+    rune_format::tui::run().context("Failed to run interactive TUI")?;
     Ok(())
 }

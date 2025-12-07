@@ -1,39 +1,18 @@
-use std::{
-    fs,
-    path::PathBuf,
-    time::Duration,
-};
+use std::{fs, path::PathBuf, time::Duration};
 
-use anyhow::{
-    Context,
-    Result,
-};
+use anyhow::{Context, Result};
 use chrono::Local;
-use crossterm::event::{
-    KeyCode,
-    KeyEvent,
-};
+use ratatui::crossterm::event::{KeyCode, KeyEvent};
 use tiktoken_rs::cl100k_base;
 
 use crate::{
-    decode,
-    encode,
+    decode, encode,
     tui::{
         components::FileBrowser,
-        events::{
-            Event,
-            EventHandler,
-        },
-        keybindings::{
-            Action,
-            KeyBindings,
-        },
+        events::{Event, EventHandler},
+        keybindings::{Action, KeyBindings},
         repl_command::ReplCommand,
-        state::{
-            app_state::ConversionStats,
-            AppState,
-            ConversionHistory,
-        },
+        state::{AppState, ConversionHistory, app_state::ConversionStats},
         ui,
     },
 };
@@ -80,6 +59,11 @@ impl<'a> TuiApp<'a> {
     }
 
     fn handle_key_event(&mut self, key: KeyEvent) -> Result<()> {
+        // Confirmation dialog takes highest priority
+        if self.app_state.show_confirmation {
+            return self.handle_confirmation_key(key);
+        }
+
         // REPL takes priority when active
         if self.app_state.repl.active {
             return self.handle_repl_key(key);
@@ -300,6 +284,9 @@ impl<'a> TuiApp<'a> {
             crate::tui::state::app_state::Mode::Decode => {
                 self.decode_input(&input);
             }
+            crate::tui::state::app_state::Mode::Rune => {
+                self.parse_rune_input(&input);
+            }
         }
     }
 
@@ -405,6 +392,60 @@ impl<'a> TuiApp<'a> {
         Ok(())
     }
 
+    fn parse_rune_input(&mut self, input: &str) {
+        self.app_state.editor.clear_output();
+
+        match crate::rune::parse_rune(input) {
+            Ok(statements) => {
+                let mut output = String::new();
+
+                for stmt in &statements {
+                    match stmt {
+                        crate::rune::Stmt::RootDecl(root) => {
+                            output.push_str(&format!("Root: {}\n", root));
+                        }
+                        crate::rune::Stmt::ToonBlock { name, content } => {
+                            output.push_str(&format!("TOON Block '{}':\n", name));
+                            // Try to decode as TOON and show JSON
+                            match crate::decode::decode::<serde_json::Value>(
+                                content,
+                                &self.app_state.decode_options,
+                            ) {
+                                Ok(json) => {
+                                    if let Ok(pretty) = serde_json::to_string_pretty(&json) {
+                                        output.push_str(&format!("Decoded JSON:\n{}\n", pretty));
+                                    }
+                                }
+                                Err(_) => {
+                                    output.push_str(&format!("Raw TOON:\n{}\n", content));
+                                }
+                            }
+                        }
+                        crate::rune::Stmt::Expr(expr) => {
+                            output.push_str(&format!("Expression: {}\n", expr));
+                        }
+                    }
+                }
+
+                self.app_state.editor.set_output(output);
+                self.app_state.clear_error();
+
+                // Count statements as "complexity"
+                self.app_state.stats = Some(ConversionStats {
+                    json_tokens: statements.len(),
+                    toon_tokens: 0,
+                    json_bytes: input.len(),
+                    toon_bytes: 0,
+                    token_savings: 0.0,
+                    byte_savings: 0.0,
+                });
+            }
+            Err(e) => {
+                self.app_state.set_error(format!("RUNE parse error: {e}"));
+            }
+        }
+    }
+
     fn save_output(&mut self) -> Result<()> {
         let output = self.app_state.editor.get_output();
         if output.trim().is_empty() {
@@ -415,6 +456,7 @@ impl<'a> TuiApp<'a> {
         let extension = match self.app_state.mode {
             crate::tui::state::app_state::Mode::Encode => "toon",
             crate::tui::state::app_state::Mode::Decode => "json",
+            crate::tui::state::app_state::Mode::Rune => "rune",
         };
 
         let path = if let Some(current) = &self.app_state.file_state.current_file {
@@ -433,7 +475,10 @@ impl<'a> TuiApp<'a> {
 
     fn new_file(&mut self) {
         if self.app_state.file_state.is_modified {
-            // TODO: confirmation dialog
+            self.app_state.show_confirmation = true;
+            self.app_state.confirmation_action =
+                crate::tui::state::app_state::ConfirmationAction::NewFile;
+            return;
         }
         self.app_state.editor.clear_input();
         self.app_state.editor.clear_output();
@@ -488,6 +533,46 @@ impl<'a> TuiApp<'a> {
         Ok(())
     }
 
+    fn handle_confirmation_key(&mut self, key: KeyEvent) -> Result<()> {
+        use crate::tui::state::app_state::ConfirmationAction;
+
+        match key.code {
+            KeyCode::Char('y') | KeyCode::Char('Y') => {
+                // User confirmed - perform action
+                match self.app_state.confirmation_action {
+                    ConfirmationAction::NewFile => {
+                        self.app_state.editor.clear_input();
+                        self.app_state.editor.clear_output();
+                        self.app_state.file_state.clear_current_file();
+                        self.app_state.set_status("New file created".to_string());
+                    }
+                    ConfirmationAction::Quit => {
+                        self.app_state.should_quit = true;
+                    }
+                    ConfirmationAction::DeleteFile => {
+                        if let Some(current_file) = &self.app_state.file_state.current_file {
+                            if let Err(e) = std::fs::remove_file(current_file) {
+                                self.app_state.set_error(format!("Delete failed: {e}"));
+                            } else {
+                                self.app_state.set_status("File deleted".to_string());
+                            }
+                        }
+                    }
+                    ConfirmationAction::None => {}
+                }
+                self.app_state.show_confirmation = false;
+                self.app_state.confirmation_action = ConfirmationAction::None;
+            }
+            KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => {
+                // User cancelled
+                self.app_state.show_confirmation = false;
+                self.app_state.confirmation_action = ConfirmationAction::None;
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
     fn handle_file_selection(&mut self) -> Result<()> {
         let current_dir = self.app_state.file_state.current_dir.clone();
         if let Some(selected_path) = self.file_browser.get_selected_entry(&current_dir) {
@@ -518,6 +603,9 @@ impl<'a> TuiApp<'a> {
                                 "toon" => {
                                     self.app_state.mode =
                                         crate::tui::state::app_state::Mode::Decode;
+                                }
+                                "rune" => {
+                                    self.app_state.mode = crate::tui::state::app_state::Mode::Rune;
                                 }
                                 _ => {}
                             }
@@ -651,7 +739,7 @@ impl<'a> TuiApp<'a> {
             KeyCode::Char('r')
                 if key
                     .modifiers
-                    .contains(crossterm::event::KeyModifiers::CONTROL) =>
+                    .contains(ratatui::crossterm::event::KeyModifiers::CONTROL) =>
             {
                 self.app_state.repl.deactivate();
             }
@@ -759,6 +847,77 @@ impl<'a> TuiApp<'a> {
                     }
                 }
             }
+            "rune" | "r" => {
+                let mut data = cmd
+                    .inline_data
+                    .as_ref()
+                    .map(|s| s.to_string())
+                    .unwrap_or_else(String::new);
+
+                data = self.substitute_variables(&data);
+
+                if data.is_empty() {
+                    self.app_state.repl.add_error(
+                        "Usage: rune root: example\ndata ~TOON:\n  items: value\n\nor rune $var"
+                            .to_string(),
+                    );
+                    return Ok(());
+                }
+
+                match crate::rune::parse_rune(&data) {
+                    Ok(statements) => {
+                        let mut output = String::new();
+
+                        for stmt in &statements {
+                            match stmt {
+                                crate::rune::Stmt::RootDecl(root) => {
+                                    output.push_str(&format!("✓ Root: {}\n", root));
+                                }
+                                crate::rune::Stmt::ToonBlock { name, content } => {
+                                    output.push_str(&format!(
+                                        "✓ TOON Block '{}': {} chars\n",
+                                        name,
+                                        content.len()
+                                    ));
+                                    // Try to show decoded result briefly
+                                    if let Ok(json) = crate::decode::decode::<serde_json::Value>(
+                                        content,
+                                        &self.app_state.decode_options,
+                                    ) {
+                                        if let Ok(json_str) = serde_json::to_string(&json) {
+                                            if json_str.len() < 200 {
+                                                output.push_str(&format!("  {}", json_str));
+                                            } else {
+                                                output.push_str(&format!(
+                                                    "  ({} items)",
+                                                    if json.is_array() {
+                                                        json.as_array().unwrap().len()
+                                                    } else if json.is_object() {
+                                                        json.as_object().unwrap().len()
+                                                    } else {
+                                                        1
+                                                    }
+                                                ));
+                                            }
+                                            output.push('\n');
+                                        }
+                                    }
+                                }
+                                crate::rune::Stmt::Expr(expr) => {
+                                    output.push_str(&format!("✓ Expression: {}\n", expr));
+                                }
+                            }
+                        }
+                        self.app_state.repl.add_success(output);
+                        self.app_state.repl.last_result = Some(statements.len().to_string());
+                    }
+                    Err(e) => {
+                        self.app_state
+                            .repl
+                            .add_error(format!("RUNE parse error: {e}"));
+                    }
+                }
+            }
             "let" => {
                 let parts: Vec<&str> = input.splitn(2, '=').collect();
                 if parts.len() == 2 {
@@ -825,6 +984,9 @@ impl<'a> TuiApp<'a> {
                 self.app_state
                     .repl
                     .add_info("  decode name: Alice      - Decode TOON to JSON".to_string());
+                self.app_state
+                    .repl
+                    .add_info("  rune root: continuum   - Parse and evaluate RUNE".to_string());
                 self.app_state
                     .repl
                     .add_info("  let $var = {...}        - Store data in variable".to_string());

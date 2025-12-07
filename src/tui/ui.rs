@@ -1,42 +1,19 @@
 use ratatui::{
-    layout::{
-        Alignment,
-        Constraint,
-        Direction,
-        Layout,
-        Rect,
-    },
-    text::{
-        Line,
-        Span,
-    },
-    widgets::{
-        Block,
-        Borders,
-        Paragraph,
-    },
     Frame,
+    layout::{Alignment, Constraint, Direction, Layout, Rect},
+    text::{Line, Span},
+    widgets::{Block, Borders, Paragraph},
 };
 
 use super::{
     components::{
-        DiffViewer,
-        EditorComponent,
-        FileBrowser,
-        HelpScreen,
-        HistoryPanel,
-        ReplPanel,
-        SettingsPanel,
-        StatsBar,
-        StatusBar,
+        ConfirmationDialog, DiffViewer, EditorComponent, FileBrowser, HelpScreen, HistoryPanel,
+        ReplPanel, SettingsPanel, StatsBar, StatusBar,
     },
     state::AppState,
     theme::Theme,
 };
-use crate::types::{
-    KeyFoldingMode,
-    PathExpansionMode,
-};
+use crate::types::{KeyFoldingMode, PathExpansionMode};
 
 /// Main render function - orchestrates all UI components.
 pub fn render(f: &mut Frame, app: &mut AppState, file_browser: &mut FileBrowser) {
@@ -89,6 +66,11 @@ pub fn render(f: &mut Frame, app: &mut AppState, file_browser: &mut FileBrowser)
 
     StatsBar::render(f, chunks[2], app, &theme);
     StatusBar::render(f, chunks[3], app, &theme);
+
+    // Render confirmation dialog on top if active
+    if app.show_confirmation {
+        ConfirmationDialog::render(f, f.area(), app.confirmation_action);
+    }
 }
 
 /// Render conversion arrow and round-trip button between panels.
@@ -96,6 +78,7 @@ fn render_arrow(f: &mut Frame, area: Rect, app: &AppState, theme: &Theme) {
     let arrow_symbol = match app.mode {
         crate::tui::state::app_state::Mode::Encode => "→",
         crate::tui::state::app_state::Mode::Decode => "←",
+        crate::tui::state::app_state::Mode::Rune => "🪄",
     };
 
     let arrow_text = vec![
@@ -205,6 +188,14 @@ fn render_header(f: &mut Frame, area: Rect, app: &AppState) {
                 Span::styled(" | Coerce:", theme.line_number_style()),
                 Span::styled(format!(" {coerce}"), theme.info_style()),
                 Span::styled(expand, theme.line_number_style()),
+            ]
+        }
+        crate::tui::state::app_state::Mode::Rune => {
+            vec![
+                Span::styled("RUNE:", theme.line_number_style()),
+                Span::styled(" Geometric", theme.info_style()),
+                Span::styled(" | Operators:", theme.line_number_style()),
+                Span::styled(" 21", theme.info_style()),
             ]
         }
     };

@@ -1,7 +1,4 @@
-use crate::{
-    types::Delimiter,
-    utils::literal,
-};
+use crate::{types::Delimiter, utils::literal};
 
 /// Escape special characters in a string for quoted output.
 pub fn escape_string(s: &str) -> String {

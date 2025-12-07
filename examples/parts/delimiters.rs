@@ -1,9 +1,5 @@
+use rune_format::{Delimiter, EncodeOptions, encode};
 use serde_json::json;
-use toon_format::{
-    encode,
-    Delimiter,
-    EncodeOptions,
-};
 
 pub fn delimiters() {
     let data = json!({

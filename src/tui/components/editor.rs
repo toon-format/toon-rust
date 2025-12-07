@@ -1,18 +1,12 @@
 //! Input and output editor panels.
 
 use ratatui::{
-    layout::Rect,
-    widgets::{
-        Block,
-        Borders,
-    },
     Frame,
+    layout::Rect,
+    widgets::{Block, Borders},
 };
 
-use crate::tui::{
-    state::AppState,
-    theme::Theme,
-};
+use crate::tui::{state::AppState, theme::Theme};
 
 pub struct EditorComponent;
 
@@ -30,6 +24,7 @@ impl EditorComponent {
             match app.mode {
                 crate::tui::state::app_state::Mode::Encode => "JSON",
                 crate::tui::state::app_state::Mode::Decode => "TOON",
+                crate::tui::state::app_state::Mode::Rune => "RUNE",
             },
             if input_active { "●" } else { "" }
         );
@@ -54,6 +49,7 @@ impl EditorComponent {
             match app.mode {
                 crate::tui::state::app_state::Mode::Encode => "TOON",
                 crate::tui::state::app_state::Mode::Decode => "JSON",
+                crate::tui::state::app_state::Mode::Rune => "Results",
             },
             if output_active { "●" } else { "" }
         );

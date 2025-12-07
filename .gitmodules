@@ -1,3 +1,3 @@
 [submodule "spec"]
 	path = spec
-	url = https://github.com/toon-format/spec
+	url = https://github.com/rune-format/spec

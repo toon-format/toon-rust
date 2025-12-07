@@ -1,14 +1,5 @@
-use serde_json::{
-    json,
-    Value,
-};
-use toon_format::{
-    decode,
-    decode_default,
-    decode_strict,
-    DecodeOptions,
-    ToonError,
-};
+use rune_format::{DecodeOptions, ToonError, decode, decode_default, decode_strict};
+use serde_json::{Value, json};
 
 #[test]
 fn test_invalid_syntax_errors() {

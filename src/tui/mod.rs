@@ -11,6 +11,7 @@ pub mod repl_command;
 pub mod state;
 pub mod theme;
 pub mod ui;
+pub mod message;
 
 use std::io;
 

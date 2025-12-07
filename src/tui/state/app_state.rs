@@ -1,6 +1,7 @@
 //! Main application state.
 
 use super::{EditorState, FileState, ReplState};
+use crate::tui::message::Msg;
 use crate::{
     tui::theme::Theme,
     types::{DecodeOptions, Delimiter, EncodeOptions, Indent, KeyFoldingMode, PathExpansionMode},
@@ -284,6 +285,61 @@ impl<'a> AppState<'a> {
     pub fn toggle_coerce_types(&mut self) {
         let coerce = !self.decode_options.coerce_types;
         self.decode_options = self.decode_options.clone().with_coerce_types(coerce);
+    }
+
+    /// Central message handler for TUI actions (Elm-style update).
+    pub fn update(&mut self, msg: Msg) -> Option<Msg> {
+        match msg {
+            Msg::Quit => {
+                self.quit();
+                None
+            }
+            Msg::ToggleMode => {
+                self.toggle_mode();
+                None
+            }
+            Msg::ToggleSettings => {
+                self.toggle_settings();
+                None
+            }
+            Msg::ToggleHelp => {
+                self.toggle_help();
+                None
+            }
+            Msg::ToggleFileBrowser => {
+                self.toggle_file_browser();
+                None
+            }
+            Msg::ToggleHistory => {
+                self.toggle_history();
+                None
+            }
+            Msg::ToggleDiff => {
+                self.toggle_diff();
+                None
+            }
+            Msg::ToggleTheme => {
+                self.toggle_theme();
+                None
+            }
+            Msg::SetError(e) => {
+                self.set_error(e);
+                None
+            }
+            Msg::SetStatus(s) => {
+                self.set_status(s);
+                None
+            }
+            Msg::ClearError => {
+                self.clear_error();
+                None
+            }
+            Msg::ClearStatus => {
+                self.clear_status();
+                None
+            }
+            _ => None, // Not yet handled messages
+        }
     }
 }
 

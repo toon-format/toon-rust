@@ -180,9 +180,11 @@ impl<'a> TuiApp<'a> {
 
         let action = KeyBindings::handle(key);
         match action {
-            Action::Quit => self.app_state.quit(),
+            Action::Quit => {
+                self.app_state.update(crate::tui::message::Msg::Quit);
+            }
             Action::ToggleMode => {
-                self.app_state.toggle_mode();
+                self.app_state.update(crate::tui::message::Msg::ToggleMode);
                 self.perform_conversion();
             }
             Action::SwitchPanel => {
@@ -201,22 +203,22 @@ impl<'a> TuiApp<'a> {
                 self.perform_conversion();
             }
             Action::ToggleSettings => {
-                self.app_state.toggle_settings();
+                self.app_state.update(crate::tui::message::Msg::ToggleSettings);
             }
             Action::ToggleHelp => {
-                self.app_state.toggle_help();
+                self.app_state.update(crate::tui::message::Msg::ToggleHelp);
             }
             Action::ToggleFileBrowser => {
-                self.app_state.toggle_file_browser();
+                self.app_state.update(crate::tui::message::Msg::ToggleFileBrowser);
             }
             Action::ToggleHistory => {
-                self.app_state.toggle_history();
+                self.app_state.update(crate::tui::message::Msg::ToggleHistory);
             }
             Action::ToggleDiff => {
-                self.app_state.toggle_diff();
+                self.app_state.update(crate::tui::message::Msg::ToggleDiff);
             }
             Action::ToggleTheme => {
-                self.app_state.toggle_theme();
+                self.app_state.update(crate::tui::message::Msg::ToggleTheme);
             }
             Action::CopyOutput => {
                 self.copy_to_clipboard()?;
@@ -388,7 +390,7 @@ impl<'a> TuiApp<'a> {
     }
 
     fn open_file_dialog(&mut self) -> Result<()> {
-        self.app_state.toggle_file_browser();
+        self.app_state.update(crate::tui::message::Msg::ToggleFileBrowser);
         Ok(())
     }
 

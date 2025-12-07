@@ -89,11 +89,47 @@ impl Evaluator {
         }
     }
 
+    /// Evaluate a typed statement (StmtTyped), respecting the type annotations
+    /// provided by the parser's inference pass.
+    pub fn eval_typed_stmt(&mut self, stmt: &crate::rune::ast::StmtTyped) -> Result<Value, EvalError> {
+        match stmt {
+            crate::rune::ast::StmtTyped::RootDecl(root) => Ok(Value::String(root.to_string())),
+            crate::rune::ast::StmtTyped::ToonBlock { name, content } => Ok(Value::String(format!(
+                "TOON block '{}': {} chars",
+                name,
+                content.len()
+            ))),
+            crate::rune::ast::StmtTyped::Expr(te) => {
+                // For now, just evaluate the inner expression as before, type info is advisory.
+                self.eval_expr(&te.expr)
+            }
+        }
+    }
+
     /// Evaluate an expression
     pub fn eval_expr(&mut self, expr: &Expr) -> Result<Value, EvalError> {
         match expr {
             Expr::Term(term) => self.eval_term(term),
             Expr::Binary { left, op, right } => {
+                // Special-case: transform operator `~` used as builtin invocation
+                // e.g., `S7Slerp ~ [a, b, t]` where left is builtin name
+                if *op == RuneOp::Transform {
+                    // If left is a direct identifier, treat as builtin name
+                    if let Expr::Term(Term::Ident(id)) = &**left {
+                        // Evaluate the right expression to a value
+                        let right_val = self.eval_expr(right)?;
+                        // If right_val is an Array, use elements as args; otherwise a single arg
+                        let args: Vec<Value> = match right_val {
+                            Value::Array(arr) => arr,
+                            v => vec![v],
+                        };
+
+                        // Dispatch to builtin
+                        let ctx = self.context();
+                        return ctx.apply_builtin_by_name(&id.0, &args);
+                    }
+                }
+
                 let left_val = self.eval_expr(left)?;
                 let right_val = self.eval_expr(right)?;
                 self.eval_binary_op(&left_val, op, &right_val)
@@ -261,8 +297,22 @@ impl Evaluator {
         for (name, value) in &self.variables {
             ctx.bind(name.clone(), value.clone());
         }
-        // Note: semantic_vars would need to be stored differently in EvalContext
+        // Add semantic variables from the evaluator into the context so builtins
+        // can resolve semantic identifiers.
+        for (k, v) in &self.semantic_vars {
+            ctx.semantic_vars.insert(k.clone(), v.clone());
+        }
         ctx
+    }
+
+    /// Evaluate a builtin by its textual name using the current context
+    pub fn eval_builtin_by_name(
+        &self,
+        name: &str,
+        args: &[Value],
+    ) -> Result<Value, EvalError> {
+        let ctx = self.context();
+        ctx.apply_builtin_by_name(name, args)
     }
 }
 
@@ -454,5 +504,48 @@ mod tests {
         let stmts = parse("3 >= 5").unwrap();
         let result = eval.eval_stmt(&stmts[0]).unwrap();
         assert_eq!(result, Value::Bool(false));
+    }
+
+    #[test]
+    fn test_eval_builtin_by_name() {
+        let eval = Evaluator::new();
+        let a = crate::rune::hydron::values::Value::Vec8([1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]);
+        let b = crate::rune::hydron::values::Value::Vec8([0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]);
+        // Use static method eval_builtin_by_name to invoke S7Distance
+        let result = eval.eval_builtin_by_name("S7Distance", &[a.clone(), b.clone()]).unwrap();
+        assert!(matches!(result, crate::rune::hydron::values::Value::Scalar(_)));
+
+        // Slerp interception
+        let t = crate::rune::hydron::values::Value::Scalar(0.5);
+        let interp = eval
+            .eval_builtin_by_name("S7Slerp", &[a.clone(), b.clone(), t])
+            .unwrap();
+        assert!(matches!(interp, crate::rune::hydron::values::Value::Vec8(_)));
+    }
+
+    #[test]
+    fn test_parse_typed_and_eval() {
+        let mut eval = Evaluator::new();
+        // parse typed statement
+        let typed = crate::rune::parse_typed("[2 + 3]").unwrap();
+        assert_eq!(typed.len(), 1);
+        if let crate::rune::ast::StmtTyped::Expr(te) = &typed[0] {
+            // Type should be Scalar
+            assert_eq!(te.r#type, crate::rune::ast::RuneType::Scalar);
+            let result = eval.eval_typed_stmt(&typed[0]).unwrap();
+            assert_eq!(result, crate::rune::hydron::values::Value::Float(5.0));
+        } else {
+            panic!("Expected typed expr");
+        }
+    }
+
+    #[test]
+    fn test_eval_transform_builtin_slerp() {
+        let mut eval = Evaluator::new();
+        let script = "S7Slerp ~ [[1,0,0,0,0,0,0,0], [0,1,0,0,0,0,0,0], 0.5]";
+        let stmts = crate::rune::parse(script).unwrap();
+        let result = eval.eval_stmt(&stmts[0]).unwrap();
+        // Expect Vec8 result
+        assert!(matches!(result, crate::rune::hydron::values::Value::Vec8(_)));
     }
 }

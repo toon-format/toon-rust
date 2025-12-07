@@ -41,6 +41,33 @@
 use crate::rune::ops::{MathOp, RuneOp};
 use std::fmt;
 
+/// Basic type system for RUNE expressions.
+/// This is intentionally small to bootstrap typed AST and inference.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RuneType {
+    Scalar,
+    String,
+    Gf8,
+    PointCloud,
+    Array,
+    Bool,
+    Unknown,
+}
+
+impl fmt::Display for RuneType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            RuneType::Scalar => write!(f, "Scalar"),
+            RuneType::String => write!(f, "String"),
+            RuneType::Gf8 => write!(f, "Gf8"),
+            RuneType::PointCloud => write!(f, "PointCloud"),
+            RuneType::Array => write!(f, "Array"),
+            RuneType::Bool => write!(f, "Bool"),
+            RuneType::Unknown => write!(f, "Unknown"),
+        }
+    }
+}
+
 /// A symbolic identifier in RUNE.
 ///
 /// This covers type symbols (`T`, `Gf8`, `XUID`), nodes, roots,
@@ -309,6 +336,57 @@ impl Expr {
     }
 }
 
+/// A typed expression wrapper used for annotating an `Expr` node
+/// with a best-effort type computed during parsing/type inference.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TypedExpr {
+    pub expr: Expr,
+    pub r#type: RuneType,
+}
+
+impl TypedExpr {
+    pub fn new(expr: Expr, r#type: RuneType) -> Self {
+        Self { expr, r#type }
+    }
+
+    /// Infer a type for a given expression node using shallow heuristics.
+    /// This is intentionally conservative: only literal math/strings/arrays
+    /// and some semantic hints are recognized. More advanced inference is
+    /// left for a future pass.
+    pub fn infer(expr: &Expr) -> Self {
+        // NOTE: we avoid glob-importing Expr::* to reduce ambiguity with the Term enum
+        let r#type = match expr {
+            Expr::Term(term) => match term {
+                crate::rune::ast::Term::Literal(crate::rune::ast::Literal::Number(_)) => RuneType::Scalar,
+                crate::rune::ast::Term::Literal(crate::rune::ast::Literal::String(_)) => RuneType::String,
+                crate::rune::ast::Term::Literal(crate::rune::ast::Literal::Array(_)) => RuneType::Array,
+                crate::rune::ast::Term::Math(_) => RuneType::Scalar,
+                crate::rune::ast::Term::Ident(_) => RuneType::Unknown,
+                crate::rune::ast::Term::SemanticIdent(s) => {
+                    // Heuristic: common semantic prefix T:Gf8 -> Gf8 type
+                    match s.prefix {
+                        'T' => {
+                            if s.name.0.to_lowercase().contains("gf8") {
+                                RuneType::Gf8
+                            } else {
+                                RuneType::Unknown
+                            }
+                        }
+                        _ => RuneType::Unknown,
+                    }
+                }
+                crate::rune::ast::Term::Group(inner) => TypedExpr::infer(inner).r#type.clone(),
+            },
+            Expr::Binary { left, op: _, right: _ } => {
+                // Binary expression type inference: prefer left-side for now
+                TypedExpr::infer(left).r#type.clone()
+            }
+        };
+
+        TypedExpr::new(expr.clone(), r#type)
+    }
+}
+
 impl fmt::Display for Expr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -394,6 +472,44 @@ impl fmt::Display for Stmt {
                 Ok(())
             }
             Stmt::Expr(expr) => write!(f, "{}", expr),
+        }
+    }
+}
+
+/// Typed form of top-level statements.
+#[derive(Debug, Clone, PartialEq)]
+pub enum StmtTyped {
+    RootDecl(Ident),
+    ToonBlock { name: Ident, content: String },
+    Expr(TypedExpr),
+}
+
+impl StmtTyped {
+    pub fn root<S: Into<String>>(name: S) -> Self {
+        StmtTyped::RootDecl(Ident::new(name))
+    }
+
+    pub fn toon_block<S: Into<String>>(name: S, content: String) -> Self {
+        StmtTyped::ToonBlock { name: Ident::new(name), content }
+    }
+
+    pub fn expr(expr: TypedExpr) -> Self {
+        StmtTyped::Expr(expr)
+    }
+}
+
+impl fmt::Display for StmtTyped {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            StmtTyped::RootDecl(name) => write!(f, "root: {}", name),
+            StmtTyped::ToonBlock { name, content } => {
+                writeln!(f, "{} ~TOON:", name)?;
+                for line in content.lines() {
+                    writeln!(f, "  {}", line)?;
+                }
+                Ok(())
+            }
+            StmtTyped::Expr(te) => write!(f, "{} :: {:?}", te.expr, te.r#type),
         }
     }
 }

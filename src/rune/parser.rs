@@ -106,6 +106,25 @@ pub fn parse(input: &str) -> Result<Vec<Stmt>, ParseError> {
     Ok(stmts)
 }
 
+/// Parse and return typed statements using a shallow type inference pass.
+pub fn parse_typed(input: &str) -> Result<Vec<crate::rune::ast::StmtTyped>, ParseError> {
+    let stmts = parse(input)?;
+    let mut typed: Vec<crate::rune::ast::StmtTyped> = Vec::new();
+    for stmt in stmts {
+        match stmt {
+            crate::rune::ast::Stmt::RootDecl(id) => typed.push(crate::rune::ast::StmtTyped::root(id.to_string())),
+            crate::rune::ast::Stmt::ToonBlock { name, content } => {
+                typed.push(crate::rune::ast::StmtTyped::toon_block(name.to_string(), content))
+            }
+            crate::rune::ast::Stmt::Expr(expr) => {
+                let te = crate::rune::ast::TypedExpr::infer(&expr);
+                typed.push(crate::rune::ast::StmtTyped::expr(te));
+            }
+        }
+    }
+    Ok(typed)
+}
+
 /// Parse a statement pair into a Stmt.
 fn parse_stmt(pair: Pair<Rule>) -> Result<Stmt, ParseError> {
     let rule = pair.as_rule();

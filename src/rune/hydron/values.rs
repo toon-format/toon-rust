@@ -833,6 +833,23 @@ pub enum RuneBuiltin {
     TopoSignature, // [[f32;8]] → symbol
 }
 
+impl RuneBuiltin {
+    /// Create a RuneBuiltin from a name string (case-insensitive).
+    pub fn from_str(name: &str) -> Option<Self> {
+        match name {
+            "S7Project"      | "s7project"      => Some(RuneBuiltin::S7Project),
+            "S7Distance"     | "s7distance"     => Some(RuneBuiltin::S7Distance),
+            "S7Slerp"        | "s7slerp"        => Some(RuneBuiltin::S7Slerp),
+            "QuatSlerp"      | "quatslerp"      => Some(RuneBuiltin::QuatSlerp),
+            "SymHamiltonian" | "symhamiltonian" => Some(RuneBuiltin::SymHamiltonian),
+            "SymEvolveStep"  | "symevolvestep"  => Some(RuneBuiltin::SymEvolveStep),
+            "TopoBetti"      | "topobetti"      => Some(RuneBuiltin::TopoBetti),
+            "TopoSignature"  | "toposignature"  => Some(RuneBuiltin::TopoSignature),
+            _ => None,
+        }
+    }
+}
+
 impl EvalContext {
     /// Apply a built-in geometric operation
     ///
@@ -912,6 +929,15 @@ impl EvalContext {
             }
         }
     }
+
+    /// Apply a builtin by string name; returns Err if unknown name.
+    pub fn apply_builtin_by_name(&self, name: &str, args: &[Value]) -> Result<Value, EvalError> {
+        if let Some(b) = RuneBuiltin::from_str(name) {
+            self.apply_builtin(b, args)
+        } else {
+            Err(EvalError::InvalidOperation(format!("Unknown builtin: {}", name)))
+        }
+    }
 }
 
 // ===================================
@@ -921,6 +947,28 @@ impl EvalContext {
 fn expect_vec8(val: Option<&Value>) -> Result<[f32; 8], EvalError> {
     match val {
         Some(Value::Vec8(v)) => Ok(*v),
+        Some(Value::Array(arr)) => {
+            // Ensure array has length 8 and extract floats
+            if arr.len() != 8 {
+                return Err(EvalError::TypeMismatch(format!(
+                    "Expected Vec8 (array of 8 floats), got array length {}",
+                    arr.len()
+                )));
+            }
+            let mut v = [0.0f32; 8];
+            for (i, elem) in arr.iter().enumerate() {
+                match elem {
+                    Value::Float(f) => v[i] = *f as f32,
+                    Value::Scalar(s) => v[i] = *s,
+                    _ => {
+                        return Err(EvalError::TypeMismatch(format!(
+                            "Expected numeric values for Vec8, found {:?}", elem
+                        )));
+                    }
+                }
+            }
+            Ok(v)
+        }
         Some(other) => Err(EvalError::TypeMismatch(format!(
             "Expected Vec8, got {}",
             match other {
@@ -958,7 +1006,8 @@ fn expect_quat(val: Option<&Value>) -> Result<[f32; 4], EvalError> {
 fn expect_scalar(val: Option<&Value>) -> Result<f32, EvalError> {
     match val {
         Some(Value::Scalar(s)) => Ok(*s),
-        Some(_) => Err(EvalError::TypeMismatch("Expected Scalar".to_string())),
+        Some(Value::Float(f)) => Ok(*f as f32),
+        Some(_) => Err(EvalError::TypeMismatch("Expected Scalar or Float".to_string())),
         None => Err(EvalError::InvalidOperation("Missing argument".to_string())),
     }
 }

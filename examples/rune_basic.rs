@@ -2,11 +2,10 @@
 //!
 //! This example demonstrates the core RUNE syntax: root declarations,
 //! TOON blocks, and operator expressions over that data.
-//!
+//! RUNE builds on TOON: Copyright © 2025 Shreyas S Bhat, Johann Schopplich (MIT License)
 /*▫~•◦------------------------------------------------------------------------------------‣
  * © 2025 ArcMoon Studios ◦ SPDX-License-Identifier MIT OR Apache-2.0 ◦ Author: Lord Xyn ✶
  *///•------------------------------------------------------------------------------------‣
-//! RUNE builds on TOON: Copyright © 2025 Shreyas S Bhat, Johann Schopplich (MIT License)
 
 use rune_format::rune;
 
@@ -52,8 +51,23 @@ users / 1 -> name ~ ValidString()
                     content.chars().take(50).collect::<String>()
                 );
             }
+            rune::Stmt::RuneBlock { name, content } => {
+                println!(
+                    "✓ RUNE block '{}': {} lines of raw data",
+                    name,
+                    content.lines().count()
+                );
+                // This raw RUNE content can be processed by the RUNE crate
+                println!(
+                    "  RUNE content: \"{}\" (first 50 chars)",
+                    content.chars().take(50).collect::<String>()
+                );
+            }
             rune::Stmt::Expr(expr) => {
                 println!("✓ Expression: {}", expr);
+            }
+            rune::Stmt::KernelDecl { name, archetype } => {
+                println!("✓ Kernel declared: {} := {}", name, archetype.name);
             }
         }
     }

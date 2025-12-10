@@ -2,6 +2,8 @@
 
 use super::{EditorState, FileState, ReplState};
 use crate::tui::message::Msg;
+#[cfg(feature = "hydron")]
+use crate::rune::hydron::eval::Evaluator;
 use crate::{
     tui::theme::Theme,
     types::{DecodeOptions, Delimiter, EncodeOptions, Indent, KeyFoldingMode, PathExpansionMode},
@@ -58,6 +60,8 @@ pub struct AppState<'a> {
     pub editor: EditorState<'a>,
     pub file_state: FileState,
     pub repl: ReplState,
+    #[cfg(feature = "hydron")]
+    pub rune_eval: Evaluator,
     pub theme: Theme,
     pub encode_options: EncodeOptions,
     pub decode_options: DecodeOptions,
@@ -90,6 +94,8 @@ impl<'a> AppState<'a> {
             editor: EditorState::new(),
             file_state: FileState::new(),
             repl: ReplState::new(),
+            #[cfg(feature = "hydron")]
+            rune_eval: Evaluator::new(),
             theme: Theme::default(),
 
             encode_options: EncodeOptions::default(),

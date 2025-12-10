@@ -59,12 +59,13 @@ pub fn validate_delimiter_consistency(
     detected: Option<crate::types::Delimiter>,
     expected: Option<crate::types::Delimiter>,
 ) -> ToonResult<()> {
-    if let (Some(detected), Some(expected)) = (detected, expected) {
-        if detected != expected {
+    match (detected, expected) {
+        (Some(d), Some(e)) if d != e => {
             return Err(ToonError::InvalidDelimiter(format!(
-                "Detected delimiter {detected} but expected {expected}"
+                "Detected delimiter {d} but expected {e}"
             )));
         }
+        _ => {}
     }
     Ok(())
 }

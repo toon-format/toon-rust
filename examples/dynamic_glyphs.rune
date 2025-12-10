@@ -1,0 +1,37 @@
+# Dynamic Glyph Demonstration
+# This script demonstrates how glyphs now handle various data types dynamically
+
+# 1. Scalar operations (Length 1 -> Scalar)
+s1 := 10.0
+s2 := 20.0
+res_scalar := (s1 /\ s2)  # Split-Join (Mean): 15.0
+# Expected: Scalar(15.0)
+
+# 2. Array to Quaternion (Length 4 -> Quaternion)
+# Arrays are flattened. [1, 2] and [3, 4] become [1, 2, 3, 4]
+arr1 := [1.0, 2.0, 3.0, 4.0]
+arr2 := [5.0, 6.0, 7.0, 8.0]
+res_quat := (arr1 /\ arr2)
+# (1+5)/2=3, (2+6)/2=4, ... -> [3, 4, 5, 6]
+# Expected: Quaternion([3, 4, 5, 6]) because length is 4
+
+# 3. Mixed Types (Vec8 and Array)
+# Vec8 is length 8. Array is length 8.
+a8 := [10, 10, 10, 10, 10, 10, 10, 10]
+b8 := [20, 20, 20, 20, 20, 20, 20, 20]
+res_vec8 := (a8 /\ b8)
+# Expected: Vec8(...) because length is 8
+
+# 4. Dynamic Array (Non-standard length)
+d1 := [1, 2, 3]
+d2 := [4, 5, 6]
+res_dyn := (d1 /\ d2)
+# Expected: Array([2.5, 3.5, 4.5]) because length 3 is not a standard geometric type
+
+# 5. Pass-through optimization (Zero-copy)
+# Normalizing a zero vector should return original without clone
+zero := [0, 0, 0]
+res_zero := (zero \| zero) # Root-Stabilize (Normalize)
+# Expected: [0, 0, 0] (Original value)
+
+[res_scalar, res_quat, res_vec8, res_dyn, res_zero]

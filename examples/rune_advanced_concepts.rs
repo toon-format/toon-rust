@@ -11,10 +11,10 @@
 //! Note: This demonstrates CONCEPTUAL possibilities. Full E8 geometric
 //! operations would require runtime evaluation with proper E8 algebra.
 //!
+//! RUNE builds on TOON: Copyright © 2025 Shreyas S Bhat, Johann Schopplich (MIT License)
 /*▫~•◦------------------------------------------------------------------------------------‣
  * © 2025 ArcMoon Studios ◦ SPDX-License-Identifier MIT OR Apache-2.0 ◦ Author: Lord Xyn ✶
  *///•------------------------------------------------------------------------------------‣
-//! RUNE builds on TOON: Copyright © 2025 Shreyas S Bhat, Johann Schopplich (MIT License)
 
 use rune_format::rune;
 

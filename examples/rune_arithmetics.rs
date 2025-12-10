@@ -9,10 +9,10 @@
 //! - Precedence: */ before +-
 //! - Integration with RUNE: items / 0 := [base + offset]
 //!
+//! RUNE builds on TOON: Copyright © 2025 Shreyas S Bhat, Johann Schopplich (MIT License)
 /*▫~•◦------------------------------------------------------------------------------------‣
  * © 2025 ArcMoon Studios ◦ SPDX-License-Identifier MIT OR Apache-2.0 ◦ Author: Lord Xyn ✶
  *///•------------------------------------------------------------------------------------‣
-//! RUNE builds on TOON: Copyright © 2025 Shreyas S Bhat, Johann Schopplich (MIT License)
 
 use rune_format::rune;
 

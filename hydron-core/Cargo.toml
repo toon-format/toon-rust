@@ -1,0 +1,21 @@
+[package]
+name = "hydron-core"
+version = "0.0.1"
+edition = "2024"
+description = "Core Hydron geometry library extracted from rune-format; minimal standalone modules (start with S7 spherical layer)."
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/arcmoonstudios/rune-format"
+keywords = ["geometry", "e8", "mathematics", "hydron", "lattice"]
+categories = ["mathematics", "science", "algorithms"]
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"], optional = true }
+fory = { version = "0.13.2", optional = true }
+fory-core = { version = "0.13.2", optional = true }
+
+[features]
+# Optional simd optimizations for high-performance hosts
+default = ["serde"]
+simd = []
+fory = ["dep:fory", "dep:fory-core"]
+serde = ["dep:serde"]

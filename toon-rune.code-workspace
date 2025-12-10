@@ -1,8 +1,28 @@
 {
 	"folders": [
 		{
-			"name": "toon-rune",
+			"name": "rune-format",
 			"path": "."
+		},
+		{
+			"name": "rune",
+			"path": "src"
+		},
+		{
+			"name": "hex",
+			"path": "rune-hex"
+		},
+		{
+			"name": "curs",
+			"path": "rune-curs"
+		},
+		{
+			"name": "hydron",
+			"path": "hydron-core"
+		},
+		{
+			"name": "wasm",
+			"path": "hydron-ffi"
 		}
 	],
 	"settings": {

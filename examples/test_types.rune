@@ -1,0 +1,29 @@
+# Test non-numeric types
+# Note: Booleans and Strings are not literals in math blocks yet, 
+# so we must define them as variables first if the parser supports it.
+# Currently parser only supports number/string literals in terms.
+
+# String literal test
+s1 := "hello"
+s2 := "world"
+res_str := (s1 /\ s2) 
+# "hello" -> [104, 101, 108, 108, 111]
+# "world" -> [119, 111, 114, 108, 100]
+# Mean: [111.5, 106, 111, 108, 105.5] -> Array of floats
+
+# Boolean test (if supported by parser/eval)
+# Since 'true' is parsed as identifier, we need to ensure it exists or use 1.0/0.0
+# But wait, Value::Bool exists. Does the parser produce it?
+# The parser produces Ident("true"). The evaluator looks up "true".
+# We need to define "true" in the context or fix the parser.
+# For now, let's assume "true" is not defined and use a workaround if needed.
+# Actually, let's define them manually to test the Value support.
+true_val := 1.0 # Placeholder until bool literal support
+false_val := 0.0
+
+# Complex/Array test
+c1 := [1, 2] # Real, Imag
+c2 := [3, 4]
+res_complex := (c1 /\ c2) # [2, 3]
+
+[res_str, res_complex]

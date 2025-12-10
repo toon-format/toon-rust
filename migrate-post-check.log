@@ -1,0 +1,7 @@
+error: failed to parse manifest at `X:\_Repos\toon-rune\Cargo.toml`
+
+Caused by:
+  error inheriting `yoshi` from workspace root manifest's `workspace.dependencies.yoshi`
+
+Caused by:
+  `workspace.dependencies` was not defined

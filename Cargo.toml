@@ -1,3 +1,7 @@
+[workspace]
+members = [".", "hydron-core", "hydron-ffi", "rune-curs", "rune-hex", "rune-gsv", "rune-mira"]
+resolver = "2"
+
 [package]
 name = "rune-format"
 version = "0.0.1"
@@ -17,22 +21,33 @@ readme = "README.md"
 
 [features]
 default = []
-hydron = []  # Geometry Math Engine for RUNE
-simd = ["hydron"]  # SIMD acceleration for Gf8 operations (requires hydron)
+fory = ["dep:fory", "dep:fory-core", "hydron-core?/fory"]
+hydron = ["hydron-core"]  # Geometry Math Engine for RUNE (depends on hydron-core crate)
+simd = ["hydron", "hydron-core/simd"]  # SIMD acceleration for Gf8 operations (enables hydron-core simd)
+cuda = ["cust", "rune-curs"]
+gsv = ["rune-gsv"]
 
 [[example]]
 name = "examples"
 path = "examples/main.rs"
 
 [[bin]]
-name = "toon"
+name = "rune"
 path = "src/cli/main.rs"
+
+[[bin]]
+name = "utf8_sanitize"
+path = "src/utf8_sanitize.rs"
 
 [dependencies]
 serde = { version = "1.0.228", features = ["derive"] }
 indexmap = "2.12.1"
 serde_json = { version = "1.0.145", features = ["preserve_order"] }
 thiserror = "2.0.17"
+cust = { version = "0.3.2", optional = true }
+rune-curs = { path = "./rune-curs", optional = true }
+rune-hex = { path = "./rune-hex" }
+rune-gsv = { path = "./rune-gsv", optional = true }
 
 # RUNE-specific dependencies
 pest = "2.8.4"
@@ -45,16 +60,22 @@ comfy-table = "7.2.1"
 
 # TUI dependencies
 ratatui = "0.29"
+hydron-core = { path = "./hydron-core", optional = true, features = ["serde", "fory"] }
 crossterm = "0.29"
 tui-textarea = "0.7"
 arboard = "3.6.1"
 syntect = "5.3.0"
 unicode-width = "0.2"
 chrono = "0.4"
+fory = { version = "0.13.2", optional = true }
+fory-core = { version = "0.13.2", optional = true }
 
 [dev-dependencies]
 glob = "0.3.3"
-criterion = { version = "0.8.0", features = ["html_reports"] }
+criterion = { version = "0.8.1", features = ["html_reports"] }
+
+[build-dependencies]
+ptx-builder = { version = "0.5.3", optional = true }
 
 [[bench]]
 name = "rune_parser"
@@ -72,6 +93,21 @@ harness = false
 name = "hydron_geometry"
 harness = false
 required-features = ["hydron"]
+
+[[bench]]
+name = "fory_ops"
+harness = false
+required-features = ["fory"]
+
+[[bench]]
+name = "serde_hydron"
+harness = false
+required-features = ["hydron"]
+
+[[bench]]
+name = "fory_hydron"
+harness = false
+required-features = ["fory", "hydron", "simd"]
 
 [profile.dev]
 lto = "thin"

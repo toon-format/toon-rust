@@ -1,0 +1,27 @@
+[package]
+name = "rune-gsv"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+anyhow = "1.0"
+thiserror = "2.0"
+sha2 = "0.10"
+dirs = "4.0"
+once_cell = "1.20"
+
+[features]
+default = []
+hydron = []
+
+[lib]
+name = "rune_gsv"
+path = "src/lib.rs"
+
+[dev-dependencies]
+tempfile = "3.5"
+
+ 
+

@@ -40,6 +40,7 @@
 mod ast;
 mod ops;
 mod parser;
+pub mod parts;
 
 #[cfg(feature = "hydron")]
 pub mod hydron;

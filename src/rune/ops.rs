@@ -27,11 +27,15 @@
  * © 2025 ArcMoon Studios ◦ SPDX-License-Identifier MIT OR Apache-2.0 ◦ Author: Lord Xyn ✶
  *///•------------------------------------------------------------------------------------‣
 
+#[cfg(feature = "fory")]
+use fory::ForyObject;
+use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::str::FromStr;
 
 /// Categories of operators in RUNE.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "fory", derive(ForyObject))]
 pub enum OpCategory {
     /// Topological shapes (e.g., `/\`, `\|/`).
     Glyph,
@@ -47,7 +51,8 @@ pub enum OpCategory {
 ///
 /// Any sequence of characters not matching one of these variants
 /// is syntactically invalid in RUNE.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "fory", derive(ForyObject))]
 pub enum RuneOp {
     // --- 1. Glyph Operators (Topology/Shape) ---
     /// `/\` : Branch then converge (Split -> Join).
@@ -70,16 +75,35 @@ pub enum RuneOp {
     // --- 2. Token Operators (Relations) ---
     /// `:` : Bind / Key-Value / Annotation.
     Bind,
+    /// `=:` : Specializes / Instance of / Emergent from.
+    Specializes,
     /// `::` : Namespace / Type Tag.
     Namespace,
     /// `:=` : Definition / Assignment.
     Define,
+    /// `:=:` : Match / Pattern recognition.
+    Match,
+    /// `=:=` : Unify / Structural isomorphism.
+    Unify,
     /// `=` : Equality / Constraint (Invariant).
     Equal,
     /// `->` : Directed Edge (Flow Right / Rootwards).
+    /// Creates a forward directional flow between entities,
+    /// typically representing data movement, inheritance, or sequential processing.
     FlowRight,
     /// `<-` : Reverse Edge (Flow Left).
+    /// Creates a reverse directional flow, often representing
+    /// backpropagation, parent flows, or inverse transformations.
     FlowLeft,
+    /// `<->` : Bidirectional flow / Oscillation / Exchange.
+    /// Represents oscillating or bidirectional exchange patterns,
+    /// such as duality relationships, resonant couplings, or
+    /// feedback loops between entities.
+    FlowBidirectional,
+    /// `>-<` : Convergent flow / Transformation focus.
+    /// Denotes transformative convergence, such as energy compression,
+    /// gradient descent, or focused transformation pathways.
+    FlowConvergent,
     /// `/` : Descendant / Under (Structural Context).
     Descendant,
     /// `\` : Ancestor / Parent (Sugar for `->` in some contexts).
@@ -90,6 +114,14 @@ pub enum RuneOp {
     Parallel,
     /// `~` : Transform / View.
     Transform,
+    /// `|>` : Pipeline Right / Function composition (left-to-right).
+    PipelineRight,
+    /// `<|` : Pipeline Left / Reverse function composition (right-to-left).
+    PipelineLeft,
+    /// `:>` : Output / Produces / Generates (context yields output).
+    Output,
+    /// `<:` : Input / Requires / Accepts (context needs input).
+    Input,
 
     // --- 4. Comparison ---
     /// `<` : Less / Precedes / Deeper.
@@ -116,16 +148,25 @@ impl RuneOp {
             | Self::BranchAnchorBranch => OpCategory::Glyph,
 
             Self::Bind
+            | Self::Specializes
             | Self::Namespace
             | Self::Define
+            | Self::Match
+            | Self::Unify
             | Self::Equal
             | Self::FlowRight
             | Self::FlowLeft
+            | Self::FlowBidirectional
+            | Self::FlowConvergent
             | Self::Descendant
             | Self::Ancestor
             | Self::Alias
             | Self::Parallel
-            | Self::Transform => OpCategory::Relation,
+            | Self::Transform
+            | Self::PipelineRight
+            | Self::PipelineLeft
+            | Self::Output
+            | Self::Input => OpCategory::Relation,
 
             Self::Less | Self::LessEqual | Self::Greater | Self::GreaterEqual => {
                 OpCategory::Compare
@@ -146,16 +187,25 @@ impl RuneOp {
             Self::BranchAnchorBranch => "/|\\",
 
             Self::Bind => ":",
+            Self::Specializes => "=:",
             Self::Namespace => "::",
             Self::Define => ":=",
+            Self::Match => ":=:",
+            Self::Unify => "=:=",
             Self::Equal => "=",
             Self::FlowRight => "->",
             Self::FlowLeft => "<-",
+            Self::FlowBidirectional => "<->",
+            Self::FlowConvergent => ">-<",
             Self::Descendant => "/",
             Self::Ancestor => "\\",
             Self::Alias => "|",
             Self::Parallel => "||",
             Self::Transform => "~",
+            Self::PipelineRight => "|>",
+            Self::PipelineLeft => "<|",
+            Self::Output => ":>",
+            Self::Input => "<:",
 
             Self::Less => "<",
             Self::LessEqual => "<=",
@@ -180,6 +230,8 @@ impl RuneOp {
             // Flow / Graph Edges / Glyphs / Transform
             Self::FlowRight
             | Self::FlowLeft
+            | Self::FlowBidirectional
+            | Self::FlowConvergent
             | Self::SplitJoin
             | Self::JoinSplit
             | Self::SymmetricSplit
@@ -197,6 +249,15 @@ impl RuneOp {
 
             // Loose Structure
             Self::Parallel | Self::Alias => (30, 31),
+
+            // Additional relation operators
+            Self::Specializes
+            | Self::Match
+            | Self::Unify
+            | Self::PipelineRight
+            | Self::PipelineLeft
+            | Self::Output
+            | Self::Input => (35, 36),
 
             // Definition / Assignment / Bind: Lowest
             Self::Bind | Self::Define => (10, 11),
@@ -233,7 +294,22 @@ impl FromStr for RuneOp {
             "\\|" => Ok(Self::RootStabilize),
             "|\\" => Ok(Self::StabilizeRoot),
 
+            // Tokens (3-char)
+            "=:=" => Ok(Self::Unify),
+            ":=:" => Ok(Self::Match),
+
+            // Tokens (3-char)
+            "|>" => Ok(Self::PipelineRight),
+            "<|" => Ok(Self::PipelineLeft),
+            ":>" => Ok(Self::Output),
+            "<:" => Ok(Self::Input),
+
+            // Tokens (3-char) - Flow
+            "<->" => Ok(Self::FlowBidirectional),
+            ">-<" => Ok(Self::FlowConvergent),
+
             // Tokens (2-char)
+            "=:" => Ok(Self::Specializes),
             "::" => Ok(Self::Namespace),
             ":=" => Ok(Self::Define),
             "->" => Ok(Self::FlowRight),
@@ -258,7 +334,8 @@ impl FromStr for RuneOp {
 }
 
 /// Arithmetic operators within math blocks.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "fory", derive(ForyObject))]
 pub enum MathOp {
     Add,
     Subtract,
@@ -310,8 +387,18 @@ mod tests {
     #[test]
     fn test_operator_from_str() {
         assert_eq!(RuneOp::from_str("->").unwrap(), RuneOp::FlowRight);
+        assert_eq!(RuneOp::from_str("<-").unwrap(), RuneOp::FlowLeft);
+        assert_eq!(RuneOp::from_str("<->").unwrap(), RuneOp::FlowBidirectional);
+        assert_eq!(RuneOp::from_str(">-<").unwrap(), RuneOp::FlowConvergent);
         assert_eq!(RuneOp::from_str("/\\").unwrap(), RuneOp::SplitJoin);
         assert_eq!(RuneOp::from_str(":=").unwrap(), RuneOp::Define);
+        assert_eq!(RuneOp::from_str("=:=").unwrap(), RuneOp::Unify);
+        assert_eq!(RuneOp::from_str(":=:").unwrap(), RuneOp::Match);
+        assert_eq!(RuneOp::from_str("=:").unwrap(), RuneOp::Specializes);
+        assert_eq!(RuneOp::from_str("|>").unwrap(), RuneOp::PipelineRight);
+        assert_eq!(RuneOp::from_str("<|").unwrap(), RuneOp::PipelineLeft);
+        assert_eq!(RuneOp::from_str(":>").unwrap(), RuneOp::Output);
+        assert_eq!(RuneOp::from_str("<:").unwrap(), RuneOp::Input);
     }
 
     #[test]

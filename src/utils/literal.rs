@@ -40,11 +40,9 @@ pub fn is_numeric_like(s: &str) -> bool {
         return false;
     }
 
-    let has_valid_chars = chars[i..].iter().all(|c| {
+    chars[i..].iter().all(|c| {
         c.is_ascii_digit() || *c == '.' || *c == 'e' || *c == 'E' || *c == '+' || *c == '-'
-    });
-
-    has_valid_chars
+    })
 }
 
 #[cfg(test)]

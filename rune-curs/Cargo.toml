@@ -1,0 +1,17 @@
+[package]
+name = "rune-curs"
+version = "0.0.1"
+edition = "2024"
+publish = false
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+thiserror = "2.0"
+cust = { version = "0.3.2", optional = true }
+sha2 = "0.10"
+
+[features]
+default = []
+cuda = ["cust"]

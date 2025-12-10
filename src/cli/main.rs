@@ -84,12 +84,16 @@ struct Cli {
         help = "Enable path expansion (decode): expand a.b:1 → {\"a\":{\"b\":1}}"
     )]
     expand_paths: bool,
+
+    #[arg(long, help = "Execute .rune file for geometric computation")]
+    rune: bool,
 }
 
 #[derive(Debug, PartialEq)]
 enum Operation {
     Encode,
     Decode,
+    Rune,
 }
 
 fn parse_indent(s: &str) -> Result<usize, String> {
@@ -246,6 +250,44 @@ fn run_decode(cli: &Cli, input: &str) -> Result<()> {
     Ok(())
 }
 
+fn run_rune(input: &str) -> Result<()> {
+    if input.trim().is_empty() {
+        bail!("Input .rune file is empty");
+    }
+
+    #[cfg(feature = "hydron")]
+    {
+        use rune_format::rune::hydron::eval::Evaluator;
+        use rune_format::rune::parse;
+
+        // Parse the RUNE file
+        let statements = parse(input).map_err(|e| anyhow::anyhow!("Parse error: {}", e))?;
+
+        // Create evaluator and execute
+        let mut evaluator = Evaluator::new();
+
+        eprintln!("\n=== RUNE Geometric Computation ===\n");
+
+        for (idx, stmt) in statements.iter().enumerate() {
+            match evaluator.eval_stmt(stmt) {
+                Ok(result) => {
+                    eprintln!("[{}] Result: {}", idx + 1, result);
+                }
+                Err(e) => {
+                    eprintln!("Error at statement {}: {}", idx + 1, e);
+                }
+            }
+        }
+
+        eprintln!("\n=== Computation Complete ===\n");
+
+        return Ok(());
+    }
+
+    #[cfg(not(feature = "hydron"))]
+    bail!("RUNE evaluation requires the 'hydron' feature. Enable it in Cargo.toml");
+}
+
 fn determine_operation(cli: &Cli) -> Result<(Operation, bool)> {
     let mut from_stdin = false;
     let mut operation: Option<Operation> = None;
@@ -280,9 +322,9 @@ fn determine_operation(cli: &Cli) -> Result<(Operation, bool)> {
                 match ext {
                     "json" => operation = Some(Operation::Encode),
                     "toon" => operation = Some(Operation::Decode),
+                    "rune" => operation = Some(Operation::Rune),
                     _ => bail!(
-                        "Cannot auto-detect operation for file: {}\nUse -e to encode or -d to \
-                         decode",
+                        "Cannot auto-detect operation for file: {}\nUse -e to encode, -d to decode, or --rune for RUNE files",
                         path.display()
                     ),
                 }
@@ -326,6 +368,9 @@ fn validate_flags(cli: &Cli, operation: &Operation) -> Result<()> {
                 bail!("--flatten-depth is only valid for encode mode (use with --fold-keys)");
             }
         }
+        Operation::Rune => {
+            // RUNE mode has no restrictions on flags
+        }
     }
 
     // Additional validation: flatten-depth requires fold-keys
@@ -358,6 +403,7 @@ fn main() -> Result<()> {
     match operation {
         Operation::Encode => run_encode(&cli, &input)?,
         Operation::Decode => run_decode(&cli, &input)?,
+        Operation::Rune => run_rune(&input)?,
     }
 
     Ok(())

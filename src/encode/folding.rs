@@ -12,12 +12,10 @@ pub struct FoldableChain {
 
 /// Check if a value is a single-key object suitable for folding.
 fn is_single_key_object(value: &Value) -> Option<(&String, &Value)> {
-    if let Value::Object(obj) = value {
-        if obj.len() == 1 {
-            return obj.iter().next();
-        }
+    match value {
+        Value::Object(obj) if obj.len() == 1 => obj.iter().next(),
+        _ => None,
     }
-    None
 }
 
 /// Analyze if a key-value pair can be folded into dotted notation.

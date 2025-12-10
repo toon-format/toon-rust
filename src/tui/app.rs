@@ -5,6 +5,9 @@ use chrono::Local;
 use ratatui::crossterm::event::{KeyCode, KeyEvent};
 use tiktoken_rs::cl100k_base;
 
+#[cfg(feature = "hydron")]
+use crate::rune::hydron::values::Value;
+
 use crate::{
     decode, encode,
     tui::{
@@ -203,16 +206,19 @@ impl<'a> TuiApp<'a> {
                 self.perform_conversion();
             }
             Action::ToggleSettings => {
-                self.app_state.update(crate::tui::message::Msg::ToggleSettings);
+                self.app_state
+                    .update(crate::tui::message::Msg::ToggleSettings);
             }
             Action::ToggleHelp => {
                 self.app_state.update(crate::tui::message::Msg::ToggleHelp);
             }
             Action::ToggleFileBrowser => {
-                self.app_state.update(crate::tui::message::Msg::ToggleFileBrowser);
+                self.app_state
+                    .update(crate::tui::message::Msg::ToggleFileBrowser);
             }
             Action::ToggleHistory => {
-                self.app_state.update(crate::tui::message::Msg::ToggleHistory);
+                self.app_state
+                    .update(crate::tui::message::Msg::ToggleHistory);
             }
             Action::ToggleDiff => {
                 self.app_state.update(crate::tui::message::Msg::ToggleDiff);
@@ -390,7 +396,8 @@ impl<'a> TuiApp<'a> {
     }
 
     fn open_file_dialog(&mut self) -> Result<()> {
-        self.app_state.update(crate::tui::message::Msg::ToggleFileBrowser);
+        self.app_state
+            .update(crate::tui::message::Msg::ToggleFileBrowser);
         Ok(())
     }
 
@@ -422,6 +429,12 @@ impl<'a> TuiApp<'a> {
                                     output.push_str(&format!("Raw TOON:\n{}\n", content));
                                 }
                             }
+                        }
+                        crate::rune::Stmt::RuneBlock { name, content } => {
+                            output.push_str(&format!("RUNE Block '{}':\n{}\n", name, content));
+                        }
+                        crate::rune::Stmt::KernelDecl { name, archetype } => {
+                            output.push_str(&format!("Kernel: {} := {}\n", name, archetype.name));
                         }
                         crate::rune::Stmt::Expr(expr) => {
                             output.push_str(&format!("Expression: {}\n", expr));
@@ -630,20 +643,22 @@ impl<'a> TuiApp<'a> {
 
     fn handle_file_toggle_selection(&mut self) -> Result<()> {
         let current_dir = self.app_state.file_state.current_dir.clone();
-        if let Some(selected_path) = self.file_browser.get_selected_entry(&current_dir) {
-            if selected_path.is_file() {
-                self.app_state
-                    .file_state
-                    .toggle_file_selection(selected_path.clone());
-                let is_selected = self.app_state.file_state.is_selected(&selected_path);
-                let action = if is_selected {
-                    "Selected"
-                } else {
-                    "Deselected"
-                };
-                self.app_state
-                    .set_status(format!("{} {}", action, selected_path.display()));
-            }
+        if let Some(selected_path) = self
+            .file_browser
+            .get_selected_entry(&current_dir)
+            .filter(|p| p.is_file())
+        {
+            self.app_state
+                .file_state
+                .toggle_file_selection(selected_path.clone());
+            let is_selected = self.app_state.file_state.is_selected(&selected_path);
+            let action = if is_selected {
+                "Selected"
+            } else {
+                "Deselected"
+            };
+            self.app_state
+                .set_status(format!("{} {}", action, selected_path.display()));
         }
         Ok(())
     }
@@ -868,50 +883,92 @@ impl<'a> TuiApp<'a> {
 
                 match crate::rune::parse_rune(&data) {
                     Ok(statements) => {
-                        let mut output = String::new();
-
-                        for stmt in &statements {
-                            match stmt {
-                                crate::rune::Stmt::RootDecl(root) => {
-                                    output.push_str(&format!("✓ Root: {}\n", root));
-                                }
-                                crate::rune::Stmt::ToonBlock { name, content } => {
-                                    output.push_str(&format!(
-                                        "✓ TOON Block '{}': {} chars\n",
-                                        name,
-                                        content.len()
-                                    ));
-                                    // Try to show decoded result briefly
-                                    if let Ok(json) = crate::decode::decode::<serde_json::Value>(
-                                        content,
-                                        &self.app_state.decode_options,
-                                    ) {
-                                        if let Ok(json_str) = serde_json::to_string(&json) {
-                                            if json_str.len() < 200 {
-                                                output.push_str(&format!("  {}", json_str));
-                                            } else {
-                                                output.push_str(&format!(
-                                                    "  ({} items)",
-                                                    if json.is_array() {
-                                                        json.as_array().unwrap().len()
-                                                    } else if json.is_object() {
-                                                        json.as_object().unwrap().len()
-                                                    } else {
-                                                        1
-                                                    }
-                                                ));
-                                            }
-                                            output.push('\n');
-                                        }
+                        #[cfg(feature = "hydron")]
+                        {
+                            let mut output = String::new();
+                            for stmt in &statements {
+                                match self.app_state.rune_eval.eval_stmt(stmt) {
+                                    Ok(val) => {
+                                        let rendered = self.format_rune_value(&val);
+                                        output.push_str(&format!("✓ {rendered}\n"));
+                                        self.app_state.repl.last_result = Some(rendered);
+                                    }
+                                    Err(e) => {
+                                        self.app_state
+                                            .repl
+                                            .add_error(format!("RUNE eval error: {e}"));
                                     }
                                 }
-                                crate::rune::Stmt::Expr(expr) => {
-                                    output.push_str(&format!("✓ Expression: {}\n", expr));
-                                }
+                            }
+                            if !output.is_empty() {
+                                self.app_state
+                                    .repl
+                                    .add_success(output.trim_end().to_string());
                             }
                         }
-                        self.app_state.repl.add_success(output);
-                        self.app_state.repl.last_result = Some(statements.len().to_string());
+
+                        #[cfg(not(feature = "hydron"))]
+                        {
+                            let mut output = String::new();
+
+                            for stmt in &statements {
+                                match stmt {
+                                    crate::rune::Stmt::RootDecl(root) => {
+                                        output.push_str(&format!("✓ Root: {}\n", root));
+                                    }
+                                    crate::rune::Stmt::ToonBlock { name, content } => {
+                                        output.push_str(&format!(
+                                            "✓ TOON Block '{}': {} chars\n",
+                                            name,
+                                            content.len()
+                                        ));
+                                        if let Ok(json) = crate::decode::decode::<serde_json::Value>(
+                                            content,
+                                            &self.app_state.decode_options,
+                                        ) {
+                                            if let Ok(json_str) = serde_json::to_string(&json) {
+                                                if json_str.len() < 200 {
+                                                    output.push_str(&format!("  {}", json_str));
+                                                } else {
+                                                    output.push_str(&format!(
+                                                        "  ({} items)",
+                                                        if json.is_array() {
+                                                            json.as_array().unwrap().len()
+                                                        } else if json.is_object() {
+                                                            json.as_object().unwrap().len()
+                                                        } else {
+                                                            1
+                                                        }
+                                                    ));
+                                                }
+                                                output.push('\n');
+                                            }
+                                        }
+                                    }
+                                    crate::rune::Stmt::RuneBlock { name, content } => {
+                                        output.push_str(&format!(
+                                            "✓ RUNE Block '{}': {} chars\n",
+                                            name,
+                                            content.len()
+                                        ));
+                                    }
+                                    crate::rune::Stmt::KernelDecl { name, archetype } => {
+                                        output.push_str(&format!(
+                                            "✓ Kernel: {} := {}\n",
+                                            name, archetype.name
+                                        ));
+                                    }
+                                    crate::rune::Stmt::Expr(expr) => {
+                                        output.push_str(&format!("✓ Expression: {}\n", expr));
+                                    }
+                                }
+                            }
+                            self.app_state.repl.add_success(output);
+                            self.app_state.repl.last_result = Some(statements.len().to_string());
+                            self.app_state.repl.add_info(
+                                "Enable the 'hydron' feature for full RUNE execution".to_string(),
+                            );
+                        }
                     }
                     Err(e) => {
                         self.app_state
@@ -1039,6 +1096,41 @@ impl<'a> TuiApp<'a> {
         }
 
         result
+    }
+
+    #[cfg(feature = "hydron")]
+    fn format_rune_value(&self, value: &Value) -> String {
+        match value {
+            Value::Bool(b) => b.to_string(),
+            Value::Scalar(s) => format!("{s}"),
+            Value::Float(f) => format!("{f}"),
+            Value::String(s) => s.clone(),
+            Value::Vec8(v) => {
+                let parts: Vec<String> = v.iter().map(|x| format!("{:.4}", x)).collect();
+                format!("Vec8({})", parts.join(", "))
+            }
+            Value::Vec16(v) => {
+                let parts: Vec<String> = v.iter().map(|x| format!("{:.4}", x)).collect();
+                format!("Vec16({})", parts.join(", "))
+            }
+            Value::Array(items) | Value::Tuple(items) => {
+                let inner: Vec<String> = items.iter().map(|v| self.format_rune_value(v)).collect();
+                format!("[{}]", inner.join(", "))
+            }
+            Value::Struct(name, items) => {
+                let inner: Vec<String> = items.iter().map(|v| self.format_rune_value(v)).collect();
+                format!("{name}({})", inner.join(", "))
+            }
+            Value::Map(map) => {
+                let mut parts: Vec<String> = map
+                    .iter()
+                    .map(|(k, v)| format!("{k}: {}", self.format_rune_value(v)))
+                    .collect();
+                parts.sort();
+                format!("{{{}}}", parts.join(", "))
+            }
+            _ => format!("{:?}", value),
+        }
     }
 }
 

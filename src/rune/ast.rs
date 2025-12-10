@@ -39,11 +39,12 @@
  *///•------------------------------------------------------------------------------------‣
 
 use crate::rune::ops::{MathOp, RuneOp};
+use serde::{Deserialize, Serialize};
 use std::fmt;
 
 /// Basic type system for RUNE expressions.
 /// This is intentionally small to bootstrap typed AST and inference.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RuneType {
     Scalar,
     String,
@@ -68,11 +69,32 @@ impl fmt::Display for RuneType {
     }
 }
 
+/// A parameter in a kernel archetype declaration.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct KernelParam {
+    pub name: Ident,
+    pub typ: Ident,
+}
+
+/// Information about a single archetype in a kernel declaration.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ArchetypeInfo {
+    pub name: Ident,
+    pub params: Vec<KernelParam>,
+}
+
+/// A kernel archetype definition with parameters.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct KernelArchetype {
+    pub name: Ident,
+    pub params: Vec<(Ident, Literal)>,
+}
+
 /// A symbolic identifier in RUNE.
 ///
 /// This covers type symbols (`T`, `Gf8`, `XUID`), nodes, roots,
 /// fields, and any named entities.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Ident(pub String);
 
 impl Ident {
@@ -87,9 +109,21 @@ impl fmt::Display for Ident {
     }
 }
 
-impl<S: Into<String>> From<S> for Ident {
-    fn from(s: S) -> Self {
+impl From<String> for Ident {
+    fn from(s: String) -> Self {
         Ident::new(s)
+    }
+}
+
+impl From<&str> for Ident {
+    fn from(s: &str) -> Self {
+        Ident::new(s)
+    }
+}
+
+impl Into<String> for Ident {
+    fn into(self) -> String {
+        self.0
     }
 }
 
@@ -97,7 +131,7 @@ impl<S: Into<String>> From<S> for Ident {
 ///
 /// Examples: T:Gf8, V:vector, R:continuum, Q:e32l
 /// The prefix is always a single uppercase letter (A-Z).
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct SemanticIdent {
     /// The semantic prefix (A-Z)
     pub prefix: char,
@@ -122,15 +156,19 @@ impl fmt::Display for SemanticIdent {
 
 /// Literal values in RUNE expressions.
 ///
-/// Currently supports numeric literals, strings, and arrays.
-#[derive(Debug, Clone, PartialEq)]
+/// Supports numeric literals, strings, arrays, booleans, and objects.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Literal {
     /// Numeric literal (parsed as f64).
     Number(f64),
     /// String literal.
     String(String),
+    /// Boolean literal: B:t (true) or B:f (false)
+    Bool(bool),
     /// Array literal: [1,2,3] or [a,b,c]
     Array(Vec<Expr>),
+    /// Object literal: { key: val, ... }
+    Object(Vec<(String, Expr)>),
 }
 
 impl Literal {
@@ -142,8 +180,46 @@ impl Literal {
         Literal::String(s.into())
     }
 
+    pub fn bool<B: Into<bool>>(b: B) -> Self {
+        Literal::Bool(b.into())
+    }
+
     pub fn array(elements: Vec<Expr>) -> Self {
         Literal::Array(elements)
+    }
+
+    pub fn object(entries: Vec<(String, Expr)>) -> Self {
+        Literal::Object(entries)
+    }
+}
+
+impl fmt::Display for Literal {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Literal::Number(n) => write!(f, "{}", n),
+            Literal::String(s) => write!(f, "\"{}\"", s),
+            Literal::Bool(b) => write!(f, "B:{}", if *b { "t" } else { "f" }),
+            Literal::Array(elements) => {
+                write!(f, "[")?;
+                for (i, elem) in elements.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ",")?;
+                    }
+                    write!(f, "{}", elem)?;
+                }
+                write!(f, "]")
+            }
+            Literal::Object(entries) => {
+                write!(f, "{{")?;
+                for (i, (key, val)) in entries.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{}: {}", key, val)?;
+                }
+                write!(f, "}}")
+            }
+        }
     }
 }
 
@@ -151,7 +227,7 @@ impl Literal {
 ///
 /// These support traditional math with operators: `+ - * /`.
 /// Isolated from glyph operators for clean separation.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum MathExpr {
     /// A single math atom (identifier, number, or grouped math).
     Atom(MathAtom),
@@ -171,7 +247,7 @@ pub enum MathExpr {
 }
 
 /// Unary operators in arithmetic expressions.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum MathUnaryOp {
     /// Negation `-x`.
     Negate,
@@ -189,7 +265,7 @@ impl MathUnaryOp {
 }
 
 /// Atoms in arithmetic expressions.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum MathAtom {
     /// Numeric literal.
     Number(f64),
@@ -257,7 +333,7 @@ impl fmt::Display for MathExpr {
 /// Atomic terms in a RUNE expression.
 ///
 /// These are the building blocks that operators connect.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Term {
     /// A named symbol (identifier).
     Ident(Ident),
@@ -269,6 +345,8 @@ pub enum Term {
     Group(Box<Expr>),
     /// Arithmetic within `[...]` value blocks.
     Math(Box<MathExpr>),
+    /// A function call: name(arg1, arg2, ...)
+    FunctionCall { name: Ident, args: Vec<Expr> },
 }
 
 impl Term {
@@ -297,7 +375,7 @@ impl Term {
 ///
 /// This is the node-level representation that a Pratt parser will
 /// construct from a token stream (`Term`s and `RuneOp`s).
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Expr {
     /// A single term (identifier, literal, or grouped expression).
     Term(Term),
@@ -338,7 +416,7 @@ impl Expr {
 
 /// A typed expression wrapper used for annotating an `Expr` node
 /// with a best-effort type computed during parsing/type inference.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TypedExpr {
     pub expr: Expr,
     pub r#type: RuneType,
@@ -357,9 +435,21 @@ impl TypedExpr {
         // NOTE: we avoid glob-importing Expr::* to reduce ambiguity with the Term enum
         let r#type = match expr {
             Expr::Term(term) => match term {
-                crate::rune::ast::Term::Literal(crate::rune::ast::Literal::Number(_)) => RuneType::Scalar,
-                crate::rune::ast::Term::Literal(crate::rune::ast::Literal::String(_)) => RuneType::String,
-                crate::rune::ast::Term::Literal(crate::rune::ast::Literal::Array(_)) => RuneType::Array,
+                crate::rune::ast::Term::Literal(crate::rune::ast::Literal::Number(_)) => {
+                    RuneType::Scalar
+                }
+                crate::rune::ast::Term::Literal(crate::rune::ast::Literal::String(_)) => {
+                    RuneType::String
+                }
+                crate::rune::ast::Term::Literal(crate::rune::ast::Literal::Bool(_)) => {
+                    RuneType::Bool
+                }
+                crate::rune::ast::Term::Literal(crate::rune::ast::Literal::Array(_)) => {
+                    RuneType::Array
+                }
+                crate::rune::ast::Term::Literal(crate::rune::ast::Literal::Object(_)) => {
+                    RuneType::Unknown
+                }
                 crate::rune::ast::Term::Math(_) => RuneType::Scalar,
                 crate::rune::ast::Term::Ident(_) => RuneType::Unknown,
                 crate::rune::ast::Term::SemanticIdent(s) => {
@@ -376,8 +466,23 @@ impl TypedExpr {
                     }
                 }
                 crate::rune::ast::Term::Group(inner) => TypedExpr::infer(inner).r#type.clone(),
+                crate::rune::ast::Term::FunctionCall { name, args: _ } => {
+                    // Heuristic: function name suggests type
+                    if name.0.contains("Quat")
+                        || name.0.contains("quaternion")
+                        || name.0.contains("Gf8")
+                    {
+                        RuneType::Gf8 // quaternions are 4D, represented as scalars for now
+                    } else {
+                        RuneType::Unknown
+                    }
+                }
             },
-            Expr::Binary { left, op: _, right: _ } => {
+            Expr::Binary {
+                left,
+                op: _,
+                right: _,
+            } => {
                 // Binary expression type inference: prefer left-side for now
                 TypedExpr::infer(left).r#type.clone()
             }
@@ -395,6 +500,7 @@ impl fmt::Display for Expr {
                 Term::SemanticIdent(sid) => write!(f, "{}", sid),
                 Term::Literal(Literal::Number(n)) => write!(f, "{}", n),
                 Term::Literal(Literal::String(s)) => write!(f, "\"{}\"", s),
+                Term::Literal(Literal::Bool(b)) => write!(f, "B:{}", if *b { "t" } else { "f" }),
                 Term::Literal(Literal::Array(elements)) => {
                     write!(f, "[")?;
                     for (i, elem) in elements.iter().enumerate() {
@@ -405,8 +511,28 @@ impl fmt::Display for Expr {
                     }
                     write!(f, "]")
                 }
+                Term::Literal(Literal::Object(entries)) => {
+                    write!(f, "{{")?;
+                    for (i, (key, val)) in entries.iter().enumerate() {
+                        if i > 0 {
+                            write!(f, ", ")?;
+                        }
+                        write!(f, "{}: {}", key, val)?;
+                    }
+                    write!(f, "}}")
+                }
                 Term::Group(inner) => write!(f, "({})", inner),
                 Term::Math(math) => write!(f, "[{}]", math),
+                Term::FunctionCall { name, args } => {
+                    write!(f, "{}(", name)?;
+                    for (i, arg) in args.iter().enumerate() {
+                        if i > 0 {
+                            write!(f, ", ")?;
+                        }
+                        write!(f, "{}", arg)?;
+                    }
+                    write!(f, ")")
+                }
             },
             Expr::Binary { left, op, right } => {
                 // Don't add spaces around :: (namespace operator)
@@ -423,9 +549,10 @@ impl fmt::Display for Expr {
 /// Top-level RUNE statements.
 ///
 /// These are the syntactic units parsed from RUNE files:
-/// root declarations anchor contexts, TOON blocks provide raw data,
+/// root declarations anchor contexts, TOON/RUNE blocks provide raw data,
+/// kernel declarations define computational archetypes,
 /// and expressions allow symbolic computations over that data.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Stmt {
     /// A root declaration: `root: name`
     /// Anchors the semantic context of the document.
@@ -434,6 +561,17 @@ pub enum Stmt {
     /// A TOON block: `name ~TOON:\n  content`
     /// Raw TOON data preserved verbatim for later parsing by the TOON library.
     ToonBlock { name: Ident, content: String },
+
+    /// A RUNE block: `name ~RUNE:\n  content`
+    /// Preferred raw data blocks that can be interpreted/executed by Rune.
+    RuneBlock { name: Ident, content: String },
+
+    /// A kernel declaration: `Kernel:QDot := CUDA:Archetype:RowDot(D: 8)`
+    /// Defines a kernel from a CUDA archetype template.
+    KernelDecl {
+        name: SemanticIdent,
+        archetype: KernelArchetype,
+    },
 
     /// A RUNE expression statement.
     /// Typically constraints, definitions, or relations over TOON data.
@@ -449,6 +587,14 @@ impl Stmt {
     /// Create a TOON block statement.
     pub fn toon_block<S: Into<String>>(name: S, content: String) -> Self {
         Stmt::ToonBlock {
+            name: Ident::new(name),
+            content,
+        }
+    }
+
+    /// Create a RUNE block statement.
+    pub fn rune_block<S: Into<String>>(name: S, content: String) -> Self {
+        Stmt::RuneBlock {
             name: Ident::new(name),
             content,
         }
@@ -471,16 +617,48 @@ impl fmt::Display for Stmt {
                 }
                 Ok(())
             }
+            Stmt::RuneBlock { name, content } => {
+                writeln!(f, "{} ~RUNE:", name)?;
+                for line in content.lines() {
+                    writeln!(f, "  {}", line)?;
+                }
+                Ok(())
+            }
+            Stmt::KernelDecl { name, archetype } => {
+                write!(f, "{} := {}", name, archetype.name)?;
+                if !archetype.params.is_empty() {
+                    write!(f, "(")?;
+                    for (i, (param_name, param_value)) in archetype.params.iter().enumerate() {
+                        if i > 0 {
+                            write!(f, ", ")?;
+                        }
+                        write!(f, "{}: {}", param_name, param_value)?;
+                    }
+                    write!(f, ")")?;
+                }
+                Ok(())
+            }
             Stmt::Expr(expr) => write!(f, "{}", expr),
         }
     }
 }
 
 /// Typed form of top-level statements.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum StmtTyped {
     RootDecl(Ident),
-    ToonBlock { name: Ident, content: String },
+    ToonBlock {
+        name: Ident,
+        content: String,
+    },
+    RuneBlock {
+        name: Ident,
+        content: String,
+    },
+    KernelDecl {
+        name: SemanticIdent,
+        archetype: KernelArchetype,
+    },
     Expr(TypedExpr),
 }
 
@@ -490,7 +668,17 @@ impl StmtTyped {
     }
 
     pub fn toon_block<S: Into<String>>(name: S, content: String) -> Self {
-        StmtTyped::ToonBlock { name: Ident::new(name), content }
+        StmtTyped::ToonBlock {
+            name: Ident::new(name),
+            content,
+        }
+    }
+
+    pub fn rune_block<S: Into<String>>(name: S, content: String) -> Self {
+        StmtTyped::RuneBlock {
+            name: Ident::new(name),
+            content,
+        }
     }
 
     pub fn expr(expr: TypedExpr) -> Self {
@@ -506,6 +694,27 @@ impl fmt::Display for StmtTyped {
                 writeln!(f, "{} ~TOON:", name)?;
                 for line in content.lines() {
                     writeln!(f, "  {}", line)?;
+                }
+                Ok(())
+            }
+            StmtTyped::RuneBlock { name, content } => {
+                writeln!(f, "{} ~RUNE:", name)?;
+                for line in content.lines() {
+                    writeln!(f, "  {}", line)?;
+                }
+                Ok(())
+            }
+            StmtTyped::KernelDecl { name, archetype } => {
+                write!(f, "{} := {}", name, archetype.name)?;
+                if !archetype.params.is_empty() {
+                    write!(f, "(")?;
+                    for (i, (param_name, param_value)) in archetype.params.iter().enumerate() {
+                        if i > 0 {
+                            write!(f, ", ")?;
+                        }
+                        write!(f, "{}: {}", param_name, param_value)?;
+                    }
+                    write!(f, ")")?;
                 }
                 Ok(())
             }

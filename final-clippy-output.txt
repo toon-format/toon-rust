@@ -1,0 +1,7 @@
+rune-hex\src\hex.rs:420:13: warning: this `if` statement can be collapsed
+rune-hex\src\hex.rs:421:17: warning: this `if` statement can be collapsed
+rune-hex\src\hex.rs:618:20: warning: this `if` statement can be collapsed
+rune-hex\src\hex.rs:904:18: warning: the loop variable `i` is only used to index `result`
+rune-hex\src\hex.rs:956:18: warning: the loop variable `i` is used to index `vec`
+src\rune\ast.rs:124:1: warning: an implementation of `From` is preferred since it gives you `Into<_>` for free where the reverse isn't true
+src\rune\parser.rs:279:21: warning: this `if` statement can be collapsed

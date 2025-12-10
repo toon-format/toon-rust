@@ -1,7 +1,7 @@
 # RUNE: Root Universal Notation Encoding
 
-[![Crates.io](https://img.shields.io/crates/v/geo-rune.svg)](https://crates.io/crates/geo-rune)
-[![Documentation](https://docs.rs/geo-rune/badge.svg)](https://docs.rs/geo-rune)
+[![Crates.io](https://img.shields.io/crates/v/rune-format.svg)](https://crates.io/crates/rune-format)
+[![Documentation](https://docs.rs/rune-format/badge.svg)](https://docs.rs/rune-format)
 [![Built on TOON](https://img.shields.io/badge/built%20on-TOON-purple.svg)](https://github.com/toon-format/toon)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 

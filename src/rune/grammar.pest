@@ -27,6 +27,9 @@ string_inner = @{
     )*
 }
 
+// Boolean literals: B:t (true) or B:f (false)
+boolean_literal = { "B:" ~ ("t" | "f") }
+
 // --- OPERATORS (matched in order of length) ---
 
 // 1. Glyph operators (must be ordered longest-first, now included in relation_op for chaining)
@@ -34,39 +37,48 @@ string_inner = @{
 
 // 2. Flow operators (lower precedence - flow between things)
 flow_op = {
-      "->"     // FlowRight
+      "<->"    // FlowBidirectional
+    | ">-<"    // FlowConvergent
+    | "->"     // FlowRight
     | "<-"     // FlowLeft
 }
 
 // 3. Structural / binding operators (higher precedence - create associations)
 struct_op = {
-      "\\|/"   // SymmetricSplit
-    | "/|\\"   // BranchAnchorBranch
-    | "/\\"    // SplitJoin
-    | "\\/"    // JoinSplit
-    | "|/"     // AnchorDescend
-    | "/|"     // BranchStabilize
-    | "\\|"    // RootStabilize
-    | "|\\"    // StabilizeRoot
-    | "::"     // Namespace
-    | ":="     // Define
-    | "<="     // LessEqual
-    | ">="     // GreaterEqual
-    | "||"     // Parallel
-    | ":"      // Bind
-    | "="      // Equal
-    | "<"      // Less
-    | ">"      // Greater
-    | "\\"     // Ancestor
-    | "|"      // Alias
-    | "~"      // Transform
+            "\\|/"   // SymmetricSplit
+        | "/|\\"   // BranchAnchorBranch
+        | "/\\"    // SplitJoin
+        | "\\/"    // JoinSplit
+        | "|/"     // AnchorDescend
+        | "/|"     // BranchStabilize
+        | "\\|"     // RootStabilize
+        | "|\\"     // StabilizeRoot
+        | "=:="    // Unify
+        | ":=:"    // Match
+        | "=:"     // Specializes
+        | "::"     // Namespace
+        | ":="     // Define
+        | ":>"     // Output
+        | "<:"     // Input
+        | "|>"     // PipelineRight
+        | "<|"     // PipelineLeft
+        | "<="     // LessEqual
+        | ">="     // GreaterEqual
+        | "||"     // Parallel
+        | ":"      // Bind
+        | "="      // Equal
+        | "<"      // Less
+        | ">"      // Greater
+        | "\\"      // Ancestor
+        | "|"      // Alias
+        | "~"      // Transform
 }
 
 // All relation operators combined (for fallback parsing)
 relation_op = { flow_op | struct_op }
 
 // Path operators used for hierarchical access (distinct from math)
-path_op = { "/" | "\\" }
+path_op = { "/" | "\\" | "." } 
 
 // Unified operator token (arithmetic operators only within math blocks `[]`)
 op = { relation_op }
@@ -74,15 +86,25 @@ op = { relation_op }
 // --- EXPRESSIONS ---
 // Domains: Structural (outside []) vs Arithmetic (inside [])
 
+// Function call: name(arg1, arg2, ...)
+fn_call = { ident ~ "(" ~ relation_expr ~ ("," ~ relation_expr)* ~ ")" }
+
 // Array literal: [1,2,3] or [a,b,c] (comma-separated)
 // Distinct from math blocks which use operators without commas
-array_literal = { "[" ~ relation_expr ~ ("," ~ relation_expr)+ ~ "]" }
+array_literal = { "[" ~ relation_expr ~ ("," ~ relation_expr)* ~ "]" }
+
+// Object literal: { key: value, ... }
+object_entry = { (ident | string) ~ ":" ~ relation_expr }
+object_literal = { "{" ~ (object_entry ~ ("," ~ object_entry)*)? ~ ","? ~ "}" }
 
 term = {
-      string
+      object_literal // Try object first (braces)
+    | array_literal  // Then try array (brackets with commas)
+    | math_block     // Then try math block (brackets with ops)
+    | fn_call        // Try function call (has parens)
+    | string
     | number
-    | math_block      // Try math block first (has operators/unary)
-    | array_literal   // Then try array (has commas)
+    | boolean_literal 
     | semantic_ident
     | ident
     | "(" ~ relation_expr ~ ")"
@@ -114,7 +136,8 @@ math_atom   = { number | semantic_ident | math_array_literal | ident | "(" ~ mat
 // Precedence layers: flow_expr < struct_expr < access < term
 // Lower precedence (parsed first) = looser binding
 
-// Path access (hierarchical navigation - / is structural path here, not division)
+// Access (hierarchical navigation - using binary operators below)
+// Added '.' for standard member access
 access = { term ~ (WHITESPACE* ~ path_op ~ WHITESPACE* ~ term)* }
 
 // Structural operators (tighter binding - associations, definitions)
@@ -134,12 +157,12 @@ expr = { relation_expr }
 // Root declaration (supports namespaces like e8::continuum)
 root_decl = { "root:" ~ WHITESPACE* ~ ident ~ ("::" ~ ident)* }
 
-// TOON block (indentation-based)
+// TOON/RUNE blocks (indentation-based)
 // Use $ to disable implicit whitespace, @ for atomic capture
 toon_content = @{
     (
-        // Match any line that isn't empty and doesn't start a new top-level statement
-        (!NEWLINE ~ ANY)+ ~ NEWLINE
+        // Allow empty lines for readability while remaining inside the TOON block
+        (!NEWLINE ~ ANY)* ~ NEWLINE
     )+
 }
 
@@ -148,12 +171,21 @@ toon_block = ${
     toon_content
 }
 
+rune_block = ${
+    ident ~ " "* ~ "~RUNE:" ~ NEWLINE ~
+    toon_content
+}
+
+// Kernel archetype declarations
+kernel_param = { ident ~ ":" ~ WHITESPACE* ~ (number | ident | string) }
+kernel_archetype = { "CUDA:Archetype:" ~ ident ~ "(" ~ (kernel_param ~ ("," ~ WHITESPACE* ~ kernel_param)*)? ~ ")" }
+kernel_decl = { semantic_ident ~ WHITESPACE* ~ ":=" ~ WHITESPACE* ~ kernel_archetype }
+
 // Expression statement (catch-all for operator expressions)
 stmt_expr = { relation_expr }
 
 // Top-level statement
-stmt = _{ root_decl | toon_block | stmt_expr }
+stmt = _{ root_decl | rune_block | toon_block | kernel_decl | stmt_expr }
 
 // File: sequence of statements
-// Note: No WHITESPACE* before stmt to preserve TOON block indentation
 file = { SOI ~ (NEWLINE* ~ stmt ~ WHITESPACE* ~ NEWLINE*)* ~ EOI }

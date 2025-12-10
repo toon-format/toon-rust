@@ -14,6 +14,7 @@
 //!   - `add_sub` → `+` / `-`
 //!   - `access` / `relation_expr` / `expr` → structural / relation ops
 //! - **TOON blocks**: Raw content preservation for later TOON library parsing
+//! - **RUNE blocks**: Preferred raw content blocks for executable Rune data
 //! - **Root declarations**: Semantic anchors for E8 contexts
 //! - **Expression trees**: Recursive binary structures respecting precedence
 //!
@@ -112,10 +113,21 @@ pub fn parse_typed(input: &str) -> Result<Vec<crate::rune::ast::StmtTyped>, Pars
     let mut typed: Vec<crate::rune::ast::StmtTyped> = Vec::new();
     for stmt in stmts {
         match stmt {
-            crate::rune::ast::Stmt::RootDecl(id) => typed.push(crate::rune::ast::StmtTyped::root(id.to_string())),
-            crate::rune::ast::Stmt::ToonBlock { name, content } => {
-                typed.push(crate::rune::ast::StmtTyped::toon_block(name.to_string(), content))
+            crate::rune::ast::Stmt::RootDecl(id) => {
+                typed.push(crate::rune::ast::StmtTyped::root(id.to_string()))
             }
+            crate::rune::ast::Stmt::ToonBlock { name, content } => typed.push(
+                crate::rune::ast::StmtTyped::toon_block(name.to_string(), content),
+            ),
+            crate::rune::ast::Stmt::KernelDecl { name, archetype } => {
+                typed.push(crate::rune::ast::StmtTyped::KernelDecl {
+                    name: name.clone(),
+                    archetype: archetype.clone(),
+                });
+            }
+            crate::rune::ast::Stmt::RuneBlock { name, content } => typed.push(
+                crate::rune::ast::StmtTyped::rune_block(name.to_string(), content),
+            ),
             crate::rune::ast::Stmt::Expr(expr) => {
                 let te = crate::rune::ast::TypedExpr::infer(&expr);
                 typed.push(crate::rune::ast::StmtTyped::expr(te));
@@ -131,6 +143,8 @@ fn parse_stmt(pair: Pair<Rule>) -> Result<Stmt, ParseError> {
     match rule {
         Rule::root_decl => parse_root_decl(pair),
         Rule::toon_block => parse_toon_block(pair),
+        Rule::rune_block => parse_rune_block(pair),
+        Rule::kernel_decl => parse_kernel_decl(pair),
         Rule::stmt_expr => {
             let expr_pair = pair.into_inner().next().unwrap();
             Ok(Stmt::expr(parse_expr(expr_pair)?))
@@ -206,6 +220,154 @@ fn parse_toon_block(pair: Pair<Rule>) -> Result<Stmt, ParseError> {
     let final_content = dedented.join("\n");
 
     Ok(Stmt::toon_block(name, final_content))
+}
+
+/// Parse RUNE block: `name ~RUNE:\n  content\n  content`
+fn parse_rune_block(pair: Pair<Rule>) -> Result<Stmt, ParseError> {
+    let mut inner = pair.into_inner();
+    let ident_pair = inner.next().unwrap();
+    let name = ident_pair.as_str();
+
+    let content_pair = inner.next().unwrap();
+    let content = content_pair.as_str();
+
+    let lines: Vec<&str> = content.lines().collect();
+
+    if lines.is_empty() {
+        return Ok(Stmt::rune_block(name, String::new()));
+    }
+
+    let min_indent = lines
+        .iter()
+        .filter(|line| !line.trim().is_empty())
+        .map(|line| line.len() - line.trim_start().len())
+        .min()
+        .unwrap_or(0);
+
+    let dedented: Vec<String> = lines
+        .iter()
+        .map(|line| {
+            if line.trim().is_empty() {
+                "".to_string()
+            } else {
+                line.chars().skip(min_indent).collect()
+            }
+        })
+        .collect();
+
+    Ok(Stmt::rune_block(name, dedented.join("\n")))
+}
+
+/// Parse kernel parameter: ident : (number | ident | string)
+fn parse_kernel_param(pair: Pair<Rule>) -> Result<(Ident, Literal), ParseError> {
+    let mut inner = pair.into_inner();
+    let name_pair = inner.next().unwrap();
+    let name = Ident::new(name_pair.as_str());
+
+    inner.next(); // :
+    inner.next(); // WHITESPACE*
+
+    let value_pair = inner.next().unwrap();
+    let value = match value_pair.as_rule() {
+        Rule::number => {
+            let num = value_pair
+                .as_str()
+                .parse()
+                .map_err(|_| ParseError::ExpectedNumber(value_pair.as_str().to_string()))?;
+            Literal::Number(num)
+        }
+        Rule::string => {
+            let raw = value_pair.as_str();
+            let content = &raw[1..raw.len() - 1];
+            let unescaped = content
+                .replace("\\\"", "\"")
+                .replace("\\\\", "\\")
+                .replace("\\n", "\n")
+                .replace("\\r", "\r")
+                .replace("\\t", "\t");
+            Literal::String(unescaped)
+        }
+        Rule::ident => Literal::String(value_pair.as_str().to_string()),
+        _ => {
+            return Err(ParseError::ParseTree(format!(
+                "Unexpected value type in kernel param: {:?}",
+                value_pair.as_rule()
+            )));
+        }
+    };
+
+    Ok((name, value))
+}
+
+/// Parse kernel archetype: CUDA:Archetype:ident(params...)
+fn parse_kernel_archetype(pair: Pair<Rule>) -> Result<KernelArchetype, ParseError> {
+    let mut inner = pair.into_inner();
+    inner.next(); // "CUDA:Archetype:"
+    let name_pair = inner.next().unwrap();
+    let name = Ident::new(name_pair.as_str());
+    inner.next(); // "("
+
+    let mut params = Vec::new();
+    while let Some(pair) = inner.next() {
+        if pair.as_rule() == Rule::kernel_param {
+            params.push(parse_kernel_param(pair)?);
+            // Next should be , or )
+            let next = inner.next();
+            if let Some(sep) = next {
+                if sep.as_str() == "," {
+                    // Skip WHITESPACE*
+                    let ws = inner.next();
+                    if let Some(ws_pair) = ws {
+                        if ws_pair.as_rule() != Rule::WHITESPACE {
+                            return Err(ParseError::ParseTree(
+                                "Expected whitespace after comma".to_string(),
+                            ));
+                        }
+                    }
+                } else if sep.as_str() == ")" {
+                    break;
+                } else {
+                    return Err(ParseError::ParseTree(format!(
+                        "Expected , or ), got {}",
+                        sep.as_str()
+                    )));
+                }
+            }
+        } else if pair.as_str() == ")" {
+            break;
+        } else {
+            return Err(ParseError::ParseTree(format!(
+                "Unexpected in kernel archetype: {:?}",
+                pair.as_rule()
+            )));
+        }
+    }
+
+    Ok(KernelArchetype { name, params })
+}
+
+/// Parse kernel declaration: semantic_ident := kernel_archetype
+fn parse_kernel_decl(pair: Pair<Rule>) -> Result<Stmt, ParseError> {
+    let mut inner = pair.into_inner();
+    let semantic_ident_pair = inner.next().unwrap();
+    let semantic_ident = {
+        let mut si_inner = semantic_ident_pair.into_inner();
+        let prefix_pair = si_inner.next().unwrap();
+        let name_pair = si_inner.next().unwrap();
+        let prefix = prefix_pair.as_str().chars().next().unwrap();
+        let name = Ident::new(name_pair.as_str());
+        SemanticIdent::new(prefix, name)
+    };
+
+    inner.next(); // :=
+    inner.next(); // WHITESPACE*
+    let kernel_archetype_pair = inner.next().unwrap();
+    let archetype = parse_kernel_archetype(kernel_archetype_pair)?;
+
+    Ok(Stmt::KernelDecl {
+        name: semantic_ident,
+        archetype,
+    })
 }
 
 /// Parse expression using grammar-driven precedence.
@@ -317,6 +479,47 @@ fn parse_term(pair: Pair<Rule>) -> Result<Expr, ParseError> {
 
             Ok(Expr::Term(Term::Literal(Literal::Array(elements))))
         }
+        Rule::object_literal => {
+            // Parse object literal: {key: value, ...}
+            let inner = pair.into_inner();
+            let mut entries = Vec::new();
+
+            for entry_pair in inner {
+                if let Rule::object_entry = entry_pair.as_rule() {
+                    let mut entry_inner = entry_pair.into_inner();
+
+                    // Parse key (ident or string)
+                    let key_pair = entry_inner.next().ok_or_else(|| {
+                        ParseError::ParseTree("Missing key in object entry".to_string())
+                    })?;
+                    let key = match key_pair.as_rule() {
+                        Rule::ident => key_pair.as_str().to_string(),
+                        Rule::string => {
+                            let raw = key_pair.as_str();
+                            // Remove surrounding quotes from string keys
+                            if raw.len() >= 2 && raw.starts_with('"') && raw.ends_with('"') {
+                                raw[1..raw.len()-1].to_string()
+                            } else {
+                                raw.to_string()
+                            }
+                        }
+                        _ => return Err(ParseError::ParseTree(format!(
+                            "Unexpected object key rule: {:?}", key_pair.as_rule()
+                        ))),
+                    };
+
+                    // Parse value (expression)
+                    let val_pair = entry_inner.next().ok_or_else(|| {
+                        ParseError::ParseTree("Missing value in object entry".to_string())
+                    })?;
+                    let val_expr = parse_expr(val_pair)?;
+
+                    entries.push((key, val_expr));
+                }
+            }
+
+            Ok(Expr::Term(Term::Literal(Literal::Object(entries))))
+        }
         Rule::semantic_ident => {
             // Parse semantic identifier: prefix:name
             let mut inner = pair.into_inner();
@@ -331,12 +534,39 @@ fn parse_term(pair: Pair<Rule>) -> Result<Expr, ParseError> {
             Ok(Expr::Term(Term::semantic_ident(prefix, name)))
         }
         Rule::ident => Ok(Expr::ident(pair.as_str())),
+        Rule::fn_call => {
+            // Parse function call: name(arg1, arg2, ...)
+            let mut inner = pair.into_inner();
+            let name_pair = inner
+                .next()
+                .ok_or_else(|| ParseError::ParseTree("Missing function name".to_string()))?;
+            let name = Ident::new(name_pair.as_str());
+
+            let mut args = Vec::new();
+            for expr_pair in inner {
+                args.push(parse_expr(expr_pair)?);
+            }
+
+            Ok(Expr::Term(Term::FunctionCall { name, args }))
+        }
         Rule::number => {
             let num: f64 = pair
                 .as_str()
                 .parse()
                 .map_err(|_| ParseError::ExpectedNumber(pair.as_str().to_string()))?;
             Ok(Expr::literal(num))
+        }
+        Rule::boolean_literal => {
+            // Parse boolean literal: B:t (true) or B:f (false)
+            let text = pair.as_str();
+            match text {
+                "B:t" => Ok(Expr::Term(Term::Literal(Literal::bool(true)))),
+                "B:f" => Ok(Expr::Term(Term::Literal(Literal::bool(false)))),
+                _ => Err(ParseError::ParseTree(format!(
+                    "Invalid boolean literal: {}",
+                    text
+                ))),
+            }
         }
         Rule::string => {
             // Parse string, handling escape sequences

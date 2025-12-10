@@ -48,12 +48,10 @@ pub fn deep_merge_value(
         let key = &segments[0];
 
         // Check for conflicts at leaf level
-        if let Some(existing) = target.get(key) {
-            if strict {
-                return Err(ToonError::DeserializationError(format!(
-                    "Path expansion conflict: key '{key}' already exists with value: {existing:?}",
-                )));
-            }
+        if let (Some(existing), true) = (target.get(key), strict) {
+            return Err(ToonError::DeserializationError(format!(
+                "Path expansion conflict: key '{key}' already exists with value: {existing:?}",
+            )));
         }
 
         target.insert(key.clone(), value);
@@ -118,12 +116,10 @@ pub fn expand_paths_in_object(
             deep_merge_value(&mut result, &segments, value, strict)?;
         } else {
             // Check for conflicts with expanded keys
-            if let Some(existing) = result.get(&clean_key) {
-                if strict {
-                    return Err(ToonError::DeserializationError(format!(
-                        "Key '{clean_key}' conflicts with existing value: {existing:?}",
-                    )));
-                }
+            if let (Some(existing), true) = (result.get(&clean_key), strict) {
+                return Err(ToonError::DeserializationError(format!(
+                    "Key '{clean_key}' conflicts with existing value: {existing:?}",
+                )));
             }
             result.insert(clean_key, value);
         }

@@ -1,0 +1,39 @@
+[package]
+name = "rune-mira"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "Bevy-powered visual and runtime harness for RUNE E8 semantics"
+
+[lib]
+name = "rune_mira"
+path = "src/lib.rs"
+
+[[bin]]
+name = "rune-mira"
+path = "src/main.rs"
+
+[features]
+default = ["viewer"]
+viewer = []
+
+[dependencies]
+# Error handling
+yoshi = { path = "../../../ams/crates/yoshi" }
+serde = { version = "1.0", features = ["derive"] }
+rune-format = { path = ".." }
+rune-hex = { path = "../rune-hex" }
+hydron-core = { path = "../hydron-core", features = ["serde"] }
+
+# Bevy core with a minimal 2D stack for now; expand features as needed.
+bevy = { version = "0.17.3", default-features = false, features = [
+  "bevy_asset",
+  "bevy_winit",
+  "bevy_render",
+  "bevy_core_pipeline",
+  "bevy_sprite",
+  "bevy_text",
+  "bevy_ui",
+  "png",
+] }
+

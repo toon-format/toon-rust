@@ -1,0 +1,45 @@
+root: ml_embedding_space
+
+# ============================================================================
+# PRACTICAL ML EXAMPLE: Computing Distances in Embedding Space
+# ============================================================================
+# This demonstrates real-world geometric computation for ML applications
+
+# Define word embeddings as 8D vectors
+T:embedding_cat = [0.8, 0.2, 0.1, 0, 0, 0, 0, 0]
+T:embedding_dog = [0.7, 0.3, 0.2, 0, 0, 0, 0, 0]
+T:embedding_car = [0.1, 0.1, 0.9, 0, 0, 0, 0, 0]
+
+# Compute semantic similarity between embeddings (dot product)
+S:sim_cat_dog = Gf8Dot([0.8, 0.2, 0.1, 0, 0, 0, 0, 0], [0.7, 0.3, 0.2, 0, 0, 0, 0, 0])
+S:sim_cat_car = Gf8Dot([0.8, 0.2, 0.1, 0, 0, 0, 0, 0], [0.1, 0.1, 0.9, 0, 0, 0, 0, 0])
+
+# Compute geodesic distances on the embedding sphere
+S:dist_cat_dog = S7Distance([0.8, 0.2, 0.1, 0, 0, 0, 0, 0], [0.7, 0.3, 0.2, 0, 0, 0, 0, 0])
+S:dist_cat_car = S7Distance([0.8, 0.2, 0.1, 0, 0, 0, 0, 0], [0.1, 0.1, 0.9, 0, 0, 0, 0, 0])
+
+# Find interpolation between two embeddings
+T:interp_halfway = S7Slerp([0.8, 0.2, 0.1, 0, 0, 0, 0, 0], [0.7, 0.3, 0.2, 0, 0, 0, 0, 0], [0.5])
+
+# ============================================================================
+# HYPERBOLIC EMBEDDINGS - Better for hierarchical data
+# ============================================================================
+
+S:h_sim_cat_dog = H8Distance([0.8, 0.2, 0.1, 0, 0, 0, 0, 0], [0.7, 0.3, 0.2, 0, 0, 0, 0, 0])
+
+# ============================================================================
+# INFORMATION-THEORETIC MEASURES
+# ============================================================================
+
+# Compute KL divergence between probability distributions
+# (useful for comparing learned distributions)
+S:kl_div = KLDivergence([0.7, 0.2, 0.1, 0, 0, 0, 0, 0], [0.6, 0.3, 0.1, 0, 0, 0, 0, 0])
+
+# ============================================================================
+# EXPECTED RESULTS WHEN EVALUATED:
+# - sim_cat_dog ≈ 0.74 (high similarity, related concepts)
+# - sim_cat_car ≈ 0.09 (low similarity, unrelated concepts)
+# - dist_cat_dog ≈ 0.28 (small geodesic distance, nearby on sphere)
+# - dist_cat_car ≈ 1.40 (large geodesic distance, far apart on sphere)
+# - interp_halfway = weighted SLERP between two embeddings
+# ============================================================================

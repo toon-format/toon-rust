@@ -3,10 +3,10 @@
 //! Demonstrates the complete operator registry and E8-specific semantics.
 //! Shows how glyph operators represent complex relationships.
 //!
+//! RUNE builds on TOON: Copyright © 2025 Shreyas S Bhat, Johann Schopplich (MIT License)
 /*▫~•◦------------------------------------------------------------------------------------‣
  * © 2025 ArcMoon Studios ◦ SPDX-License-Identifier MIT OR Apache-2.0 ◦ Author: Lord Xyn ✶
  *///•------------------------------------------------------------------------------------‣
-//! RUNE builds on TOON: Copyright © 2025 Shreyas S Bhat, Johann Schopplich (MIT License)
 
 use rune_format::rune::{self, OpCategory, RuneOp};
 
@@ -15,6 +15,7 @@ fn show_operator_catalog() {
     println!("🌌 RUNE Operator Catalog\n");
 
     let operators = vec![
+        // Glyph Operators (Topology/Shapes)
         RuneOp::SplitJoin,          // /\
         RuneOp::JoinSplit,          // \/
         RuneOp::AnchorDescend,      // |/
@@ -23,19 +24,34 @@ fn show_operator_catalog() {
         RuneOp::StabilizeRoot,      // |\
         RuneOp::SymmetricSplit,     // \|/
         RuneOp::BranchAnchorBranch, // /|\
+
+        // Relation Operators
         RuneOp::Bind,               // :
+        RuneOp::Specializes,        // =:
         RuneOp::Namespace,          // ::
         RuneOp::Define,             // :=
+        RuneOp::Match,              // :=:
+        RuneOp::Unify,              // =:=
         RuneOp::Equal,              // =
         RuneOp::FlowRight,          // ->
         RuneOp::FlowLeft,           // <-
+        RuneOp::FlowBidirectional,  // <->
+        RuneOp::FlowConvergent,     // >-<
         RuneOp::Descendant,         // /
         RuneOp::Ancestor,           // \
         RuneOp::Alias,              // |
         RuneOp::Parallel,           // ||
         RuneOp::Transform,          // ~
+        RuneOp::PipelineRight,      // |>
+        RuneOp::PipelineLeft,       // <|
+        RuneOp::Output,             // :>
+        RuneOp::Input,              // <:
+
+        // Comparison Operators
         RuneOp::Less,               // <
+        RuneOp::LessEqual,          // <=
         RuneOp::Greater,            // >
+        RuneOp::GreaterEqual,       // >=
     ];
 
     println!("📐 GLYPH OPERATORS (Topology):");
@@ -104,6 +120,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "users / 0 -> role := admin",       // Navigation + definition
         "vec_a + vec_b * 2",                // Math precedence
         "T::Gf8 terms * 2 + offset",        // Type annotation + math
+        "NeuralNet =: specialization |> classifier", // Pattern + pipeline
+        "inputs <- preprocessing =:= validation",    // Input + match pattern";
+        "data_stream <-> bidirectional_sync",        // Bidirectional flow"
+        "convergence >-< transformation_focus",      // Convergent flow"
+        "model :> predictions <: feedback",          // Output/Input flow"
     ];
 
     for example in examples {
@@ -132,15 +153,35 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  \\|/ → Symmetric fork from stable center");
     println!("  /|\\ → Complex branch-anchor-branch");
     println!();
-    println!("Relations:");
+    println!("Structural Relations:");
+    println!("  :   → Bind/annotation (key-value, type hints)");
+    println!("  =:  → Specialization/instance of (emergent from)");
+    println!("  ::  → Namespace/type tag (semantic classification)");
+    println!("  :=  → Definition/allocation (assignment)");
+    println!("  :=: → Pattern match/recognition (structural equality)");
+    println!("  =:= → Structural unification/isomorphism");
+    println!("  =   → Equality/constraint (invariant relation)");
     println!("  /   → Child/descendant (E8 lattice)");
-    println!("  \\  → Parent/ancestor (root approach)");
-    println!("  ->  → Flow/directed edge right-wards");
-    println!("  <-  → Reverse flow left-wards");
-    println!("  :=  → Definition/allocation");
+    println!("  \\   → Parent/ancestor (root approach)");
     println!("  |   → Alias/equivalence");
     println!("  ||  → Parallel/peer relationship");
     println!("  ~   → Transform/view conversion");
+    println!();
+    println!("Flow & Function:");
+    println!("  ->  → Flow/directed edge right-wards");
+    println!("  <-  → Reverse flow left-wards");
+    println!("  <-> → Bidirectional flow/oscillation/exchange");
+    println!("  >-< → Convergent flow/transformation focus");
+    println!("  |>  → Pipeline right/function composition (left→right)");
+    println!("  <|  → Pipeline left/reverse composition (right→left)");
+    println!("  :>  → Output/produces/generates");
+    println!("  <:  → Input/requires/accepts");
+    println!();
+    println!("Comparison:");
+    println!("  <   → Less/Precedes/Deeper");
+    println!("  <=  → Less than or equal");
+    println!("  >   → Greater/Succeeds/Higher");
+    println!("  >=  → Greater than or equal");
 
     Ok(())
 }

@@ -1,0 +1,43 @@
+root: e8_hierarchy
+
+# Base geometric points - arrays for Vec8
+A:p1 := [0.7, 0.7, 0, 0, 0, 0, 0, 0]
+A:p2 := [0.5, 0.5, 0.5, 0, 0, 0, 0, 0]
+A:p3 := [0.8, 0.6, 0, 0, 0, 0, 0, 0]
+A:p4 := [0.5, 0.7, 0.5, 0, 0, 0, 0, 0]
+
+# GLYPH 1: /\ (SPLIT-JOIN) - Mean of two Vec8
+V:glyph_1 := A:p1 /\ A:p2
+
+# GLYPH 2: \/ (JOIN-SPLIT) - Antipodal composition
+A:q1 := [0.8, 0.2, 0, 0, 0, 0, 0, 0]
+A:q2 := [0.2, 0.8, 0, 0, 0, 0, 0, 0]
+V:glyph_2 := A:q1 \/ A:q2
+
+# GLYPH 3: |/ (ANCHOR-DESCEND) - Distance metric
+V:glyph_3 := A:p3 |/ A:p4
+
+# GLYPH 4: /| (BRANCH-STABILIZE) - Midpoint interpolation
+A:b1 := [0.9, 0.1, 0.4, 0, 0, 0, 0, 0]
+A:b2 := [0.1, 0.9, 0.4, 0, 0, 0, 0, 0]
+V:glyph_4 := A:b1 /| A:b2
+
+# GLYPH 5: \| (ROOT-STABILIZE) - Normalize vector
+A:r1 := [0.6, 0.8, 0, 0, 0, 0, 0, 0]
+A:r2 := [0.5, 0.5, 0.7, 0, 0, 0, 0, 0]
+V:glyph_5 := A:r1 \| A:r2
+
+# GLYPH 6: |\ (STABILIZE-ROOT) - Project onto vector
+A:proj_a := [0.8, 0.6, 0, 0, 0, 0, 0, 0]
+A:proj_b := [1, 0, 0, 0, 0, 0, 0, 0]
+V:glyph_6 := A:proj_a |\ A:proj_b
+
+# GLYPH 7: \|/ (SYMMETRIC-SPLIT) - Normalized difference
+A:sym_a := [0.8, 0.2, 0, 0, 0, 0, 0, 0]
+A:sym_b := [0.2, 0.8, 0, 0, 0, 0, 0, 0]
+V:glyph_7 := A:sym_a \|/ A:sym_b
+
+# GLYPH 8: /|\ (BRANCH-ANCHOR-BRANCH) - Three-way composition
+A:tri_a := [0.6, 0.4, 0.2, 0, 0, 0, 0, 0]
+A:tri_b := [0.4, 0.6, 0.2, 0, 0, 0, 0, 0]
+V:glyph_8 := A:tri_a /|\ A:tri_b

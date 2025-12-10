@@ -180,11 +180,9 @@ impl Scanner {
             }
             Some('-') => {
                 self.advance();
-                if let Some(ch) = self.peek() {
-                    if ch.is_ascii_digit() {
-                        let num_str = self.scan_number_string(true)?;
-                        return self.parse_number(&num_str);
-                    }
+                if self.peek().is_some_and(|c| c.is_ascii_digit()) {
+                    let num_str = self.scan_number_string(true)?;
+                    return self.parse_number(&num_str);
                 }
                 Ok(Token::Dash)
             }
@@ -274,13 +272,13 @@ impl Scanner {
             }
 
             // Active delimiters stop the string; otherwise they're part of it
-            if let Some(active) = self.active_delimiter {
-                if (active == Delimiter::Comma && ch == ',')
-                    || (active == Delimiter::Pipe && ch == '|')
-                    || (active == Delimiter::Tab && ch == '\t')
-                {
-                    break;
-                }
+            if matches!(
+                (self.active_delimiter, ch),
+                (Some(Delimiter::Comma), ',')
+                    | (Some(Delimiter::Pipe), '|')
+                    | (Some(Delimiter::Tab), '\t')
+            ) {
+                break;
             }
             value.push(ch);
             self.advance();
@@ -327,8 +325,9 @@ impl Scanner {
 
     fn parse_number(&self, s: &str) -> ToonResult<Token> {
         // Number followed immediately by other chars like "0(f)" should be a string
-        if let Some(next_ch) = self.peek() {
-            if next_ch != ' '
+        if matches!(
+            self.peek(),
+            Some(next_ch) if next_ch != ' '
                 && next_ch != '\n'
                 && next_ch != ':'
                 && next_ch != '['
@@ -341,9 +340,8 @@ impl Scanner {
                         | (Some(Delimiter::Pipe), '|')
                         | (Some(Delimiter::Tab), '\t')
                 )
-            {
-                return Ok(Token::String(s.to_string(), false));
-            }
+        ) {
+            return Ok(Token::String(s.to_string(), false));
         }
 
         // Leading zeros like "05" are strings, but "0", "0.5", "-0" are numbers

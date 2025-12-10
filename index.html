@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hydron Geometric Engine - Interactive Demo</title>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --bg: #f8fafc;
+            --card: #ffffff;
+            --text: #1e293b;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 2rem;
+            line-height: 1.5;
+        }
+        h1 { margin-bottom: 0.5rem; }
+        .subtitle { color: #64748b; margin-bottom: 2rem; }
+        
+        .card {
+            background: var(--card);
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+            margin-bottom: 2rem;
+        }
+
+        .vector-group { margin-bottom: 1.5rem; }
+        .vector-group h3 { margin-bottom: 0.5rem; font-size: 1rem; color: #475569; }
+        
+        .inputs {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            gap: 0.5rem;
+        }
+        
+        input {
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            text-align: center;
+            font-family: monospace;
+        }
+        input:focus {
+            outline: 2px solid var(--primary);
+            border-color: transparent;
+        }
+
+        button {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+            width: 100%;
+            font-size: 1.1rem;
+        }
+        button:hover { background: #1d4ed8; }
+        button:disabled { opacity: 0.7; cursor: wait; }
+
+        #result-area {
+            margin-top: 2rem;
+            padding: 1.5rem;
+            background: #f1f5f9;
+            border-radius: 8px;
+            text-align: center;
+            display: none;
+        }
+        .result-value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--primary);
+            font-family: monospace;
+        }
+        .result-meta { color: #64748b; margin-top: 0.5rem; font-size: 0.9rem; }
+        
+        .status {
+            position: fixed;
+            bottom: 1rem;
+            right: 1rem;
+            padding: 0.5rem 1rem;
+            background: #10b981;
+            color: white;
+            border-radius: 999px;
+            font-size: 0.875rem;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .status.visible { opacity: 1; }
+    </style>
+</head>
+<body>
+    <h1>Hydron Geometric Engine</h1>
+    <p class="subtitle">High-performance S<sup>7</sup> spherical geometry in WebAssembly</p>
+
+    <div class="card">
+        <div class="vector-group">
+            <h3>Vector A (8D)</h3>
+            <div class="inputs" id="vec-a">
+                <input type="number" value="1.0" step="0.1">
+                <input type="number" value="0.0" step="0.1">
+                <input type="number" value="0.0" step="0.1">
+                <input type="number" value="0.0" step="0.1">
+                <input type="number" value="0.0" step="0.1">
+                <input type="number" value="0.0" step="0.1">
+                <input type="number" value="0.0" step="0.1">
+                <input type="number" value="0.0" step="0.1">
+            </div>
+        </div>
+
+        <div class="vector-group">
+            <h3>Vector B (8D)</h3>
+            <div class="inputs" id="vec-b">
+                <input type="number" value="0.0" step="0.1">
+                <input type="number" value="1.0" step="0.1">
+                <input type="number" value="0.0" step="0.1">
+                <input type="number" value="0.0" step="0.1">
+                <input type="number" value="0.0" step="0.1">
+                <input type="number" value="0.0" step="0.1">
+                <input type="number" value="0.0" step="0.1">
+                <input type="number" value="0.0" step="0.1">
+            </div>
+        </div>
+
+        <button id="calc-btn">Calculate Spherical Distance</button>
+
+        <div id="result-area">
+            <div class="result-label">Geodesic Distance (radians)</div>
+            <div class="result-value" id="distance-val">--</div>
+            <div class="result-meta" id="perf-val"></div>
+        </div>
+    </div>
+
+    <div id="status-badge" class="status">Wasm Engine Ready</div>
+
+    <script type="module">
+        import init, { s7_distance } from './hydron-ffi/pkg/hydron_ffi.js';
+
+        const btn = document.getElementById('calc-btn');
+        const resultArea = document.getElementById('result-area');
+        const distanceVal = document.getElementById('distance-val');
+        const perfVal = document.getElementById('perf-val');
+        const statusBadge = document.getElementById('status-badge');
+
+        async function initialize() {
+            try {
+                await init();
+                statusBadge.classList.add('visible');
+                
+                // Auto-calculate on load
+                calculate();
+            } catch (e) {
+                console.error(e);
+                btn.textContent = "Error Loading Wasm Engine";
+                btn.disabled = true;
+                btn.style.background = "#ef4444";
+            }
+        }
+
+        function getVector(id) {
+            const inputs = document.querySelectorAll(`#${id} input`);
+            return new Float32Array(Array.from(inputs).map(i => parseFloat(i.value) || 0));
+        }
+
+        function calculate() {
+            const vecA = getVector('vec-a');
+            const vecB = getVector('vec-b');
+
+            const start = performance.now();
+            const distance = s7_distance(vecA, vecB);
+            const end = performance.now();
+
+            resultArea.style.display = 'block';
+            distanceVal.textContent = distance.toFixed(8);
+            
+            const isPiOver2 = Math.abs(distance - Math.PI/2) < 1e-6;
+            const note = isPiOver2 ? " (≈ π/2)" : "";
+            
+            perfVal.textContent = `Computed in ${(end - start).toFixed(3)}ms${note}`;
+        }
+
+        btn.addEventListener('click', calculate);
+        
+        // Initialize
+        initialize();
+    </script>
+</body>
+</html>

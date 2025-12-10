@@ -16,29 +16,23 @@
  * © 2025 ArcMoon Studios ◦ SPDX-License-Identifier MIT OR Apache-2.0 ◦ Author: Lord Xyn ✶
  *///•------------------------------------------------------------------------------------‣
 
+#[cfg(feature = "cuda")]
+pub mod cuda;
 pub mod eval;
-pub mod fisher;
-pub mod gf8;
-pub mod hyperbolic;
-pub mod intrinsics;
-pub mod lorentzian;
-pub mod quaternion;
-pub mod spherical;
-pub mod symplectic;
-pub mod topological;
+pub mod perception;
+pub mod topology;
 pub mod values;
 
-pub use eval::Evaluator;
-pub use fisher::FisherLayer;
-pub use gf8::{Gf8, Gf8Tensor};
-pub use hyperbolic::HyperbolicLayer;
-pub use intrinsics::intrinsics_for_f32_width;
-pub use lorentzian::{
-    CausalDAG, CausalNode, CausalRelation, EventType, LorentzianCausalLayer, LorentzianLayer,
-    SpacetimePoint, Worldline,
+// Re-export the hydron-core crate's math modules when the feature is enabled.
+// This keeps the Rune crate's public API stable while the actual math is
+// implemented in the `hydron-core` crate.
+#[cfg(feature = "hydron")]
+pub use hydron_core::{
+    FisherLayer, Gf8, Gf8Tensor, HyperbolicLayer, LorentzianCausalLayer, LorentzianLayer,
+    PersistencePair, QuaternionOps, SpacetimePoint, SphericalLayer, SymplecticLayer,
+    TopologicalLayer, intrinsics_for_f32_width,
 };
-pub use quaternion::QuaternionOps;
-pub use spherical::SphericalLayer;
-pub use symplectic::SymplecticLayer;
-pub use topological::{PersistencePair, TopologicalLayer};
-pub use values::{EvalContext, EvalError, Octonion, Value};
+
+// When hydron feature is disabled, keep local types for the evaluator and values as-is.
+// Re-export the runtime value types so code can always import `crate::rune::hydron::Value`.
+pub use crate::rune::hydron::values::{EvalContext, EvalError, Octonion, Value};

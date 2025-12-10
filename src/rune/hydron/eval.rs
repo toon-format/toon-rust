@@ -85,6 +85,18 @@ impl Evaluator {
                     content.len()
                 )))
             }
+            Stmt::RuneBlock { name, content } => {
+                // RUNE blocks are preferred executable data blobs; return size summary for now
+                Ok(Value::String(format!(
+                    "RUNE block '{}': {} chars",
+                    name,
+                    content.len()
+                )))
+            }
+            Stmt::KernelDecl { name, archetype: _ } => {
+                // Kernel declarations are declarations, not computations - return description
+                Ok(Value::String(format!("Kernel '{}' declared", name.name.0)))
+            }
             Stmt::Expr(expr) => self.eval_expr(expr),
         }
     }
@@ -99,6 +111,12 @@ impl Evaluator {
                 name,
                 content.len()
             ))),
+            crate::rune::ast::StmtTyped::RuneBlock { name, content } => Ok(Value::String(format!(
+                "RUNE block '{}': {} chars",
+                name,
+                content.len()
+            ))),
+            crate::rune::ast::StmtTyped::KernelDecl { name, archetype: _ } => Ok(Value::String(format!("Kernel '{}' declared", name.name.0))),
             crate::rune::ast::StmtTyped::Expr(te) => {
                 // For now, just evaluate the inner expression as before, type info is advisory.
                 self.eval_expr(&te.expr)
@@ -155,6 +173,16 @@ impl Evaluator {
             Term::Math(math_expr) => {
                 // Math blocks contain MathExpr which needs evaluation
                 self.eval_math_expr(math_expr)
+            }
+            Term::FunctionCall { name, args } => {
+                // Evaluate function call by dispatching to builtin
+                let mut temp_eval = Self {
+                    variables: self.variables.clone(),
+                    semantic_vars: self.semantic_vars.clone(),
+                };
+                let args: Vec<Value> = args.iter().map(|arg| temp_eval.eval_expr(arg)).collect::<Result<_, _>>()?;
+                let ctx = self.context();
+                ctx.apply_builtin_by_name(&name.0, &args)
             }
         }
     }
@@ -235,6 +263,7 @@ impl Evaluator {
         match lit {
             Literal::Number(n) => Ok(Value::Float(*n)),
             Literal::String(s) => Ok(Value::String(s.clone())),
+            Literal::Bool(b) => Ok(Value::Scalar(if *b { 1.0 } else { 0.0 })),
             Literal::Array(exprs) => {
                 let mut values = Vec::new();
                 let mut temp_eval = Self {
@@ -245,6 +274,20 @@ impl Evaluator {
                     values.push(temp_eval.eval_expr(expr)?);
                 }
                 Ok(Value::Array(values))
+            }
+            Literal::Object(entries) => {
+                let mut map = HashMap::new();
+                let mut temp_eval = Self {
+                    variables: self.variables.clone(),
+                    semantic_vars: self.semantic_vars.clone(),
+                };
+
+                for (key, expr) in entries {
+                    let val = temp_eval.eval_expr(expr)?;
+                    map.insert(key.clone(), val);
+                }
+
+                Ok(Value::Map(map))
             }
         }
     }
@@ -279,10 +322,27 @@ impl Evaluator {
             GreaterEqual => left.ge(right),
             Equal => Ok(Value::Bool(left == right)),
 
+            // Glyph operators -> geometric primitives
+            SplitJoin | BranchStabilize => left.geometric_midpoint(right),
+            JoinSplit => left.geometric_antipode_midpoint(right),
+            StabilizeRoot => left.geometric_project(right),
+            RootStabilize => left.geometric_reject(right),
+            AnchorDescend => left.geometric_distance(right),
+            SymmetricSplit => {
+                let proj = left.geometric_project(right)?;
+                let rej = left.geometric_reject(right)?;
+                Ok(Value::Tuple(vec![proj, rej]))
+            }
+            BranchAnchorBranch => {
+                let mid = left.geometric_midpoint(right)?;
+                let dist = left.geometric_distance(right)?;
+                Ok(Value::Tuple(vec![mid, dist]))
+            }
+
             // Structural operators (not for computation) - arithmetic handled by MathOp
             Descendant | Ancestor | Define | FlowRight | FlowLeft | Bind | Namespace | Alias
-            | Parallel | Transform | SplitJoin | JoinSplit | AnchorDescend | BranchStabilize
-            | RootStabilize | StabilizeRoot | SymmetricSplit | BranchAnchorBranch => {
+            | Parallel | Transform | Specializes | Match | Unify | FlowBidirectional | FlowConvergent
+            | PipelineRight | PipelineLeft | Output | Input => {
                 Err(EvalError::UnsupportedOperation(format!(
                     "Structural operator {:?} not implemented for computation. Use math blocks `[]` for arithmetic.",
                     op

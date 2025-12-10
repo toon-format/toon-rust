@@ -1,0 +1,11 @@
+error: failed to load manifest for workspace member `X:\_Repos\toon-rune\rune-mira`
+referenced by workspace at `X:\_Repos\toon-rune\Cargo.toml`
+
+Caused by:
+  failed to load manifest for dependency `yoshi`
+
+Caused by:
+  failed to read `X:\ams\crates\yoshi\Cargo.toml`
+
+Caused by:
+  The system cannot find the path specified. (os error 3)

@@ -38,14 +38,8 @@ use criterion::{Criterion, criterion_group, criterion_main};
 mod hydron_benches {
     use super::*;
     use rune_format::rune::hydron::{
-        fisher::FisherLayer,
-        gf8::Gf8,
-        hyperbolic::HyperbolicLayer,
-        lorentzian::{EventType, LorentzianCausalLayer, LorentzianLayer, SpacetimePoint},
-        quaternion::QuaternionOps,
-        spherical::SphericalLayer,
-        symplectic::SymplecticLayer,
-        topological::TopologicalLayer,
+        FisherLayer, Gf8, HyperbolicLayer, LorentzianCausalLayer, LorentzianLayer, QuaternionOps,
+        SpacetimePoint, SphericalLayer, SymplecticLayer, TopologicalLayer,
     };
 
     pub fn bench_spherical_ops(c: &mut Criterion) {
@@ -466,7 +460,7 @@ mod hydron_benches {
         #[cfg(feature = "simd")]
         group.bench_function("add_simd", |bencher| {
             bencher.iter(|| {
-                use rune_format::rune::hydron::gf8::gf8_add_simd;
+                use hydron_core::gf8::gf8_add_simd;
                 gf8_add_simd(std::hint::black_box(&a), std::hint::black_box(&b))
             });
         });
@@ -479,7 +473,7 @@ mod hydron_benches {
         #[cfg(feature = "simd")]
         group.bench_function("sub_simd", |bencher| {
             bencher.iter(|| {
-                use rune_format::rune::hydron::gf8::gf8_sub_simd;
+                use hydron_core::gf8::gf8_sub_simd;
                 gf8_sub_simd(std::hint::black_box(&a), std::hint::black_box(&b))
             });
         });
@@ -492,7 +486,7 @@ mod hydron_benches {
         #[cfg(feature = "simd")]
         group.bench_function("dot_simd", |bencher| {
             bencher.iter(|| {
-                use rune_format::rune::hydron::gf8::gf8_dot_simd;
+                use hydron_core::gf8::gf8_dot_simd;
                 gf8_dot_simd(std::hint::black_box(&a), std::hint::black_box(&b))
             });
         });
@@ -505,7 +499,7 @@ mod hydron_benches {
         #[cfg(feature = "simd")]
         group.bench_function("norm2_simd", |bencher| {
             bencher.iter(|| {
-                use rune_format::rune::hydron::gf8::gf8_norm2_simd;
+                use hydron_core::gf8::gf8_norm2_simd;
                 gf8_norm2_simd(std::hint::black_box(&a))
             });
         });
@@ -518,7 +512,7 @@ mod hydron_benches {
         #[cfg(feature = "simd")]
         group.bench_function("add_inplace_simd", |bencher| {
             bencher.iter(|| {
-                use rune_format::rune::hydron::gf8::gf8_add_inplace_slice_simd;
+                use hydron_core::gf8::gf8_add_inplace_slice_simd;
                 let mut dst = *std::hint::black_box(a.coords());
                 gf8_add_inplace_slice_simd(&mut dst, std::hint::black_box(b.coords()));
                 dst
@@ -540,7 +534,7 @@ mod hydron_benches {
         group.bench_function("matvec_simd", |bencher| {
             let matrix = [[1.0; 8]; 8];
             bencher.iter(|| {
-                use rune_format::rune::hydron::gf8::gf8_matvec_simd;
+                use hydron_core::gf8::gf8_matvec_simd;
                 gf8_matvec_simd(std::hint::black_box(&matrix), std::hint::black_box(&a))
             });
         });

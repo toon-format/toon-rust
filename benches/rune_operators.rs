@@ -33,7 +33,7 @@ use criterion::{Criterion, criterion_group, criterion_main};
 #[cfg(feature = "hydron")]
 mod operator_benches {
     use super::*;
-    use rune_format::rune::hydron::gf8::Gf8;
+    use rune_format::rune::hydron::Gf8;
     use rune_format::rune::hydron::values::{EvalContext, RuneBuiltin, Value};
 
     pub fn bench_value_arithmetic(c: &mut Criterion) {

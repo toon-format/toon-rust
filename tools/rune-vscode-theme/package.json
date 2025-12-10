@@ -1,0 +1,39 @@
+{
+  "name": "rune-syntax-theme",
+  "displayName": "RUNE Syntax + Theme",
+  "description": "Syntax highlighting and thematic colors for RUNE glyphs.",
+  "version": "0.0.1",
+  "publisher": "local",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/arcmoonstudios/toon-rune"
+  },
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": ["Programming Languages", "Themes"],
+  "contributes": {
+    "languages": [
+      {
+        "id": "rune",
+        "aliases": ["RUNE", "rune"],
+        "extensions": [".rune"],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "rune",
+        "scopeName": "source.rune",
+        "path": "./syntaxes/rune.tmLanguage.json"
+      }
+    ],
+    "themes": [
+      {
+        "label": "RUNE Theme",
+        "uiTheme": "vs-dark",
+        "path": "./themes/rune-color-theme.json"
+      }
+    ]
+  }
+}

@@ -1,9 +1,9 @@
 use std::{fs, path::PathBuf, time::Duration};
 
-use anyhow::{Context, Result};
 use chrono::Local;
 use ratatui::crossterm::event::{KeyCode, KeyEvent};
 use tiktoken_rs::cl100k_base;
+use yoshi::{Context, Hatch, yoshi};
 
 #[cfg(feature = "hydron")]
 use crate::rune::hydron::values::Value;
@@ -37,7 +37,7 @@ impl<'a> TuiApp<'a> {
     pub fn run<B: ratatui::backend::Backend>(
         &mut self,
         terminal: &mut ratatui::Terminal<B>,
-    ) -> Result<()> {
+    ) -> Hatch<()> {
         loop {
             terminal.draw(|f| ui::render(f, &mut self.app_state, &mut self.file_browser))?;
 
@@ -52,7 +52,7 @@ impl<'a> TuiApp<'a> {
         Ok(())
     }
 
-    fn handle_event(&mut self, event: Event) -> Result<()> {
+    fn handle_event(&mut self, event: Event) -> Hatch<()> {
         match event {
             Event::Key(key) => self.handle_key_event(key)?,
             Event::Resize => {}
@@ -61,7 +61,7 @@ impl<'a> TuiApp<'a> {
         Ok(())
     }
 
-    fn handle_key_event(&mut self, key: KeyEvent) -> Result<()> {
+    fn handle_key_event(&mut self, key: KeyEvent) -> Hatch<()> {
         // Confirmation dialog takes highest priority
         if self.app_state.show_confirmation {
             return self.handle_confirmation_key(key);
@@ -337,7 +337,7 @@ impl<'a> TuiApp<'a> {
                     }
                 }
                 Err(e) => {
-                    self.app_state.set_error(format!("Encode error: {e}"));
+                    self.app_state.set_error(format!("Encode error: {:?}", e));
                 }
             },
             Err(e) => {
@@ -390,12 +390,12 @@ impl<'a> TuiApp<'a> {
                 }
             },
             Err(e) => {
-                self.app_state.set_error(format!("Decode error: {e}"));
+                self.app_state.set_error(format!("Decode error: {:?}", e));
             }
         }
     }
 
-    fn open_file_dialog(&mut self) -> Result<()> {
+    fn open_file_dialog(&mut self) -> Hatch<()> {
         self.app_state
             .update(crate::tui::message::Msg::ToggleFileBrowser);
         Ok(())
@@ -456,12 +456,13 @@ impl<'a> TuiApp<'a> {
                 });
             }
             Err(e) => {
-                self.app_state.set_error(format!("RUNE parse error: {e}"));
+                self.app_state
+                    .set_error(format!("RUNE parse error: {:?}", e));
             }
         }
     }
 
-    fn save_output(&mut self) -> Result<()> {
+    fn save_output(&mut self) -> Hatch<()> {
         let output = self.app_state.editor.get_output();
         if output.trim().is_empty() {
             self.app_state.set_error("Nothing to save".to_string());
@@ -502,7 +503,7 @@ impl<'a> TuiApp<'a> {
         self.app_state.set_status("New file created".to_string());
     }
 
-    fn copy_to_clipboard(&mut self) -> Result<()> {
+    fn copy_to_clipboard(&mut self) -> Hatch<()> {
         let output = self.app_state.editor.get_output();
         if output.trim().is_empty() {
             self.app_state.set_error("Nothing to copy".to_string());
@@ -512,8 +513,10 @@ impl<'a> TuiApp<'a> {
         #[cfg(not(target_os = "unknown"))]
         {
             use arboard::Clipboard;
-            let mut clipboard = Clipboard::new()?;
-            clipboard.set_text(output)?;
+            let mut clipboard = Clipboard::new().map_err(|e| yoshi!("Clipboard error: {}", e))?;
+            clipboard
+                .set_text(output)
+                .map_err(|e| yoshi!("Clipboard error: {}", e))?;
             self.app_state.set_status("Copied to clipboard".to_string());
         }
 
@@ -526,12 +529,14 @@ impl<'a> TuiApp<'a> {
         Ok(())
     }
 
-    fn paste_from_clipboard(&mut self) -> Result<()> {
+    fn paste_from_clipboard(&mut self) -> Hatch<()> {
         #[cfg(not(target_os = "unknown"))]
         {
             use arboard::Clipboard;
-            let mut clipboard = Clipboard::new()?;
-            let text = clipboard.get_text()?;
+            let mut clipboard = Clipboard::new().map_err(|e| yoshi!("Clipboard error: {}", e))?;
+            let text = clipboard
+                .get_text()
+                .map_err(|e| yoshi!("Clipboard error: {}", e))?;
             self.app_state.editor.set_input(text);
             self.app_state.file_state.mark_modified();
             self.perform_conversion();
@@ -548,7 +553,7 @@ impl<'a> TuiApp<'a> {
         Ok(())
     }
 
-    fn handle_confirmation_key(&mut self, key: KeyEvent) -> Result<()> {
+    fn handle_confirmation_key(&mut self, key: KeyEvent) -> Hatch<()> {
         use crate::tui::state::app_state::ConfirmationAction;
 
         match key.code {
@@ -588,7 +593,7 @@ impl<'a> TuiApp<'a> {
         Ok(())
     }
 
-    fn handle_file_selection(&mut self) -> Result<()> {
+    fn handle_file_selection(&mut self) -> Hatch<()> {
         let current_dir = self.app_state.file_state.current_dir.clone();
         if let Some(selected_path) = self.file_browser.get_selected_entry(&current_dir) {
             if selected_path.is_dir() {
@@ -641,7 +646,7 @@ impl<'a> TuiApp<'a> {
         Ok(())
     }
 
-    fn handle_file_toggle_selection(&mut self) -> Result<()> {
+    fn handle_file_toggle_selection(&mut self) -> Hatch<()> {
         let current_dir = self.app_state.file_state.current_dir.clone();
         if let Some(selected_path) = self
             .file_browser
@@ -663,7 +668,7 @@ impl<'a> TuiApp<'a> {
         Ok(())
     }
 
-    fn copy_selection_to_clipboard(&mut self) -> Result<()> {
+    fn copy_selection_to_clipboard(&mut self) -> Hatch<()> {
         let text = if self.app_state.editor.is_input_active() {
             self.app_state.editor.input.yank_text()
         } else {
@@ -678,8 +683,10 @@ impl<'a> TuiApp<'a> {
         #[cfg(not(target_os = "unknown"))]
         {
             use arboard::Clipboard;
-            let mut clipboard = Clipboard::new()?;
-            clipboard.set_text(text)?;
+            let mut clipboard = Clipboard::new().map_err(|e| yoshi!("Clipboard error: {}", e))?;
+            clipboard
+                .set_text(text)
+                .map_err(|e| yoshi!("Clipboard error: {}", e))?;
             self.app_state
                 .set_status("Copied selection to clipboard".to_string());
         }
@@ -694,7 +701,7 @@ impl<'a> TuiApp<'a> {
     }
 
     /// Round-trip test: convert output back to input and verify.
-    fn perform_round_trip(&mut self) -> Result<()> {
+    fn perform_round_trip(&mut self) -> Hatch<()> {
         let output = self.app_state.editor.get_output();
         if output.trim().is_empty() {
             self.app_state
@@ -748,7 +755,7 @@ impl<'a> TuiApp<'a> {
     }
 
     /// Handle keyboard input when REPL is active.
-    fn handle_repl_key(&mut self, key: KeyEvent) -> Result<()> {
+    fn handle_repl_key(&mut self, key: KeyEvent) -> Hatch<()> {
         match key.code {
             KeyCode::Esc => {
                 self.app_state.repl.deactivate();
@@ -798,7 +805,7 @@ impl<'a> TuiApp<'a> {
     }
 
     /// Execute parsed REPL command and update state.
-    fn execute_repl_command(&mut self, input: &str) -> Result<()> {
+    fn execute_repl_command(&mut self, input: &str) -> Hatch<()> {
         let cmd = ReplCommand::parse(input)?;
 
         match cmd.name.as_str() {
@@ -825,7 +832,9 @@ impl<'a> TuiApp<'a> {
                             self.app_state.repl.last_result = Some(toon_str);
                         }
                         Err(e) => {
-                            self.app_state.repl.add_error(format!("Encode error: {e}"));
+                            self.app_state
+                                .repl
+                                .add_error(format!("Encode error: {:?}", e));
                         }
                     },
                     Err(e) => {
@@ -860,7 +869,9 @@ impl<'a> TuiApp<'a> {
                         }
                     },
                     Err(e) => {
-                        self.app_state.repl.add_error(format!("Decode error: {e}"));
+                        self.app_state
+                            .repl
+                            .add_error(format!("Decode error: {:?}", e));
                     }
                 }
             }
@@ -896,7 +907,7 @@ impl<'a> TuiApp<'a> {
                                     Err(e) => {
                                         self.app_state
                                             .repl
-                                            .add_error(format!("RUNE eval error: {e}"));
+                                            .add_error(format!("RUNE eval error: {:?}", e));
                                     }
                                 }
                             }
@@ -973,7 +984,7 @@ impl<'a> TuiApp<'a> {
                     Err(e) => {
                         self.app_state
                             .repl
-                            .add_error(format!("RUNE parse error: {e}"));
+                            .add_error(format!("RUNE parse error: {:?}", e));
                     }
                 }
             }

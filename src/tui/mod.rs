@@ -15,13 +15,13 @@ pub mod ui;
 
 use std::io;
 
-use anyhow::Result;
 pub use app::TuiApp;
 use crossterm::{
     execute,
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
 use ratatui::{Terminal, backend::CrosstermBackend};
+use yoshi::error::Result;
 
 /// Initialize and run the TUI application.
 ///

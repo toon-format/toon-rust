@@ -1,14 +1,34 @@
-//! `rune-curs`: The CUDA/RUST bridge for the RUNE ecosystem.
+/* src/mod.rs */
+//!▫~•◦-------------------------------‣
+//! # CUDA/RUST bridge for the RUNE ecosystem.
+//!▫~•◦-------------------------------------------------------------------‣
 //!
-//! This crate provides the low-level substrate for compiling and executing
-//! CUDA kernels, orchestrated by the `hydron` evaluation engine. It is
-//! feature-gated to ensure that projects without a CUDA toolchain can
-//! build without issue.
+//! This module is designed for integration into rune-curs to provide the low-level substrate for compiling and executing CUDA kernels.
 //!
-//! The primary capabilities include:
-//! - A generative **Archetype Engine** for compiling templated CUDA kernels.
-//! - Safe wrappers for CUDA device context, memory buffers, and module loading.
-//! - A clear FFI boundary that is not exposed to the end user.
+//! ### Key Capabilities
+//! - **Archetype Engine:** Compiles templated CUDA kernels on demand.
+//! - **Device Memory Management:** Safe wrappers for CUDA device context and memory buffers.
+//! - **Feature-Gated Design:** Ensures clean builds for non-CUDA targets.
+//!
+//! ### Architectural Notes
+//! This module is designed to work with modules such as `archetypes`, `buffers`, and `kernels`.
+//! Result structures adhere to the Error trait and are compatible
+//! with the system's error handling pipeline.
+//!
+//! ### Example
+//! ```rust
+//! use crate::rune_curs::{CudaError, CudaResult};
+//!
+//! let result: CudaResult<()> = some_cuda_operation();
+//! match result {
+//!     Ok(_) => println!("CUDA operation successful"),
+//!     Err(e) => eprintln!("CUDA error: {}", e),
+//! }
+//! ```
+
+/*▫~•◦------------------------------------------------------------------------------------‣
+ * © 2025 ArcMoon Studios ◦ SPDX-License-Identifier MIT OR Apache-2.0 ◦ Author: Lord Xyn ✶
+ *///•------------------------------------------------------------------------------------‣
 
 use thiserror::Error;
 

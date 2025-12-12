@@ -1,231 +1,1026 @@
+   Compiling quote v1.0.42
    Compiling proc-macro2 v1.0.103
    Compiling unicode-ident v1.0.22
-   Compiling quote v1.0.42
-   Compiling autocfg v1.5.0
-   Compiling windows-link v0.2.1
-   Compiling syn v1.0.109
-   Compiling libm v0.2.15
-   Compiling cfg-if v1.0.4
    Compiling serde_core v1.0.228
-   Compiling rustversion v1.0.22
-   Compiling equivalent v1.0.2
-   Compiling hashbrown v0.16.1
-   Compiling memchr v2.7.6
-   Compiling toml_datetime v0.6.11
-   Compiling winnow v0.5.40
-   Compiling once_cell v1.21.3
-   Compiling bitflags v2.10.0
-   Compiling thiserror v1.0.69
-   Compiling paste v1.0.15
-   Compiling windows-sys v0.61.2
-   Compiling serde v1.0.228
+   Compiling cfg-if v1.0.4
+   Compiling windows-link v0.2.1
+   Compiling libm v0.2.15
+   Compiling autocfg v1.5.0
+   Compiling getrandom v0.3.4
    Compiling parking_lot_core v0.9.12
-   Compiling version_check v0.9.5
-   Compiling winapi v0.3.9
-   Compiling typenum v1.19.0
-   Compiling num-traits v0.2.19
-   Compiling glob v0.3.3
-   Compiling generic-array v0.14.7
-   Compiling indexmap v2.12.1
-   Compiling crc32fast v1.5.0
-   Compiling semver v1.0.27
-   Compiling find_cuda_helper v0.2.0
+   Compiling equivalent v1.0.2
    Compiling smallvec v1.15.1
-   Compiling itoa v1.0.15
-   Compiling simd-adler32 v0.3.7
+   Compiling serde v1.0.228
+   Compiling foldhash v0.2.0
+   Compiling pin-project-lite v0.2.16
+   Compiling zerocopy v0.8.31
+   Compiling hashbrown v0.16.1
+   Compiling windows-sys v0.61.2
+   Compiling once_cell v1.21.3
+   Compiling log v0.4.29
+   Compiling version_check v0.9.5
+   Compiling foldhash v0.1.5
+   Compiling allocator-api2 v0.2.21
+   Compiling futures-core v0.3.31
+   Compiling thiserror v2.0.17
+   Compiling memchr v2.7.6
+   Compiling winnow v0.7.14
+   Compiling unicode-xid v0.2.6
+   Compiling toml_datetime v0.7.3
    Compiling scopeguard v1.2.0
-   Compiling rustc_version v0.4.1
+   Compiling arrayvec v0.7.6
+   Compiling crossbeam-utils v0.8.21
+   Compiling num-traits v0.2.19
+   Compiling indexmap v2.12.1
+   Compiling hashbrown v0.15.5
    Compiling lock_api v0.4.14
-   Compiling wasm-bindgen-shared v0.2.106
-   Compiling regex-syntax v0.8.8
    Compiling shlex v1.3.0
    Compiling find-msvc-tools v0.1.5
-   Compiling lazy_static v1.5.0
-   Compiling unicode-xid v0.2.6
-   Compiling heck v0.5.0
-   Compiling fnv v1.0.7
-   Compiling failure_derive v0.1.8
-   Compiling adler2 v2.0.1
-   Compiling strsim v0.11.1
-   Compiling syn v2.0.111
-   Compiling toml_edit v0.19.15
-   Compiling ident_case v1.0.1
-   Compiling cc v1.2.49
-   Compiling miniz_oxide v0.8.9
+   Compiling futures-io v0.3.31
+   Compiling slab v0.4.11
+   Compiling atomic-waker v1.1.2
+   Compiling cfg_aliases v0.2.1
+   Compiling rand_core v0.9.3
    Compiling parking_lot v0.12.5
-   Compiling chrono v0.4.42
-   Compiling vek v0.15.10
-   Compiling aho-corasick v1.1.4
-   Compiling byteorder v1.5.0
    Compiling unicode-segmentation v1.12.0
-   Compiling thiserror v2.0.17
+   Compiling tracing-core v0.1.35
+   Compiling jobserver v0.1.34
+   Compiling thread_local v1.1.9
+   Compiling parking v2.2.1
+   Compiling either v1.15.0
+   Compiling windows_x86_64_msvc v0.52.6
+   Compiling typeid v1.0.3
+   Compiling fastrand v2.3.0
+   Compiling cc v1.2.49
+   Compiling spin v0.10.0
+   Compiling convert_case v0.10.0
+   Compiling toml_parser v1.0.4
+   Compiling concurrent-queue v2.5.0
+   Compiling slotmap v1.1.1
+   Compiling erased-serde v0.4.9
+   Compiling syn v2.0.111
+   Compiling windows-targets v0.52.6
+   Compiling futures-lite v2.6.1
+   Compiling regex-syntax v0.8.8
+   Compiling async-task v4.7.1
+   Compiling disqualified v1.0.0
+   Compiling base64 v0.22.1
+   Compiling libc v0.2.178
+   Compiling fixedbitset v0.5.7
+   Compiling aho-corasick v1.1.4
+   Compiling bevy_ptr v0.17.3
+   Compiling event-listener v5.4.1
+   Compiling inventory v0.3.21
+   Compiling toml_edit v0.23.9
+   Compiling downcast-rs v2.0.2
+   Compiling thiserror v1.0.69
+   Compiling crossbeam-queue v0.3.12
+   Compiling itertools v0.14.0
+   Compiling event-listener-strategy v0.5.4
+   Compiling raw-window-handle v0.6.2
+   Compiling nonmax v0.5.5
+   Compiling bumpalo v3.19.0
+   Compiling async-channel v2.5.0
+   Compiling lazy_static v1.5.0
+   Compiling arrayref v0.3.9
+   Compiling constant_time_eq v0.3.1
+   Compiling crc32fast v1.5.0
+   Compiling async-executor v1.13.3
+   Compiling rustc-hash v1.1.0
+   Compiling simd-adler32 v0.3.7
+   Compiling adler2 v2.0.1
+   Compiling unicode-width v0.2.0
+   Compiling twox-hash v2.1.2
+   Compiling itoa v1.0.15
+   Compiling windows-link v0.1.3
+   Compiling sharded-slab v0.1.7
+   Compiling miniz_oxide v0.8.9
+   Compiling tracing-log v0.2.0
+   Compiling bit-vec v0.8.0
+   Compiling windows-result v0.3.4
+   Compiling windows-strings v0.4.2
+   Compiling fdeflate v0.3.7
+   Compiling pxfm v0.1.27
+   Compiling windows-result v0.2.0
+   Compiling hexf-parse v0.2.1
+   Compiling blake3 v1.8.2
+   Compiling bit-set v0.8.0
+   Compiling winapi v0.3.9
+   Compiling uuid v1.19.0
+   Compiling typewit v1.14.2
+   Compiling windows-strings v0.1.0
+   Compiling flate2 v1.1.7
+   Compiling crossbeam-channel v0.5.15
+   Compiling byteorder-lite v0.1.0
+   Compiling piper v0.2.4
+   Compiling libloading v0.8.9
+   Compiling regex-automata v0.4.13
+   Compiling const_panic v0.2.15
+   Compiling syn v1.0.109
+   Compiling ash v0.38.0+1.3.281
+   Compiling blocking v1.6.2
+   Compiling windows-threading v0.1.0
+   Compiling async-lock v3.4.1
+   Compiling presser v0.3.1
+   Compiling ordered-float v5.0.0
+   Compiling async-broadcast v0.7.2
+   Compiling profiling v1.0.17
+   Compiling static_assertions v1.1.0
+   Compiling atomicow v1.1.0
+   Compiling renderdoc-sys v1.1.0
+   Compiling range-alloc v0.1.4
+   Compiling litrs v1.0.0
+   Compiling euclid v0.22.11
    Compiling windows_x86_64_msvc v0.53.1
+   Compiling svg_fmt v0.4.5
+   Compiling ruzstd v0.8.2
+   Compiling ryu v1.0.20
+   Compiling rectangle-pack v0.4.2
+   Compiling async-fs v2.2.0
+   Compiling stackfuture v0.3.1
+   Compiling const_soft_float v0.1.4
+   Compiling document-features v0.2.12
+   Compiling byteorder v1.5.0
+   Compiling paste v1.0.15
+   Compiling pkg-config v0.3.32
+   Compiling guillotiere v0.6.2
+   Compiling winapi-util v0.1.11
+   Compiling bevy_macro_utils v0.17.3
+   Compiling ctrlc v3.5.1
+   Compiling nu-ansi-term v0.50.3
+   Compiling encase_derive_impl v0.11.2
+   Compiling synstructure v0.13.2
+   Compiling termcolor v1.4.1
+   Compiling moxcms v0.7.10
+   Compiling rustversion v1.0.22
+   Compiling constgebra v0.1.4
+   Compiling windows-targets v0.53.5
+   Compiling ntapi v0.4.1
+   Compiling codespan-reporting v0.12.0
+   Compiling semver v1.0.27
+   Compiling bytes v1.11.0
+   Compiling windows-sys v0.60.2
+   Compiling bevy_mikktspace v0.17.0-dev
+   Compiling stable_deref_trait v1.2.1
+   Compiling rustc_version v0.4.1
+   Compiling typenum v1.19.0
+   Compiling mio v1.1.1
+   Compiling naga v26.0.0
+   Compiling futures-sink v0.3.31
+   Compiling serde_json v1.0.145
+   Compiling toml_datetime v0.6.11
+   Compiling winnow v0.5.40
+   Compiling approx v0.5.1
+   Compiling generic-array v0.14.7
+   Compiling khronos_api v3.1.0
+   Compiling zstd-sys v2.0.16+zstd.1.5.7
+   Compiling fnv v1.0.7
+   Compiling futures-channel v0.3.31
+   Compiling wgpu-hal v26.0.6
+   Compiling matchers v0.2.0
+   Compiling regex v1.12.2
+   Compiling pin-utils v0.1.0
+   Compiling percent-encoding v2.3.2
+   Compiling bytemuck_derive v1.10.2
+   Compiling serde_derive v1.0.228
+   Compiling zerocopy-derive v0.8.31
+   Compiling thiserror-impl v2.0.17
+   Compiling derive_more-impl v2.1.0
+   Compiling tracing-attributes v0.1.31
+   Compiling variadics_please v1.1.0
+   Compiling assert_type_match v0.1.1
+   Compiling bevy_reflect_derive v0.17.3
+   Compiling thiserror-impl v1.0.69
+   Compiling bevy_ecs_macros v0.17.3
+   Compiling bevy_derive v0.17.3
+   Compiling windows-interface v0.59.3
+   Compiling windows-implement v0.60.2
+   Compiling windows-interface v0.58.0
+   Compiling windows-implement v0.58.0
+   Compiling bevy_asset_macros v0.17.3
+   Compiling encase_derive v0.11.2
+   Compiling zerofrom-derive v0.1.6
+   Compiling windows-core v0.61.2
+   Compiling yoke-derive v0.8.1
+   Compiling bytemuck v1.24.0
+   Compiling socket2 v0.6.1
+   Compiling tokio-macros v2.6.0
+   Compiling windows-core v0.58.0
+   Compiling zerovec-derive v0.11.2
+   Compiling tracing v0.1.43
+   Compiling toml_edit v0.19.15
+   Compiling bitflags v2.10.0
+   Compiling windows-collections v0.2.0
+   Compiling tracing-subscriber v0.3.22
+   Compiling spirv v0.3.0+sdk-1.3.268.0
+   Compiling wgpu-types v26.0.0
+   Compiling png v0.18.0
+   Compiling windows v0.58.0
+   Compiling gpu-alloc-types v0.3.0
+   Compiling gpu-descriptor-types v0.2.0
+   Compiling gpu-alloc v0.6.0
+   Compiling windows-numerics v0.2.0
+   Compiling gpu-descriptor v0.3.2
+   Compiling windows-future v0.2.1
+   Compiling ktx2 v0.4.0
+   Compiling tokio v1.48.0
+   Compiling windows v0.61.3
+   Compiling zerofrom v0.1.6
+   Compiling displaydoc v0.2.5
+   Compiling image v0.25.9
+   Compiling yoke v0.8.1
+   Compiling proc-macro-crate v1.3.1
+   Compiling ppv-lite86 v0.2.21
+   Compiling derive_more v2.1.0
+   Compiling half v2.7.1
+   Compiling zerovec v0.11.5
+   Compiling xml-rs v0.8.28
+   Compiling rand_chacha v0.9.0
+   Compiling smol_str v0.2.2
+   Compiling rand v0.9.2
+   Compiling bevy_platform v0.17.3
+   Compiling petgraph v0.8.3
+   Compiling ron v0.10.1
+   Compiling bevy_utils v0.17.3
+   Compiling bevy_tasks v0.17.3
+   Compiling gl_generator v0.14.0
+   Compiling num_enum_derive v0.5.11
+   Compiling tinystr v0.8.2
+   Compiling futures-macro v0.3.31
+   Compiling glam v0.30.9
+   Compiling rand_distr v0.5.1
+   Compiling http v1.4.0
+   Compiling num-integer v0.1.46
+   Compiling futures-task v0.3.31
+   Compiling writeable v0.6.2
+   Compiling litemap v0.8.1
+   Compiling glutin_wgl_sys v0.6.1
+   Compiling icu_locale_core v2.1.1
+   Compiling potential_utf v0.1.4
+   Compiling zerotrie v0.2.3
+   Compiling crypto-common v0.1.7
+   Compiling block-buffer v0.10.4
+   Compiling wgpu-core v26.0.1
+   Compiling naga v27.0.3
+   Compiling futures-util v0.3.31
+   Compiling tinyvec_macros v0.1.1
+   Compiling khronos-egl v6.0.0
+   Compiling icu_normalizer_data v2.1.1
+   Compiling icu_properties_data v2.1.2
+   Compiling tinyvec v1.10.0
+   Compiling digest v0.10.7
+   Compiling chrono v0.4.42
+   Compiling icu_collections v2.1.1
+   Compiling http-body v1.0.1
+   Compiling num_enum v0.5.11
+   Compiling wgpu-hal v27.0.4
+   Compiling wgpu v26.0.1
+   Compiling cpufeatures v0.2.17
+   Compiling data-encoding v2.9.0
+   Compiling icu_provider v2.1.1
+   Compiling httparse v1.10.1
+   Compiling tokio-util v0.7.17
+   Compiling fory-core v0.13.2
+   Compiling wgpu-types v27.0.1
+   Compiling font-types v0.10.1
+   Compiling ahash v0.8.12
+   Compiling matrixmultiply v0.3.10
+   Compiling try-lock v0.2.5
+   Compiling glow v0.16.0
+   Compiling native-tls v0.2.14
+   Compiling radsort v0.1.1
+   Compiling glob v0.3.3
+   Compiling tower-service v0.3.3
+   Compiling const-fnv1a-hash v1.1.0
+   Compiling zeroize v1.8.2
+   Compiling find_cuda_helper v0.2.0
+   Compiling want v0.3.1
+   Compiling read-fonts v0.35.0
+   Compiling h2 v0.4.12
+   Compiling icu_normalizer v2.1.1
+   Compiling gpu-allocator v0.27.0
+   Compiling bevy_reflect v0.17.3
+   Compiling encase v0.11.2
+   Compiling hexasphere v16.0.0
+   Compiling sha2 v0.10.9
+   Compiling safe_arch v0.7.4
+   Compiling bevy_encase_derive v0.17.3
+   Compiling bevy_render_macros v0.17.3
+   Compiling curve25519-dalek v4.1.3
+   Compiling schannel v0.1.28
+   Compiling num-complex v0.4.6
+   Compiling offset-allocator v0.2.0
+   Compiling wgpu-core v27.0.3
+   Compiling windows-result v0.4.1
+   Compiling windows-strings v0.5.1
+   Compiling anyhow v1.0.100
+   Compiling zstd-safe v7.2.4
+   Compiling naga_oil v0.19.1
+   Compiling snap v1.1.1
+   Compiling rawpointer v0.2.1
+   Compiling camino v1.2.1
+   Compiling env_home v0.1.0
+   Compiling winsafe v0.0.19
+   Compiling windows-registry v0.6.1
+   Compiling wide v0.7.33
+   Compiling icu_properties v2.1.2
+   Compiling hyper v1.8.1
+   Compiling form_urlencoded v1.2.2
+   Compiling fory-derive v0.13.2
+   Compiling yoshi-derive v0.1.0 (X:\_Repos\ams\crates\yoshi-derive)
+   Compiling which v8.0.0
+   Compiling idna_adapter v1.2.1
+   Compiling curve25519-dalek-derive v0.1.1
+   Compiling parity-scale-codec v3.7.5
+   Compiling proc-macro-crate v3.4.0
+   Compiling const_format_proc_macros v0.2.34
+   Compiling wgpu v27.0.1
+   Compiling sync_wrapper v1.0.2
+   Compiling heck v0.5.0
+   Compiling wgpu-core-deps-windows-linux-android v26.0.0
+   Compiling strsim v0.11.1
+   Compiling tower-layer v0.3.3
+   Compiling subtle v2.6.1
+   Compiling unicode-bidi-mirroring v0.2.0
+   Compiling ttf-parser v0.21.1
+   Compiling zeno v0.3.3
+   Compiling yazi v0.2.1
+   Compiling unicode-properties v0.1.4
+   Compiling ttf-parser v0.20.0
+   Compiling memmap2 v0.9.9
+   Compiling unicode-script v0.5.8
+   Compiling bevy_ecs v0.17.3
+   Compiling bevy_math v0.17.3
+   Compiling unicode-ccc v0.2.0
+   Compiling signature v2.2.0
+   Compiling ipnet v2.11.0
+   Compiling failure_derive v0.1.8
+   Compiling utf8_iter v1.0.4
+   Compiling ident_case v1.0.1
+   Compiling ed25519 v2.2.3
+   Compiling idna v1.1.0
+   Compiling darling_core v0.20.11
+   Compiling hyper-util v0.1.19
+   Compiling const_format v0.2.35
+   Compiling skrifa v0.37.0
+   Compiling tower v0.5.2
+   Compiling fontdb v0.16.2
+   Compiling rustybuzz v0.14.1
+   Compiling parity-scale-codec-derive v3.7.5
+   Compiling geoshi v0.1.0 (X:\_Repos\ams\crates\geoshi)
+   Compiling simba v0.9.1
+   Compiling hashbrown v0.14.5
+   Compiling tokio-native-tls v0.3.1
+   Compiling http-body-util v0.1.3
+   Compiling num-rational v0.4.2
+   Compiling cargo-platform v0.1.9
+   Compiling swash v0.2.6
+   Compiling impl-trait-for-tuples v0.2.3
+   Compiling nalgebra-macros v0.3.0
+   Compiling crossterm_winapi v0.9.1
+   Compiling vek v0.15.10
+   Compiling synstructure v0.12.6
+   Compiling wgpu-core-deps-windows-linux-android v27.0.0
+   Compiling sys-locale v0.3.2
+   Compiling unicode-bidi v0.3.18
+   Compiling bevy_color v0.17.3
+   Compiling accesskit v0.21.1
+   Compiling self_cell v1.2.1
+   Compiling rustc-demangle v0.1.26
+   Compiling unicode-linebreak v0.1.5
+   Compiling rangemap v1.7.0
+   Compiling byte-slice-cast v1.2.3
    Compiling regex v0.2.11
    Compiling ucd-util v0.1.10
-   Compiling pkg-config v0.3.32
-   Compiling rustc-demangle v0.1.26
-   Compiling ryu v1.0.20
-   Compiling convert_case v0.10.0
-   Compiling crossterm_winapi v0.9.1
-   Compiling proc-macro-crate v1.3.1
+   Compiling iri-string v0.7.9
+   Compiling nalgebra v0.34.1
+   Compiling regex-syntax v0.5.6
    Compiling backtrace v0.3.76
    Compiling is-terminal v0.4.17
-   Compiling regex-syntax v0.5.6
-   Compiling flate2 v1.1.7
+   Compiling cosmic-text v0.14.2
+   Compiling tower-http v0.6.8
+   Compiling cargo_metadata v0.18.1
+   Compiling hyper-tls v0.6.0
+   Compiling darling_macro v0.20.11
+   Compiling ed25519-dalek v2.2.0
+   Compiling zstd v0.13.3
+   Compiling url v2.5.7
    Compiling thread_local v0.3.6
+   Compiling ndarray v0.16.1
+   Compiling serde_urlencoded v0.7.1
+   Compiling futures-executor v0.3.31
    Compiling cust_raw v0.11.3
+   Compiling rustls-pki-types v1.13.1
    Compiling aho-corasick v0.6.10
-   Compiling allocator-api2 v0.2.21
    Compiling onig_sys v69.9.1
-   Compiling num-integer v0.1.46
-   Compiling approx v0.5.1
-   Compiling synstructure v0.12.6
-   Compiling regex-automata v0.4.13
+   Compiling lz4_flex v0.12.0
+   Compiling csv-core v0.1.13
+   Compiling encoding_rs v0.8.35
    Compiling ucd-trie v0.1.7
-   Compiling anstyle v1.0.13
-   Compiling powerfmt v0.2.0
-   Compiling libc v0.2.178
-   Compiling utf8-ranges v1.0.5
+   Compiling mime v0.3.17
    Compiling semver-parser v0.7.0
-   Compiling foldhash v0.1.5
-   Compiling once_cell_polyfill v1.70.2
-   Compiling instability v0.3.10
-   Compiling bytemuck v1.24.0
+   Compiling powerfmt v0.2.0
+   Compiling utf8-ranges v1.0.5
    Compiling utf8parse v0.2.2
-   Compiling either v1.15.0
-   Compiling semver v0.9.0
+   Compiling instability v0.3.10
+   Compiling hex v0.4.3
+   Compiling anstyle v1.0.13
+   Compiling once_cell_polyfill v1.70.2
    Compiling anstyle-parse v0.2.7
-   Compiling hashbrown v0.15.5
-   Compiling anstyle-wincon v3.0.11
-   Compiling toml v0.4.10
-   Compiling colored v1.9.4
+   Compiling semver v0.9.0
+   Compiling xuid v0.1.0 (X:\_Repos\ams\crates\xuid)
    Compiling deranged v0.5.5
-   Compiling itertools v0.13.0
+   Compiling anstyle-wincon v3.0.11
    Compiling pest v2.8.4
-   Compiling glam v0.20.5
-   Compiling pxfm v0.1.27
-   Compiling block-buffer v0.10.4
-   Compiling num_enum_derive v0.5.11
-   Compiling cust_derive v0.2.0
-   Compiling crypto-common v0.1.7
-   Compiling castaway v0.2.4
-   Compiling fdeflate v0.3.7
-   Compiling darling_core v0.20.11
+   Compiling bevy_app v0.17.3
+   Compiling reqwest v0.12.25
+   Compiling csv v1.4.0
+   Compiling bevy_asset v0.17.3
+   Compiling bevy_log v0.17.3
+   Compiling bevy_input v0.17.3
+   Compiling bevy_transform v0.17.3
+   Compiling bevy_time v0.17.3
+   Compiling colored v1.9.4
+   Compiling futures v0.3.31
+   Compiling darling v0.20.11
+   Compiling toml v0.4.10
    Compiling failure v0.1.8
-   Compiling cust v0.3.2
-   Compiling anstyle-query v1.1.5
-   Compiling winapi-util v0.1.11
-   Compiling unicode-width v0.1.14
-   Compiling base64 v0.22.1
-   Compiling mint v0.5.9
-   Compiling anyhow v1.0.100
-   Compiling num-conv v0.1.0
-   Compiling litrs v1.0.0
-   Compiling num_enum v0.5.11
-   Compiling is_terminal_polyfill v1.70.2
-   Compiling time-core v0.1.6
-   Compiling unicode-width v0.2.0
-   Compiling static_assertions v1.1.0
-   Compiling serde_json v1.0.145
-   Compiling indoc v2.0.7
-   Compiling colorchoice v1.0.4
-   Compiling bit-vec v0.6.3
-   Compiling anstream v0.6.21
-   Compiling compact_str v0.8.1
-   Compiling ptx-builder v0.5.3
-   Compiling time v0.3.44
-   Compiling unicode-truncate v1.1.0
-   Compiling bit-set v0.5.3
-   Compiling document-features v0.2.12
-   Compiling same-file v1.0.6
-   Compiling pest_meta v2.8.4
-   Compiling png v0.18.0
-   Compiling digest v0.10.7
-   Compiling lru v0.12.5
-   Compiling windows-targets v0.53.5
-   Compiling crossterm v0.28.1
-   Compiling quick-xml v0.38.4
-   Compiling clap_lex v0.7.6
-   Compiling byteorder-lite v0.1.0
-   Compiling bitflags v1.3.2
-   Compiling cassowary v0.3.0
-   Compiling cust_core v0.1.1
-   Compiling cpufeatures v0.2.17
-   Compiling thiserror-impl v1.0.69
-   Compiling serde_derive v1.0.228
-   Compiling thiserror-impl v2.0.17
+   Compiling dashmap v6.1.0
    Compiling strum_macros v0.26.4
-   Compiling derive_more-impl v2.1.0
+   Compiling cust v0.3.2
+   Compiling cust_derive v0.2.0
+   Compiling castaway v0.2.4
+   Compiling anstyle-query v1.1.5
+   Compiling glam v0.20.5
+   Compiling windows-result v0.1.2
+   Compiling itertools v0.13.0
+   Compiling bevy_image v0.17.3
+   Compiling bevy_shader v0.17.3
+   Compiling hostname v0.4.2
+   Compiling colorchoice v1.0.4
+   Compiling time-core v0.1.6
+   Compiling wasm-bindgen-shared v0.2.106
+   Compiling unicode-width v0.1.14
+   Compiling indoc v2.0.7
+   Compiling bit-vec v0.6.3
+   Compiling mint v0.5.9
+   Compiling is_terminal_polyfill v1.70.2
+   Compiling num-conv v0.1.0
+   Compiling anstream v0.6.21
+   Compiling time v0.3.44
+   Compiling strum v0.26.3
+   Compiling bit-set v0.5.3
+   Compiling windows-core v0.54.0
+   Compiling cust_core v0.1.1
+   Compiling compact_str v0.8.1
+   Compiling bevy_mesh v0.17.3
+   Compiling bevy_window v0.17.3
+   Compiling bevy_text v0.17.3
+   Compiling unicode-truncate v1.1.0
+   Compiling ptx-builder v0.5.3
+   Compiling pest_meta v2.8.4
+   Compiling crossterm v0.28.1
+   Compiling fory v0.13.2
+   Compiling dirs-sys v0.3.7
+   Compiling same-file v1.0.6
+   Compiling winit v0.30.12
+   Compiling lru v0.12.5
+   Compiling quick-xml v0.38.4
+   Compiling bitflags v1.3.2
+   Compiling cpal v0.15.3
    Compiling error-code v3.3.2
+   Compiling clap_lex v0.7.6
+   Compiling sysinfo v0.37.2
    Compiling linked-hash-map v0.5.6
-   Compiling pest_generator v2.8.4
+   Compiling cassowary v0.3.0
+   Compiling inflections v1.1.1
+   Compiling ratatui v0.29.0
+   Compiling plist v1.8.0
    Compiling yaml-rust v0.4.5
+   Compiling clap_builder v4.5.53
+   Compiling gltf-derive v1.4.1
    Compiling clipboard-win v5.4.1
-   Compiling sha2 v0.10.9
-   Compiling bstr v1.12.1
-   Compiling derive_more v2.1.0
-   Compiling fancy-regex v0.13.0
-   Compiling regex v1.12.2
+   Compiling bevy_camera v0.17.3
+   Compiling bevy_diagnostic v0.17.3
+   Compiling yoshi-std v0.1.0 (X:\_Repos\ams\crates\yoshi-std)
+   Compiling onig v6.5.1
+   Compiling pest_generator v2.8.4
+   Compiling walkdir v2.5.0
+   Compiling dirs v4.0.0
+   Compiling hydron-core v0.0.1 (X:\_Repos\toon-rune\hydron-core)
    Compiling rune-format v0.0.1 (X:\_Repos\toon-rune)
+   Compiling windows v0.54.0
+   Compiling fancy-regex v0.13.0
+   Compiling bevy_a11y v0.17.3
+   Compiling accesskit_consumer v0.31.0
+   Compiling bevy_render v0.17.3
+   Compiling bevy_picking v0.17.3
+   Compiling bevy_light v0.17.3
    Compiling crossterm v0.29.0
    Compiling clap_derive v4.5.49
-   Compiling clap_builder v4.5.53
-   Compiling darling_macro v0.20.11
-   Compiling windows-sys v0.60.2
-   Compiling walkdir v2.5.0
-   Compiling fory-core v0.13.2
-   Compiling darling v0.20.11
-   Compiling bumpalo v3.19.0
-   Compiling log v0.4.29
-   Compiling strum v0.26.3
-   Compiling rustc-hash v1.1.0
-   Compiling wasm-bindgen-macro-support v0.2.106
-   Compiling tiktoken-rs v0.9.1
-   Compiling comfy-table v7.2.1
-   Compiling rune-curs v0.0.1 (X:\_Repos\toon-rune\rune-curs)
-   Compiling ratatui v0.29.0
-   Compiling pest_derive v2.8.4
-   Compiling wasm-bindgen v0.2.106
-   Compiling moxcms v0.7.10
-   Compiling onig v6.5.1
-   Compiling plist v1.8.0
+   Compiling yoshi v0.1.0 (X:\_Repos\ams\crates\yoshi)
    Compiling bincode v1.3.3
+   Compiling bstr v1.12.1
+   Compiling ogg v0.8.0
+   Compiling windows-sys v0.52.0
+   Compiling dpi v0.1.2
+   Compiling bevy_sprite v0.17.3
+   Compiling cursor-icon v1.2.0
+   Compiling grid v0.15.0
+   Compiling dasp_sample v0.11.0
+   Compiling gilrs v0.11.0
+   Compiling taffy v0.7.7
+   Compiling tiktoken-rs v0.9.1
    Compiling clap v4.5.53
-   Compiling rune-hex v0.0.1 (X:\_Repos\toon-rune\rune-hex)
-   Compiling wasm-bindgen-macro v0.2.106
-   Compiling fory-derive v0.13.2
+   Compiling lewton v0.10.2
    Compiling syntect v5.3.0
+   Compiling rune-gsv v0.1.0 (X:\_Repos\toon-rune\rune-gsv)
+   Compiling comfy-table v7.2.1
    Compiling tui-textarea v0.7.0
-   Compiling fory v0.13.2
-   Compiling hydron-core v0.0.1 (X:\_Repos\toon-rune\hydron-core)
-   Compiling image v0.25.9
+   Compiling accesskit_windows v0.29.2
+   Compiling pest_derive v2.8.4
+   Compiling rune-curs v0.0.1 (X:\_Repos\toon-rune\rune-curs)
    Compiling arboard v3.6.1
+   Compiling gltf-json v1.4.1
+   Compiling gilrs-core v0.6.6
+   Compiling rune-hex v0.0.1 (X:\_Repos\toon-rune\rune-hex)
+   Compiling bevy_animation_macros v0.17.3
+   Compiling vec_map v0.8.2
+   Compiling bevy_animation v0.17.3
+   Compiling bevy_ui v0.17.3
+   Compiling bevy_input_focus v0.17.3
+   Compiling bevy_scene v0.17.3
+   Compiling bevy_gizmos_macros v0.17.3
+   Compiling accesskit_winit v0.29.2
+   Compiling gltf v1.4.1
+   Compiling bevy_state_macros v0.17.3
+   Compiling lz4-sys v1.11.1+lz4-1.10.0
+   Compiling rodio v0.20.1
+   Compiling alloc-no-stdlib v2.0.4
+   Compiling zstd-safe v5.0.2+zstd.1.5.2
+   Compiling alloc-stdlib v0.2.2
+   Compiling bevy_state v0.17.3
+   Compiling bevy_winit v0.17.3
+   Compiling bevy_gilrs v0.17.3
+   Compiling bevy_audio v0.17.3
+   Compiling wasm-bindgen-macro-support v0.2.106
+   Compiling brotli-decompressor v2.5.1
+   Compiling wasm-bindgen v0.2.106
+   Compiling arrow2 v0.18.0
+   Compiling memchr v1.0.2
+   Compiling fallible-streaming-iterator v0.1.9
+   Compiling brotli v3.5.0
+   Compiling streaming-decompression v0.1.2
+   Compiling nom v3.2.1
+   Compiling wasm-bindgen-macro v0.2.106
+   Compiling lz4 v1.28.1
+   Compiling zstd v0.11.2+zstd.1.5.2
+   Compiling rmp v0.8.14
+   Compiling serde_spanned v1.0.3
+   Compiling dyn-clone v1.0.20
+   Compiling simdutf8 v0.1.5
+   Compiling xxhash-rust v0.8.15
+   Compiling ethnum v1.5.2
+   Compiling toml_writer v1.0.4
+   Compiling hash_hasher v2.0.4
+   Compiling seq-macro v0.3.6
+   Compiling parquet-format-safe v0.2.4
+   Compiling bevy_core_pipeline v0.17.3
+   Compiling unsafe-libyaml v0.2.11
+   Compiling foreign_vec v0.1.0
+   Compiling toml v0.9.8
+   Compiling rmp-serde v1.3.0
+   Compiling serde_yaml_ng v0.10.0
+   Compiling parquet2 v0.16.3
+   Compiling npy v0.4.0
    Compiling hydron-ffi v0.0.1 (X:\_Repos\toon-rune\hydron-ffi)
-error[E0433]: failed to resolve: use of unresolved module or unlinked crate `gf8`
-   --> src\rune\hydron\values.rs:560:41
-    |
-560 |                     let result_coords = gf8::gf8_add_simd(a.coords(), b.coords());
-    |                                         ^^^ use of unresolved module or unlinked crate `gf8`
-    |
-    = help: if you wanted to use a crate named `gf8`, use `cargo add gf8` to add it to your `Cargo.toml`
-help: consider importing this module
-    |
-13  + use hydron_core::gf8;
-    |
+   Compiling rune-cros v0.1.0 (X:\_Repos\toon-rune\rune-cros)
+error: unused import: `buck`
+ --> rune-cros\src\mpak.rs:1:21
+  |
+1 | use yoshi::{Result, buck};
+  |                     ^^^^
+  |
+  = note: `-D unused-imports` implied by `-D warnings`
+  = help: to override `-D warnings` add `#[allow(unused_imports)]`
 
-error[E0433]: failed to resolve: use of undeclared type `Gf8`
-   --> src\rune\hydron\values.rs:561:35
-    |
-561 |                     Ok(Value::Gf8(Gf8::new(result_coords)))
-    |                                   ^^^ use of undeclared type `Gf8`
-    |
-help: consider importing one of these structs
-    |
-13  + use crate::rune::hydron::Gf8;
-    |
-13  + use hydron_core::Gf8;
-    |
+error: unused import: `buck`
+ --> rune-cros\src\toml.rs:1:21
+  |
+1 | use yoshi::{Result, buck};
+  |                     ^^^^
 
-For more information about this error, try `rustc --explain E0433`.
-error: could not compile `rune-format` (lib) due to 2 previous errors
+error: unused import: `buck`
+ --> rune-cros\src\yaml.rs:1:21
+  |
+1 | use yoshi::{Result, buck};
+  |                     ^^^^
+
+error[E0277]: `?` couldn't convert the error to `YoshiError`
+ --> rune-cros\src\mpak.rs:7:59
+  |
+6 | pub fn mpak_to_json_string(bytes: &[u8]) -> Result<String> {
+  |                                             -------------- expected `YoshiError` because of this
+7 |     let json_val: JsonValue = rmp_serde::from_slice(bytes)?;
+  |                               ----------------------------^ the trait `From<rmp_serde::decode::Error>` is not implemented for `YoshiError`
+  |                               |
+  |                               this can't be annotated with `?` because it has type `Result<_, rmp_serde::decode::Error>`
+  |
+  = note: the question mark operation (`?`) implicitly performs a conversion on the error value using the `From` trait
+  = help: the following other types implement trait `From<T>`:
+            `YoshiError` implements `From<&str>`
+            `YoshiError` implements `From<Box<dyn std::error::Error + Send + Sync>>`
+            `YoshiError` implements `From<FromUtf8Error>`
+            `YoshiError` implements `From<ParseFloatError>`
+            `YoshiError` implements `From<ParseIntError>`
+            `YoshiError` implements `From<YoError>`
+            `YoshiError` implements `From<csv::error::Error>`
+            `YoshiError` implements `From<ndarray::error::ShapeError>`
+          and 5 others
+
+error[E0277]: `?` couldn't convert the error to `YoshiError`
+  --> rune-cros\src\mpak.rs:20:43
+   |
+17 | pub fn json_string_to_mpak(json: &str) -> Result<Vec<u8>> {
+   |                                           --------------- expected `YoshiError` because of this
+...
+20 |     rmp_serde::encode::write(&mut buf, &j)?; // ok; explicit write-supported API
+   |     --------------------------------------^ the trait `From<rmp_serde::encode::Error>` is not implemented for `YoshiError`
+   |     |
+   |     this can't be annotated with `?` because it has type `Result<_, rmp_serde::encode::Error>`
+   |
+   = note: the question mark operation (`?`) implicitly performs a conversion on the error value using the `From` trait
+   = help: the following other types implement trait `From<T>`:
+             `YoshiError` implements `From<&str>`
+             `YoshiError` implements `From<Box<dyn std::error::Error + Send + Sync>>`
+             `YoshiError` implements `From<FromUtf8Error>`
+             `YoshiError` implements `From<ParseFloatError>`
+             `YoshiError` implements `From<ParseIntError>`
+             `YoshiError` implements `From<YoError>`
+             `YoshiError` implements `From<csv::error::Error>`
+             `YoshiError` implements `From<ndarray::error::ShapeError>`
+           and 5 others
+
+error[E0277]: `?` couldn't convert the error to `YoshiError`
+  --> rune-cros\src\mpak.rs:30:59
+   |
+29 | pub fn mpak_to_rune_string(bytes: &[u8]) -> Result<String> {
+   |                                             -------------- expected `YoshiError` because of this
+30 |     let json_val: JsonValue = rmp_serde::from_slice(bytes)?;
+   |                               ----------------------------^ the trait `From<rmp_serde::decode::Error>` is not implemented for `YoshiError`
+   |                               |
+   |                               this can't be annotated with `?` because it has type `Result<_, rmp_serde::decode::Error>`
+   |
+   = note: the question mark operation (`?`) implicitly performs a conversion on the error value using the `From` trait
+   = help: the following other types implement trait `From<T>`:
+             `YoshiError` implements `From<&str>`
+             `YoshiError` implements `From<Box<dyn std::error::Error + Send + Sync>>`
+             `YoshiError` implements `From<FromUtf8Error>`
+             `YoshiError` implements `From<ParseFloatError>`
+             `YoshiError` implements `From<ParseIntError>`
+             `YoshiError` implements `From<YoError>`
+             `YoshiError` implements `From<csv::error::Error>`
+             `YoshiError` implements `From<ndarray::error::ShapeError>`
+           and 5 others
+
+error[E0277]: `?` couldn't convert the error to `YoshiError`
+  --> rune-cros\src\mpak.rs:31:99
+   |
+29 | pub fn mpak_to_rune_string(bytes: &[u8]) -> Result<String> {
+   |                                             -------------- expected `YoshiError` because of this
+30 |     let json_val: JsonValue = rmp_serde::from_slice(bytes)?;
+31 |     let rune = rune_format::encode_object(json_val, &rune_format::types::EncodeOptions::default())?;
+   |                -----------------------------------------------------------------------------------^ the trait `From<ToonError>` is not implemented for `YoshiError`
+   |                |
+   |                this can't be annotated with `?` because it has type `Result<_, ToonError>`
+   |
+   = note: the question mark operation (`?`) implicitly performs a conversion on the error value using the `From` trait
+   = help: the following other types implement trait `From<T>`:
+             `YoshiError` implements `From<&str>`
+             `YoshiError` implements `From<Box<dyn std::error::Error + Send + Sync>>`
+             `YoshiError` implements `From<FromUtf8Error>`
+             `YoshiError` implements `From<ParseFloatError>`
+             `YoshiError` implements `From<ParseIntError>`
+             `YoshiError` implements `From<YoError>`
+             `YoshiError` implements `From<csv::error::Error>`
+             `YoshiError` implements `From<ndarray::error::ShapeError>`
+           and 5 others
+
+error[E0277]: `?` couldn't convert the error to `YoshiError`
+  --> rune-cros\src\mpak.rs:38:65
+   |
+37 | pub fn rune_string_to_mpak(rune: &str) -> Result<Vec<u8>> {
+   |                                           --------------- expected `YoshiError` because of this
+38 |     let v: serde_json::Value = rune_format::decode_default(rune)?;
+   |                                ---------------------------------^ the trait `From<ToonError>` is not implemented for `YoshiError`
+   |                                |
+   |                                this can't be annotated with `?` because it has type `Result<_, ToonError>`
+   |
+   = note: the question mark operation (`?`) implicitly performs a conversion on the error value using the `From` trait
+   = help: the following other types implement trait `From<T>`:
+             `YoshiError` implements `From<&str>`
+             `YoshiError` implements `From<Box<dyn std::error::Error + Send + Sync>>`
+             `YoshiError` implements `From<FromUtf8Error>`
+             `YoshiError` implements `From<ParseFloatError>`
+             `YoshiError` implements `From<ParseIntError>`
+             `YoshiError` implements `From<YoError>`
+             `YoshiError` implements `From<csv::error::Error>`
+             `YoshiError` implements `From<ndarray::error::ShapeError>`
+           and 5 others
+
+error[E0277]: `?` couldn't convert the error to `YoshiError`
+  --> rune-cros\src\mpak.rs:41:91
+   |
+37 | pub fn rune_string_to_mpak(rune: &str) -> Result<Vec<u8>> {
+   |                                           --------------- expected `YoshiError` because of this
+...
+41 |     rmp_serde::encode::write(&mut buf, &serde_json::from_str::<serde_json::Value>(&json)?)?;
+   |     --------------------------------------------------------------------------------------^ the trait `From<rmp_serde::encode::Error>` is not implemented for `YoshiError`
+   |     |
+   |     this can't be annotated with `?` because it has type `Result<_, rmp_serde::encode::Error>`
+   |
+   = note: the question mark operation (`?`) implicitly performs a conversion on the error value using the `From` trait
+   = help: the following other types implement trait `From<T>`:
+             `YoshiError` implements `From<&str>`
+             `YoshiError` implements `From<Box<dyn std::error::Error + Send + Sync>>`
+             `YoshiError` implements `From<FromUtf8Error>`
+             `YoshiError` implements `From<ParseFloatError>`
+             `YoshiError` implements `From<ParseIntError>`
+             `YoshiError` implements `From<YoError>`
+             `YoshiError` implements `From<csv::error::Error>`
+             `YoshiError` implements `From<ndarray::error::ShapeError>`
+           and 5 others
+
+error[E0277]: `?` couldn't convert the error to `YoshiError`
+ --> rune-cros\src\toml.rs:6:50
+  |
+5 | pub fn toml_to_json_string(toml_str: &str) -> Result<String> {
+  |                                               -------------- expected `YoshiError` because of this
+6 |     let v: toml::Value = toml::from_str(toml_str)?;
+  |                          ------------------------^ the trait `From<toml::de::Error>` is not implemented for `YoshiError`
+  |                          |
+  |                          this can't be annotated with `?` because it has type `Result<_, toml::de::Error>`
+  |
+  = note: the question mark operation (`?`) implicitly performs a conversion on the error value using the `From` trait
+  = help: the following other types implement trait `From<T>`:
+            `YoshiError` implements `From<&str>`
+            `YoshiError` implements `From<Box<dyn std::error::Error + Send + Sync>>`
+            `YoshiError` implements `From<FromUtf8Error>`
+            `YoshiError` implements `From<ParseFloatError>`
+            `YoshiError` implements `From<ParseIntError>`
+            `YoshiError` implements `From<YoError>`
+            `YoshiError` implements `From<csv::error::Error>`
+            `YoshiError` implements `From<ndarray::error::ShapeError>`
+          and 5 others
+
+error[E0277]: `?` couldn't convert the error to `YoshiError`
+  --> rune-cros\src\toml.rs:18:39
+   |
+16 | pub fn json_to_toml_string(json: &str) -> Result<String> {
+   |                                           -------------- expected `YoshiError` because of this
+17 |     let j: JsonValue = serde_json::from_str(json)?;
+18 |     let t = toml::to_string_pretty(&j)?;
+   |             --------------------------^ the trait `From<toml::ser::Error>` is not implemented for `YoshiError`
+   |             |
+   |             this can't be annotated with `?` because it has type `Result<_, toml::ser::Error>`
+   |
+   = note: the question mark operation (`?`) implicitly performs a conversion on the error value using the `From` trait
+   = help: the following other types implement trait `From<T>`:
+             `YoshiError` implements `From<&str>`
+             `YoshiError` implements `From<Box<dyn std::error::Error + Send + Sync>>`
+             `YoshiError` implements `From<FromUtf8Error>`
+             `YoshiError` implements `From<ParseFloatError>`
+             `YoshiError` implements `From<ParseIntError>`
+             `YoshiError` implements `From<YoError>`
+             `YoshiError` implements `From<csv::error::Error>`
+             `YoshiError` implements `From<ndarray::error::ShapeError>`
+           and 5 others
+
+error[E0277]: `?` couldn't convert the error to `YoshiError`
+  --> rune-cros\src\toml.rs:27:46
+   |
+26 | pub fn toml_to_rune_string(toml: &str) -> Result<String> {
+   |                                           -------------- expected `YoshiError` because of this
+27 |     let v: toml::Value = toml::from_str(toml)?;
+   |                          --------------------^ the trait `From<toml::de::Error>` is not implemented for `YoshiError`
+   |                          |
+   |                          this can't be annotated with `?` because it has type `Result<_, toml::de::Error>`
+   |
+   = note: the question mark operation (`?`) implicitly performs a conversion on the error value using the `From` trait
+   = help: the following other types implement trait `From<T>`:
+             `YoshiError` implements `From<&str>`
+             `YoshiError` implements `From<Box<dyn std::error::Error + Send + Sync>>`
+             `YoshiError` implements `From<FromUtf8Error>`
+             `YoshiError` implements `From<ParseFloatError>`
+             `YoshiError` implements `From<ParseIntError>`
+             `YoshiError` implements `From<YoError>`
+             `YoshiError` implements `From<csv::error::Error>`
+             `YoshiError` implements `From<ndarray::error::ShapeError>`
+           and 5 others
+
+error[E0277]: `?` couldn't convert the error to `YoshiError`
+  --> rune-cros\src\toml.rs:29:99
+   |
+26 | pub fn toml_to_rune_string(toml: &str) -> Result<String> {
+   |                                           -------------- expected `YoshiError` because of this
+...
+29 |     let rune = rune_format::encode_object(json_val, &rune_format::types::EncodeOptions::default())?;
+   |                -----------------------------------------------------------------------------------^ the trait `From<ToonError>` is not implemented for `YoshiError`
+   |                |
+   |                this can't be annotated with `?` because it has type `Result<_, ToonError>`
+   |
+   = note: the question mark operation (`?`) implicitly performs a conversion on the error value using the `From` trait
+   = help: the following other types implement trait `From<T>`:
+             `YoshiError` implements `From<&str>`
+             `YoshiError` implements `From<Box<dyn std::error::Error + Send + Sync>>`
+             `YoshiError` implements `From<FromUtf8Error>`
+             `YoshiError` implements `From<ParseFloatError>`
+             `YoshiError` implements `From<ParseIntError>`
+             `YoshiError` implements `From<YoError>`
+             `YoshiError` implements `From<csv::error::Error>`
+             `YoshiError` implements `From<ndarray::error::ShapeError>`
+           and 5 others
+
+error[E0277]: `?` couldn't convert the error to `YoshiError`
+  --> rune-cros\src\toml.rs:35:65
+   |
+34 | pub fn rune_string_to_toml(rune: &str) -> Result<String> {
+   |                                           -------------- expected `YoshiError` because of this
+35 |     let v: serde_json::Value = rune_format::decode_default(rune)?;
+   |                                ---------------------------------^ the trait `From<ToonError>` is not implemented for `YoshiError`
+   |                                |
+   |                                this can't be annotated with `?` because it has type `Result<_, ToonError>`
+   |
+   = note: the question mark operation (`?`) implicitly performs a conversion on the error value using the `From` trait
+   = help: the following other types implement trait `From<T>`:
+             `YoshiError` implements `From<&str>`
+             `YoshiError` implements `From<Box<dyn std::error::Error + Send + Sync>>`
+             `YoshiError` implements `From<FromUtf8Error>`
+             `YoshiError` implements `From<ParseFloatError>`
+             `YoshiError` implements `From<ParseIntError>`
+             `YoshiError` implements `From<YoError>`
+             `YoshiError` implements `From<csv::error::Error>`
+             `YoshiError` implements `From<ndarray::error::ShapeError>`
+           and 5 others
+
+error[E0277]: `?` couldn't convert the error to `YoshiError`
+  --> rune-cros\src\toml.rs:36:39
+   |
+34 | pub fn rune_string_to_toml(rune: &str) -> Result<String> {
+   |                                           -------------- expected `YoshiError` because of this
+35 |     let v: serde_json::Value = rune_format::decode_default(rune)?;
+36 |     let t = toml::to_string_pretty(&v)?;
+   |             --------------------------^ the trait `From<toml::ser::Error>` is not implemented for `YoshiError`
+   |             |
+   |             this can't be annotated with `?` because it has type `Result<_, toml::ser::Error>`
+   |
+   = note: the question mark operation (`?`) implicitly performs a conversion on the error value using the `From` trait
+   = help: the following other types implement trait `From<T>`:
+             `YoshiError` implements `From<&str>`
+             `YoshiError` implements `From<Box<dyn std::error::Error + Send + Sync>>`
+             `YoshiError` implements `From<FromUtf8Error>`
+             `YoshiError` implements `From<ParseFloatError>`
+             `YoshiError` implements `From<ParseIntError>`
+             `YoshiError` implements `From<YoError>`
+             `YoshiError` implements `From<csv::error::Error>`
+             `YoshiError` implements `From<ndarray::error::ShapeError>`
+           and 5 others
+
+error[E0277]: `?` couldn't convert the error to `YoshiError`
+ --> rune-cros\src\yaml.rs:7:60
+  |
+6 | pub fn yaml_to_json_string(yaml: &str) -> Result<String> {
+  |                                           -------------- expected `YoshiError` because of this
+7 |     let json_val: JsonValue = serde_yaml_ng::from_str(yaml)?;
+  |                               -----------------------------^ the trait `From<serde_yaml_ng::Error>` is not implemented for `YoshiError`
+  |                               |
+  |                               this can't be annotated with `?` because it has type `Result<_, serde_yaml_ng::Error>`
+  |
+  = note: the question mark operation (`?`) implicitly performs a conversion on the error value using the `From` trait
+  = help: the following other types implement trait `From<T>`:
+            `YoshiError` implements `From<&str>`
+            `YoshiError` implements `From<Box<dyn std::error::Error + Send + Sync>>`
+            `YoshiError` implements `From<FromUtf8Error>`
+            `YoshiError` implements `From<ParseFloatError>`
+            `YoshiError` implements `From<ParseIntError>`
+            `YoshiError` implements `From<YoError>`
+            `YoshiError` implements `From<csv::error::Error>`
+            `YoshiError` implements `From<ndarray::error::ShapeError>`
+          and 5 others
+
+error[E0277]: `?` couldn't convert the error to `YoshiError`
+  --> rune-cros\src\yaml.rs:19:41
+   |
+17 | pub fn json_string_to_yaml(json: &str) -> Result<String> {
+   |                                           -------------- expected `YoshiError` because of this
+18 |     let j: JsonValue = serde_json::from_str(json)?;
+19 |     let s = serde_yaml_ng::to_string(&j)?;
+   |             ----------------------------^ the trait `From<serde_yaml_ng::Error>` is not implemented for `YoshiError`
+   |             |
+   |             this can't be annotated with `?` because it has type `Result<_, serde_yaml_ng::Error>`
+   |
+   = note: the question mark operation (`?`) implicitly performs a conversion on the error value using the `From` trait
+   = help: the following other types implement trait `From<T>`:
+             `YoshiError` implements `From<&str>`
+             `YoshiError` implements `From<Box<dyn std::error::Error + Send + Sync>>`
+             `YoshiError` implements `From<FromUtf8Error>`
+             `YoshiError` implements `From<ParseFloatError>`
+             `YoshiError` implements `From<ParseIntError>`
+             `YoshiError` implements `From<YoError>`
+             `YoshiError` implements `From<csv::error::Error>`
+             `YoshiError` implements `From<ndarray::error::ShapeError>`
+           and 5 others
+
+error[E0277]: `?` couldn't convert the error to `YoshiError`
+  --> rune-cros\src\yaml.rs:25:60
+   |
+24 | pub fn yaml_to_rune_string(yaml: &str) -> Result<String> {
+   |                                           -------------- expected `YoshiError` because of this
+25 |     let json_val: JsonValue = serde_yaml_ng::from_str(yaml)?;
+   |                               -----------------------------^ the trait `From<serde_yaml_ng::Error>` is not implemented for `YoshiError`
+   |                               |
+   |                               this can't be annotated with `?` because it has type `Result<_, serde_yaml_ng::Error>`
+   |
+   = note: the question mark operation (`?`) implicitly performs a conversion on the error value using the `From` trait
+   = help: the following other types implement trait `From<T>`:
+             `YoshiError` implements `From<&str>`
+             `YoshiError` implements `From<Box<dyn std::error::Error + Send + Sync>>`
+             `YoshiError` implements `From<FromUtf8Error>`
+             `YoshiError` implements `From<ParseFloatError>`
+             `YoshiError` implements `From<ParseIntError>`
+             `YoshiError` implements `From<YoError>`
+             `YoshiError` implements `From<csv::error::Error>`
+             `YoshiError` implements `From<ndarray::error::ShapeError>`
+           and 5 others
+
+error[E0277]: `?` couldn't convert the error to `YoshiError`
+  --> rune-cros\src\yaml.rs:27:99
+   |
+24 | pub fn yaml_to_rune_string(yaml: &str) -> Result<String> {
+   |                                           -------------- expected `YoshiError` because of this
+...
+27 |     let rune = rune_format::encode_object(json_val, &rune_format::types::EncodeOptions::default())?;
+   |                -----------------------------------------------------------------------------------^ the trait `From<ToonError>` is not implemented for `YoshiError`
+   |                |
+   |                this can't be annotated with `?` because it has type `Result<_, ToonError>`
+   |
+   = note: the question mark operation (`?`) implicitly performs a conversion on the error value using the `From` trait
+   = help: the following other types implement trait `From<T>`:
+             `YoshiError` implements `From<&str>`
+             `YoshiError` implements `From<Box<dyn std::error::Error + Send + Sync>>`
+             `YoshiError` implements `From<FromUtf8Error>`
+             `YoshiError` implements `From<ParseFloatError>`
+             `YoshiError` implements `From<ParseIntError>`
+             `YoshiError` implements `From<YoError>`
+             `YoshiError` implements `From<csv::error::Error>`
+             `YoshiError` implements `From<ndarray::error::ShapeError>`
+           and 5 others
+
+error[E0277]: `?` couldn't convert the error to `YoshiError`
+  --> rune-cros\src\yaml.rs:33:65
+   |
+32 | pub fn rune_string_to_yaml(rune: &str) -> Result<String> {
+   |                                           -------------- expected `YoshiError` because of this
+33 |     let v: serde_json::Value = rune_format::decode_default(rune)?;
+   |                                ---------------------------------^ the trait `From<ToonError>` is not implemented for `YoshiError`
+   |                                |
+   |                                this can't be annotated with `?` because it has type `Result<_, ToonError>`
+   |
+   = note: the question mark operation (`?`) implicitly performs a conversion on the error value using the `From` trait
+   = help: the following other types implement trait `From<T>`:
+             `YoshiError` implements `From<&str>`
+             `YoshiError` implements `From<Box<dyn std::error::Error + Send + Sync>>`
+             `YoshiError` implements `From<FromUtf8Error>`
+             `YoshiError` implements `From<ParseFloatError>`
+             `YoshiError` implements `From<ParseIntError>`
+             `YoshiError` implements `From<YoError>`
+             `YoshiError` implements `From<csv::error::Error>`
+             `YoshiError` implements `From<ndarray::error::ShapeError>`
+           and 5 others
+
+error[E0277]: `?` couldn't convert the error to `YoshiError`
+  --> rune-cros\src\yaml.rs:34:41
+   |
+32 | pub fn rune_string_to_yaml(rune: &str) -> Result<String> {
+   |                                           -------------- expected `YoshiError` because of this
+33 |     let v: serde_json::Value = rune_format::decode_default(rune)?;
+34 |     let y = serde_yaml_ng::to_string(&v)?;
+   |             ----------------------------^ the trait `From<serde_yaml_ng::Error>` is not implemented for `YoshiError`
+   |             |
+   |             this can't be annotated with `?` because it has type `Result<_, serde_yaml_ng::Error>`
+   |
+   = note: the question mark operation (`?`) implicitly performs a conversion on the error value using the `From` trait
+   = help: the following other types implement trait `From<T>`:
+             `YoshiError` implements `From<&str>`
+             `YoshiError` implements `From<Box<dyn std::error::Error + Send + Sync>>`
+             `YoshiError` implements `From<FromUtf8Error>`
+             `YoshiError` implements `From<ParseFloatError>`
+             `YoshiError` implements `From<ParseIntError>`
+             `YoshiError` implements `From<YoError>`
+             `YoshiError` implements `From<csv::error::Error>`
+             `YoshiError` implements `From<ndarray::error::ShapeError>`
+           and 5 others
+
+For more information about this error, try `rustc --explain E0277`.
+error: could not compile `rune-cros` (lib) due to 21 previous errors
 warning: build failed, waiting for other jobs to finish...

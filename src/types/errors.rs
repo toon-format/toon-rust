@@ -1,50 +1,48 @@
-use thiserror::Error;
+use yoshi_derive::AnyError;
 
 /// Result type alias for TOON operations.
 pub type ToonResult<T> = std::result::Result<T, ToonError>;
 
 /// Errors that can occur during TOON encoding or decoding.
-#[derive(Error, Debug, Clone, PartialEq)]
+#[derive(AnyError, Debug, Clone, PartialEq)]
 pub enum ToonError {
-    #[error("Invalid input: {0}")]
+    #[anyerror("Invalid input: {0}")]
     InvalidInput(String),
 
-    #[error("Parse error at line {line}, column {column}: {message}")]
+    #[anyerror("Parse error at line {line}, column {column}: {message}")]
     ParseError {
         line: usize,
         column: usize,
         message: String,
-        #[source]
         context: Option<Box<ErrorContext>>,
     },
 
-    #[error("Invalid character '{char}' at position {position}")]
+    #[anyerror("Invalid character '{char}' at position {position}")]
     InvalidCharacter { char: char, position: usize },
 
-    #[error("Unexpected end of input")]
+    #[anyerror("Unexpected end of input")]
     UnexpectedEof,
 
-    #[error("Type mismatch: expected {expected}, found {found}")]
+    #[anyerror("Type mismatch: expected {expected}, found {found}")]
     TypeMismatch { expected: String, found: String },
 
-    #[error("Invalid delimiter: {0}")]
+    #[anyerror("Invalid delimiter: {0}")]
     InvalidDelimiter(String),
 
-    #[error("Array length mismatch: expected {expected}, found {found}")]
+    #[anyerror("Array length mismatch: expected {expected}, found {found}")]
     LengthMismatch {
         expected: usize,
         found: usize,
-        #[source]
         context: Option<Box<ErrorContext>>,
     },
 
-    #[error("Invalid structure: {0}")]
+    #[anyerror("Invalid structure: {0}")]
     InvalidStructure(String),
 
-    #[error("Serialization error: {0}")]
+    #[anyerror("Serialization error: {0}")]
     SerializationError(String),
 
-    #[error("Deserialization error: {0}")]
+    #[anyerror("Deserialization error: {0}")]
     DeserializationError(String),
 }
 

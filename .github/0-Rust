@@ -314,10 +314,9 @@ For each feature flag in `Cargo.toml`:
 
 ```rust
 /* src/[MODULE_PATH]/[FILE_NAME].rs */
-//! High-level summary of the module's purpose and its primary function.
-//!
-//! # [SYSTEM_OR_FRAMEWORK_NAME] – [MODULE_NAME] Module
-//!▫~•◦------------------------------------------------‣
+//!▫~•◦-------------------------------‣
+//! # High-level summary of the module's purpose and its primary function.
+//!▫~•◦-------------------------------------------------------------------‣
 //!
 //! This module is designed for integration into [SYSTEM_OR_FRAMEWORK_NAME] to achieve [PrimaryGoal].
 //!

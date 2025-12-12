@@ -4,7 +4,6 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use anyhow::{Context, Result, bail};
 use clap::Parser;
 use comfy_table::Table;
 use rune_format::{
@@ -13,6 +12,7 @@ use rune_format::{
 };
 use serde::Serialize;
 use tiktoken_rs::cl100k_base;
+use yoshi::{Hatch, Result, buck, yoshi};
 
 #[derive(Parser, Debug)]
 #[command(
@@ -112,45 +112,45 @@ fn parse_delimiter(s: &str) -> Result<Delimiter, String> {
     }
 }
 
-fn get_input(file_arg: Option<&str>) -> Result<String> {
+fn get_input(file_arg: Option<&str>) -> Hatch<String> {
     let mut input_str = String::new();
     let mut reader: Box<dyn Read> = match file_arg {
         Some(path_str) if path_str != "-" => {
             let path = Path::new(path_str);
             Box::new(
                 fs::File::open(path)
-                    .with_context(|| format!("Failed to open: {}", path.display()))?,
+                    .map_err(|e| yoshi!("Failed to open {}: {}", path.display(), e))?,
             )
         }
         _ => Box::new(io::stdin()),
     };
     reader
         .read_to_string(&mut input_str)
-        .context("Failed to read input")?;
+        .map_err(|e| yoshi!("Failed to read input: {}", e))?;
     Ok(input_str)
 }
 
-fn write_output(output_path: Option<PathBuf>, content: &str) -> Result<()> {
+fn write_output(output_path: Option<PathBuf>, content: &str) -> Hatch<()> {
     let mut writer: Box<dyn Write> = match output_path {
         Some(path) => Box::new(
             fs::File::create(&path)
-                .with_context(|| format!("Failed to create: {}", path.display()))?,
+                .map_err(|e| yoshi!("Failed to create {}: {}", path.display(), e))?,
         ),
         None => Box::new(io::stdout()),
     };
     writer
         .write_all(content.as_bytes())
-        .context("Failed to write output")?;
+        .map_err(|e| yoshi!("Failed to write output: {}", e))?;
     Ok(())
 }
 
-fn run_encode(cli: &Cli, input: &str) -> Result<()> {
+fn run_encode(cli: &Cli, input: &str) -> Hatch<()> {
     if input.trim().is_empty() {
-        bail!("Input is empty. Provide JSON data via file or stdin");
+        buck!("Input is empty. Provide JSON data via file or stdin");
     }
 
     let json_value: serde_json::Value =
-        serde_json::from_str(input).context("Failed to parse input as JSON")?;
+        serde_json::from_str(input).map_err(|e| yoshi!("Failed to parse input as JSON: {}", e))?;
 
     let mut opts = EncodeOptions::new();
     if let Some(d) = cli.delimiter {
@@ -167,7 +167,8 @@ fn run_encode(cli: &Cli, input: &str) -> Result<()> {
         }
     }
 
-    let toon_str = encode(&json_value, &opts).context("Failed to encode to TOON")?;
+    let toon_str =
+        encode(&json_value, &opts).map_err(|e| yoshi!("Failed to encode to TOON: {}", e))?;
 
     write_output(cli.output.clone(), &toon_str)?;
 
@@ -180,7 +181,7 @@ fn run_encode(cli: &Cli, input: &str) -> Result<()> {
         let toon_bytes = toon_str.len();
         let size_savings = 100.0 * (1.0 - (toon_bytes as f64 / json_bytes as f64));
 
-        let bpe = cl100k_base().context("Failed to load tokenizer")?;
+        let bpe = cl100k_base().map_err(|e| yoshi!("Failed to load tokenizer: {}", e))?;
         let json_tokens = bpe.encode_with_special_tokens(input).len();
         let toon_tokens = bpe.encode_with_special_tokens(&toon_str).len();
         let token_savings = 100.0 * (1.0 - (toon_tokens as f64 / json_tokens as f64));
@@ -209,7 +210,7 @@ fn run_encode(cli: &Cli, input: &str) -> Result<()> {
     Ok(())
 }
 
-fn run_decode(cli: &Cli, input: &str) -> Result<()> {
+fn run_decode(cli: &Cli, input: &str) -> Hatch<()> {
     if input.trim().is_empty() {
         write_output(cli.output.clone(), "{}\n")?;
         return Ok(());
@@ -227,7 +228,8 @@ fn run_decode(cli: &Cli, input: &str) -> Result<()> {
         opts = opts.with_expand_paths(PathExpansionMode::Safe);
     }
 
-    let json_value: serde_json::Value = decode(input, &opts).context("Failed to decode TOON")?;
+    let json_value: serde_json::Value =
+        decode(input, &opts).map_err(|e| yoshi!("Failed to decode TOON: {}", e))?;
 
     let output_json = match cli.json_indent {
         Some(n) if n > 0 => {
@@ -237,10 +239,11 @@ fn run_decode(cli: &Cli, input: &str) -> Result<()> {
             let mut ser = serde_json::Serializer::with_formatter(&mut buf, formatter);
             json_value
                 .serialize(&mut ser)
-                .context("Failed to serialize JSON")?;
-            String::from_utf8(buf).context("Invalid UTF-8 in JSON output")?
+                .map_err(|e| yoshi!("Failed to serialize JSON: {}", e))?;
+            String::from_utf8(buf).map_err(|e| yoshi!("Invalid UTF-8 in JSON output: {}", e))?
         }
-        _ => serde_json::to_string(&json_value).context("Failed to serialize JSON")?,
+        _ => serde_json::to_string(&json_value)
+            .map_err(|e| yoshi!("Failed to serialize JSON: {}", e))?,
     };
 
     write_output(cli.output.clone(), &output_json)?;
@@ -250,9 +253,9 @@ fn run_decode(cli: &Cli, input: &str) -> Result<()> {
     Ok(())
 }
 
-fn run_rune(input: &str) -> Result<()> {
+fn run_rune(input: &str) -> Hatch<()> {
     if input.trim().is_empty() {
-        bail!("Input .rune file is empty");
+        buck!("Input .rune file is empty");
     }
 
     #[cfg(feature = "hydron")]
@@ -261,7 +264,7 @@ fn run_rune(input: &str) -> Result<()> {
         use rune_format::rune::parse;
 
         // Parse the RUNE file
-        let statements = parse(input).map_err(|e| anyhow::anyhow!("Parse error: {}", e))?;
+        let statements = parse(input).map_err(|e| yoshi!("Parse error: {}", e))?;
 
         // Create evaluator and execute
         let mut evaluator = Evaluator::new();
@@ -271,7 +274,7 @@ fn run_rune(input: &str) -> Result<()> {
         for (idx, stmt) in statements.iter().enumerate() {
             match evaluator.eval_stmt(stmt) {
                 Ok(result) => {
-                    eprintln!("[{}] Result: {}", idx + 1, result);
+                    eprintln!("[{}] Hatch: {}", idx + 1, result);
                 }
                 Err(e) => {
                     eprintln!("Error at statement {}: {}", idx + 1, e);
@@ -285,19 +288,19 @@ fn run_rune(input: &str) -> Result<()> {
     }
 
     #[cfg(not(feature = "hydron"))]
-    bail!("RUNE evaluation requires the 'hydron' feature. Enable it in Cargo.toml");
+    buck!("RUNE evaluation requires the 'hydron' feature. Enable it in Cargo.toml");
 }
 
-fn determine_operation(cli: &Cli) -> Result<(Operation, bool)> {
+fn determine_operation(cli: &Cli) -> Hatch<(Operation, bool)> {
     let mut from_stdin = false;
     let mut operation: Option<Operation> = None;
 
     if cli.interactive {
-        bail!("Interactive mode cannot be combined with other operations");
+        buck!("Interactive mode cannot be combined with other operations");
     }
 
     if cli.encode && cli.decode {
-        bail!("Cannot use --encode and --decode simultaneously");
+        buck!("Cannot use --encode and --decode simultaneously");
     }
 
     if cli.encode {
@@ -323,7 +326,7 @@ fn determine_operation(cli: &Cli) -> Result<(Operation, bool)> {
                     "json" => operation = Some(Operation::Encode),
                     "toon" => operation = Some(Operation::Decode),
                     "rune" => operation = Some(Operation::Rune),
-                    _ => bail!(
+                    _ => buck!(
                         "Cannot auto-detect operation for file: {}\nUse -e to encode, -d to decode, or --rune for RUNE files",
                         path.display()
                     ),
@@ -335,37 +338,37 @@ fn determine_operation(cli: &Cli) -> Result<(Operation, bool)> {
     Ok((operation.unwrap(), from_stdin))
 }
 
-fn validate_flags(cli: &Cli, operation: &Operation) -> Result<()> {
+fn validate_flags(cli: &Cli, operation: &Operation) -> Hatch<()> {
     match operation {
         Operation::Encode => {
             if cli.no_strict {
-                bail!("--no-strict is only valid for decode mode");
+                buck!("--no-strict is only valid for decode mode");
             }
             if cli.no_coerce {
-                bail!("--no-coerce is only valid for decode mode");
+                buck!("--no-coerce is only valid for decode mode");
             }
             if cli.json_indent.is_some() {
-                bail!("--json-indent is only valid for decode mode");
+                buck!("--json-indent is only valid for decode mode");
             }
             if cli.expand_paths {
-                bail!("--expand-paths is only valid for decode mode");
+                buck!("--expand-paths is only valid for decode mode");
             }
         }
         Operation::Decode => {
             if cli.delimiter.is_some() {
-                bail!("--delimiter is only valid for encode mode");
+                buck!("--delimiter is only valid for encode mode");
             }
             if cli.stats {
-                bail!("--stats is only valid for encode mode");
+                buck!("--stats is only valid for encode mode");
             }
             if cli.indent.is_some() {
-                bail!("--indent is only valid for encode mode");
+                buck!("--indent is only valid for encode mode");
             }
             if cli.fold_keys {
-                bail!("--fold-keys is only valid for encode mode");
+                buck!("--fold-keys is only valid for encode mode");
             }
             if cli.flatten_depth.is_some() {
-                bail!("--flatten-depth is only valid for encode mode (use with --fold-keys)");
+                buck!("--flatten-depth is only valid for encode mode (use with --fold-keys)");
             }
         }
         Operation::Rune => {
@@ -375,13 +378,13 @@ fn validate_flags(cli: &Cli, operation: &Operation) -> Result<()> {
 
     // Additional validation: flatten-depth requires fold-keys
     if cli.flatten_depth.is_some() && !cli.fold_keys {
-        bail!("--flatten-depth requires --fold-keys to be enabled");
+        buck!("--flatten-depth requires --fold-keys to be enabled");
     }
 
     Ok(())
 }
 
-fn main() -> Result<()> {
+fn main() -> Hatch<()> {
     let cli = Cli::parse();
 
     // Check if interactive mode is requested
@@ -392,12 +395,13 @@ fn main() -> Result<()> {
     let (operation, from_stdin) = determine_operation(&cli)?;
     validate_flags(&cli, &operation)?;
 
-    let input = get_input(cli.input.as_deref()).with_context(|| {
-        if from_stdin {
+    let input = get_input(cli.input.as_deref()).map_err(|e| {
+        let msg = if from_stdin {
             "Failed to read from stdin"
         } else {
             "Failed to read input file"
-        }
+        };
+        yoshi!("{}: {}", msg, e)
     })?;
 
     match operation {
@@ -409,7 +413,7 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn run_interactive() -> Result<()> {
-    rune_format::tui::run().context("Failed to run interactive TUI")?;
+fn run_interactive() -> Hatch<()> {
+    rune_format::tui::run().map_err(|e| yoshi!("Failed to run interactive TUI: {}", e))?;
     Ok(())
 }

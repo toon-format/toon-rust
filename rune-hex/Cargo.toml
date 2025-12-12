@@ -9,4 +9,4 @@ path = "src/lib.rs"
 
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }
-thiserror = "2.0"
+yoshi-derive = { workspace = true }

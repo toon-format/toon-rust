@@ -9,16 +9,28 @@
 			"path": "src"
 		},
 		{
-			"name": "hex",
-			"path": "rune-hex"
+			"name": "cros",
+			"path": "rune-cros"
 		},
 		{
 			"name": "curs",
 			"path": "rune-curs"
 		},
+				{
+			"name": "hex",
+			"path": "rune-hex"
+		},
 		{
 			"name": "hydron",
 			"path": "hydron-core"
+		},
+		{
+			"name": "gate",
+			"path": "rune-gate"
+		},
+		{
+			"name": "gsv",
+			"path": "rune-gsv"
 		},
 		{
 			"name": "wasm",

@@ -24,34 +24,32 @@ fn show_operator_catalog() {
         RuneOp::StabilizeRoot,      // |\
         RuneOp::SymmetricSplit,     // \|/
         RuneOp::BranchAnchorBranch, // /|\
-
         // Relation Operators
-        RuneOp::Bind,               // :
-        RuneOp::Specializes,        // =:
-        RuneOp::Namespace,          // ::
-        RuneOp::Define,             // :=
-        RuneOp::Match,              // :=:
-        RuneOp::Unify,              // =:=
-        RuneOp::Equal,              // =
-        RuneOp::FlowRight,          // ->
-        RuneOp::FlowLeft,           // <-
-        RuneOp::FlowBidirectional,  // <->
-        RuneOp::FlowConvergent,     // >-<
-        RuneOp::Descendant,         // /
-        RuneOp::Ancestor,           // \
-        RuneOp::Alias,              // |
-        RuneOp::Parallel,           // ||
-        RuneOp::Transform,          // ~
-        RuneOp::PipelineRight,      // |>
-        RuneOp::PipelineLeft,       // <|
-        RuneOp::Output,             // :>
-        RuneOp::Input,              // <:
-
+        RuneOp::Bind,              // :
+        RuneOp::Specializes,       // =:
+        RuneOp::Namespace,         // ::
+        RuneOp::Define,            // :=
+        RuneOp::Match,             // :=:
+        RuneOp::Unify,             // =:=
+        RuneOp::Equal,             // =
+        RuneOp::FlowRight,         // ->
+        RuneOp::FlowLeft,          // <-
+        RuneOp::FlowBidirectional, // <->
+        RuneOp::FlowConvergent,    // >-<
+        RuneOp::Descendant,        // /
+        RuneOp::Ancestor,          // \
+        RuneOp::Alias,             // |
+        RuneOp::Parallel,          // ||
+        RuneOp::Transform,         // ~
+        RuneOp::PipelineRight,     // |>
+        RuneOp::PipelineLeft,      // <|
+        RuneOp::Output,            // :>
+        RuneOp::Input,             // <:
         // Comparison Operators
-        RuneOp::Less,               // <
-        RuneOp::LessEqual,          // <=
-        RuneOp::Greater,            // >
-        RuneOp::GreaterEqual,       // >=
+        RuneOp::Less,         // <
+        RuneOp::LessEqual,    // <=
+        RuneOp::Greater,      // >
+        RuneOp::GreaterEqual, // >=
     ];
 
     println!("📐 GLYPH OPERATORS (Topology):");
@@ -114,12 +112,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Example RUNE source demonstrating operator precedence
     let examples = vec![
-        "fiber_net / hub /\\ endpoint",     // Split topology
-        "data /\\ validation ~ normalized", // Branch then transform
-        "root \\|/ modes",                  // Symmetric splitting
-        "users / 0 -> role := admin",       // Navigation + definition
-        "vec_a + vec_b * 2",                // Math precedence
-        "T::Gf8 terms * 2 + offset",        // Type annotation + math
+        "fiber_net / hub /\\ endpoint",              // Split topology
+        "data /\\ validation ~ normalized",          // Branch then transform
+        "root \\|/ modes",                           // Symmetric splitting
+        "users / 0 -> role := admin",                // Navigation + definition
+        "vec_a + vec_b * 2",                         // Math precedence
+        "T::Gf8 terms * 2 + offset",                 // Type annotation + math
         "NeuralNet =: specialization |> classifier", // Pattern + pipeline
         "inputs <- preprocessing =:= validation",    // Input + match pattern";
         "data_stream <-> bidirectional_sync",        // Bidirectional flow"

@@ -1,0 +1,8 @@
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+   Compiling rune-format v0.0.1 (X:\_Repos\toon-rune)
+    Checking hydron-core v0.0.1 (X:\_Repos\toon-rune\hydron-core)
+    Checking rune-curs v0.0.1 (X:\_Repos\toon-rune\rune-curs)
+    Checking rune-gsv v0.1.0 (X:\_Repos\toon-rune\rune-gsv)
+    Checking hydron-ffi v0.0.1 (X:\_Repos\toon-rune\hydron-ffi)
+    Finished `dev` profile [optimized + debuginfo] target(s) in 1.95s

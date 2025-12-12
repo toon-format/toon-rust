@@ -45,6 +45,8 @@
 use fory::ForyObject;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
+use std::convert::TryFrom;
+use std::fmt;
 use std::ops::{Add, AddAssign, Deref, DerefMut, Mul, MulAssign, Neg, Sub, SubAssign};
 use std::sync::OnceLock;
 
@@ -76,7 +78,7 @@ pub trait Gf8Tensor {
 /// for representing directions, rotations, and normalized semantic states.
 ///
 /// The only exception to the unit-norm rule is the zero vector, which has a norm of 0.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "fory", derive(ForyObject))]
 pub struct Gf8 {
@@ -143,6 +145,17 @@ impl Gf8 {
         let mut coords = [0.0; 8];
         coords[0] = x;
         Self::new(coords)
+    }
+
+    /// Constructs a `Gf8` from a slice of length 8.
+    #[inline]
+    pub fn from_slice(slice: &[f32]) -> Option<Self> {
+        if slice.len() != 8 {
+            return None;
+        }
+        let mut coords = [0.0f32; 8];
+        coords.copy_from_slice(slice);
+        Some(Self::new(coords))
     }
 
     /// Retrieves the raw coordinate data as a slice.
@@ -462,6 +475,75 @@ impl Neg for Gf8 {
             *x = -*x;
         }
         Self { coords }
+    }
+}
+
+/// Zero-copy style references into the internal coordinates.
+impl AsRef<[f32]> for Gf8 {
+    #[inline]
+    fn as_ref(&self) -> &[f32] {
+        &self.coords
+    }
+}
+
+impl AsMut<[f32]> for Gf8 {
+    #[inline]
+    fn as_mut(&mut self) -> &mut [f32] {
+        &mut self.coords
+    }
+}
+
+impl From<[f32; 8]> for Gf8 {
+    #[inline]
+    fn from(coords: [f32; 8]) -> Self {
+        Self::new(coords)
+    }
+}
+
+impl From<f32> for Gf8 {
+    #[inline]
+    fn from(x: f32) -> Self {
+        Self::from_scalar(x)
+    }
+}
+
+impl From<Gf8> for [f32; 8] {
+    #[inline]
+    fn from(v: Gf8) -> [f32; 8] {
+        v.coords
+    }
+}
+
+impl From<Gf8> for f32 {
+    #[inline]
+    fn from(v: Gf8) -> f32 {
+        v.to_scalar()
+    }
+}
+
+impl TryFrom<&[f32]> for Gf8 {
+    type Error = &'static str;
+
+    #[inline]
+    fn try_from(slice: &[f32]) -> Result<Self, Self::Error> {
+        Gf8::from_slice(slice).ok_or("Gf8::try_from(&[f32]): expected slice of length 8")
+    }
+}
+
+impl fmt::Display for Gf8 {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "Gf8[{:.2}, {:.2}, {:.2}, {:.2}, {:.2}, {:.2}, {:.2}, {:.2}]",
+            self.coords[0],
+            self.coords[1],
+            self.coords[2],
+            self.coords[3],
+            self.coords[4],
+            self.coords[5],
+            self.coords[6],
+            self.coords[7],
+        )
     }
 }
 

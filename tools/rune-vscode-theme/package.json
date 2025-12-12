@@ -2,7 +2,7 @@
   "name": "rune-syntax-theme",
   "displayName": "RUNE Syntax + Theme",
   "description": "Syntax highlighting and thematic colors for RUNE glyphs.",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "publisher": "local",
   "repository": {
     "type": "git",

@@ -1,0 +1,12 @@
+[package]
+name = "rune-ext"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = "1.0"
+# Add markdown, pdf, and other parsers here as needed
+# e.g., pulldown-cmark = "0.9"
+# e.g., lopdf = "0.31.0"

@@ -1,19 +1,47 @@
-//! CUDA/RUNE bridge crate (curs).
-//! Provides device runtime wrappers and kernel entry points.
+/* src/lib.rs */
+//!▫~•◦-------------------------------‣
+//! # CUDA/RUNE bridge crate (curs).
+//!▫~•◦-------------------------------------------------------------------‣
+//!
+//! This module is designed for integration into rune-curs to provide device runtime wrappers and kernel entry points.
+//!
+//! ### Key Capabilities
+//! - **CUDA/RUST Bridge:** Provides the core bridge functionality between Rune and CUDA.
+//! - **Error Handling:** Comprehensive error management with CudaError and CudaResult types.
+//! - **GPU Computation:** High-performance DomR score computation on GPU devices.
+//!
+//! ### Architectural Notes
+//! This module is designed to work with modules such as `archetypes`, `buffers`, and `kernels`.
+//! Result structures adhere to the AnyError trait and are compatible
+//! with the system's error handling pipeline.
+//!
+//! ### Example
+//! ```rust
+//! use crate::rune_curs::{domr_scores_gpu, CudaError};
+//!
+//! let energy = vec![1.0f32; 240];
+//! let coords = vec![[0.0f32; 8]; 240];
+//! let scores = domr_scores_gpu(&energy, &coords)?;
+//! // The 'scores' can now be used for further processing.
+//! ```
 
-use thiserror::Error;
+/*▫~•◦------------------------------------------------------------------------------------‣
+ * © 2025 ArcMoon Studios ◦ SPDX-License-Identifier MIT OR Apache-2.0 ◦ Author: Lord Xyn ✶
+ *///•------------------------------------------------------------------------------------‣
 
-#[derive(Debug, Error)]
+use yoshi_derive::AnyError;
+
+#[derive(Debug, AnyError)]
 pub enum CudaError {
-    #[error("CUDA feature not enabled")]
+    #[anyerror("CUDA feature not enabled")]
     NotEnabled,
-    #[error("CUDA kernel or feature not implemented")]
+    #[anyerror("CUDA kernel or feature not implemented")]
     NotImplemented,
-    #[error("Invalid operation: {0}")]
+    #[anyerror("Invalid operation: {0}")]
     InvalidOperation(String),
-    #[error("CUDA driver error: {0}")]
+    #[anyerror("CUDA driver error: {0}")]
     Driver(String),
-    #[error("CUDA kernel error: {0}")]
+    #[anyerror("CUDA kernel error: {0}")]
     Kernel(String),
 }
 

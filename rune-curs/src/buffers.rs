@@ -1,4 +1,33 @@
-//! Typed device buffers (feature-gated).
+/* src/buffers/buffers.rs */
+//!▫~•◦-------------------------------‣
+//! # Typed device buffers for CUDA memory management.
+//!▫~•◦-------------------------------------------------------------------‣
+//!
+//! This module is designed for integration into rune-curs to achieve efficient device memory operations.
+//!
+//! ### Key Capabilities
+//! - **Device Memory Allocation:** Provides typed CUDA device buffers with safe Rust wrappers.
+//! - **Host-Device Data Transfer:** Facilitates copying data between host and device memory.
+//! - **Feature-Gated Implementation:** Offers compile-time conditional compilation for CUDA support.
+//!
+//! ### Architectural Notes
+//! This module is designed to work with modules such as `archetypes` and `runtime`.
+//! Result structures adhere to the DeviceCopy trait and are compatible
+//! with the system's memory management pipeline.
+//!
+//! ### Example
+//! ```rust
+//! use crate::rune_curs::buffers::{CudaBuffer, from_host};
+//!
+//! let buffer = CudaBuffer::new(1024)?;
+//! let host_data = vec![1.0f32; 1024];
+//! let device_buffer = CudaBuffer::from_host(&host_data)?;
+//! // The 'device_buffer' can now be used for GPU computations.
+//! ```
+
+/*▫~•◦------------------------------------------------------------------------------------‣
+ * © 2025 ArcMoon Studios ◦ SPDX-License-Identifier MIT OR Apache-2.0 ◦ Author: Lord Xyn ✶
+ *///•------------------------------------------------------------------------------------‣
 
 use super::{CudaError, CudaResult};
 

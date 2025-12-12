@@ -1,0 +1,42 @@
+[package]
+name = "rune-gate"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "Bevy-powered visual and runtime harness for RUNE E8 semantics"
+
+[lib]
+name = "rune_gate"
+path = "src/lib.rs"
+
+[[bin]]
+name = "rune-gate"
+path = "src/main.rs"
+
+[features]
+default = []
+viewer = ["bevy"]
+
+[dependencies]
+yoshi = { workspace = true }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+rune-format = { path = ".." }
+rune-hex = { path = "../rune-hex" }
+hydron-core = { path = "../hydron-core", features = ["serde"] }
+
+# Bevy core; viewer is optional.
+bevy = { version = "0.17.3", optional = true, features = [
+    "bevy_asset",
+    "bevy_winit",
+    "bevy_render",
+    "bevy_core_pipeline",
+    "bevy_sprite",
+    "bevy_text",
+    "bevy_ui",
+    "bevy_pbr",
+    "png",
+] }
+
+# Ensure naga diagnostics compile with bevy's minimal default features.
+naga = { version = "27.0.3", features = ["termcolor"] }

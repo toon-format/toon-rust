@@ -1,4 +1,34 @@
-//! CUDA context and module loading (feature-gated).
+/* src/runtime/runtime.rs */
+//!▫~•◦-------------------------------‣
+//! # CUDA context and module loading.
+//!▫~•◦-------------------------------------------------------------------‣
+//!
+//! This module is designed for integration into rune-curs to manage CUDA context initialization and module loading.
+//!
+//! ### Key Capabilities
+//! - **Context Management:** Ensures CUDA context is properly initialized for the current thread.
+//! - **Device Access:** Manages access to CUDA devices with proper error handling.
+//! - **Feature-Gated Implementation:** Provides conditional compilation for CUDA support.
+//!
+//! ### Architectural Notes
+//! This module is designed to work with modules such as `archetypes` and `lib`.
+//! Result structures adhere to the CudaResult type and are compatible
+//! with the system's error handling pipeline.
+//!
+//! ### Example
+//! ```rust
+//! use crate::rune_curs::runtime::{ensure_context, CudaError};
+//!
+//! let result = ensure_context();
+//! match result {
+//!     Ok(_) => println!("CUDA context initialized"),
+//!     Err(e) => eprintln!("Context error: {}", e),
+//! }
+//! ```
+
+/*▫~•◦------------------------------------------------------------------------------------‣
+ * © 2025 ArcMoon Studios ◦ SPDX-License-Identifier MIT OR Apache-2.0 ◦ Author: Lord Xyn ✶
+ *///•------------------------------------------------------------------------------------‣
 
 use super::{CudaError, CudaResult};
 

@@ -6,6 +6,7 @@
     { "scope": "comment.line.rune", "settings": { "foreground": "#70829ca4", "fontStyle": "italic" } },
     { "scope": "string.quoted.rune", "settings": { "foreground": "#8bdcba" } },
     { "scope": "constant.numeric.rune", "settings": { "foreground": "#d4c0ffcb" } },
+    { "scope": "constant.color.rune", "settings": { "foreground": "#6FD1FF", "fontStyle": "bold" } },
     { "scope": "variable.language.rune.semantic", "settings": { "foreground": "#cd69ecd7", "fontStyle": "bold" } },
 
     { "scope": "variable.language.rune.semantic.prefix.a", "settings": { "foreground": "#ff0000" } },

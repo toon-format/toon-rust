@@ -1,0 +1,191 @@
+WHITESPACE = _{ " " | "\t" }
+NEWLINE = _{ "\r\n" | "\n" }
+
+COMMENT = _{ "#" ~ (!NEWLINE ~ ANY)* }
+
+// --- LEXICAL PRIMITIVES ---
+ident = @{ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_" )* }
+
+// Semantic prefix: single uppercase letter followed by colon (A:, T:, V:, R:, etc.)
+semantic_prefix = @{ ASCII_ALPHA_UPPER ~ ":" }
+
+// Semantic identifier: prefix + name (e.g., T:Gf8, V:vector, R:continuum)
+semantic_ident = { semantic_prefix ~ ident }
+
+number = @{
+    "-"? ~ ASCII_DIGIT+ ~ ("." ~ ASCII_DIGIT+)?   // simple int/float
+}
+
+string = @{
+    "\"" ~ string_inner ~ "\""
+}
+
+string_inner = @{
+    (
+        !("\"" | "\\") ~ ANY
+        | "\\" ~ ("\"" | "\\" | "/" | "b" | "f" | "n" | "r" | "t")
+    )*
+}
+
+// Boolean literals: B:t (true) or B:f (false)
+boolean_literal = { "B:" ~ ("t" | "f") }
+
+// --- OPERATORS (matched in order of length) ---
+
+// 1. Glyph operators (must be ordered longest-first, now included in relation_op for chaining)
+// Note: glyph_op removed from grammar, integrated into relation_op for better parsing of chains
+
+// 2. Flow operators (lower precedence - flow between things)
+flow_op = {
+      "<->"    // FlowBidirectional
+    | ">-<"    // FlowConvergent
+    | "->"     // FlowRight
+    | "<-"     // FlowLeft
+}
+
+// 3. Structural / binding operators (higher precedence - create associations)
+struct_op = {
+            "\\|/"   // SymmetricSplit
+        | "/|\\"   // BranchAnchorBranch
+        | "/\\"    // SplitJoin
+        | "\\/"    // JoinSplit
+        | "|/"     // AnchorDescend
+        | "/|"     // BranchStabilize
+        | "\\|"     // RootStabilize
+        | "|\\"     // StabilizeRoot
+        | "=:="    // Unify
+        | ":=:"    // Match
+        | "=:"     // Specializes
+        | "::"     // Namespace
+        | ":="     // Define
+        | ":>"     // Output
+        | "<:"     // Input
+        | "|>"     // PipelineRight
+        | "<|"     // PipelineLeft
+        | "<="     // LessEqual
+        | ">="     // GreaterEqual
+        | "||"     // Parallel
+        | ":"      // Bind
+        | "="      // Equal
+        | "<"      // Less
+        | ">"      // Greater
+        | "\\"      // Ancestor
+        | "|"      // Alias
+        | "~"      // Transform
+}
+
+// All relation operators combined (for fallback parsing)
+relation_op = { flow_op | struct_op }
+
+// Path operators used for hierarchical access (distinct from math)
+path_op = { "/" | "\\" | "." } 
+
+// Unified operator token (arithmetic operators only within math blocks `[]`)
+op = { relation_op }
+
+// --- EXPRESSIONS ---
+// Domains: Structural (outside []) vs Arithmetic (inside [])
+
+// Function call: name(arg1, arg2, ...)
+fn_call = { ident ~ "(" ~ relation_expr ~ ("," ~ relation_expr)* ~ ")" }
+
+// Array literal: [1,2,3] or [a,b,c] (comma-separated)
+// Distinct from math blocks which use operators without commas
+array_literal = { "[" ~ relation_expr ~ ("," ~ relation_expr)* ~ "]" }
+
+// Object literal: { key: value, ... }
+object_entry = { (ident | string) ~ ":" ~ relation_expr }
+object_literal = { "{" ~ (object_entry ~ ("," ~ object_entry)*)? ~ ","? ~ "}" }
+
+term = {
+      object_literal // Try object first (braces)
+    | array_literal  // Then try array (brackets with commas)
+    | math_block     // Then try math block (brackets with ops)
+    | fn_call        // Try function call (has parens)
+    | string
+    | number
+    | boolean_literal 
+    | semantic_ident
+    | ident
+    | "(" ~ relation_expr ~ ")"
+}
+
+// Arithmetic within [ ... ] value blocks ---
+// Math precedence: PEMDAS (Parentheses, Exponents, Multiply/Divide, Add/Subtract)
+math_block  = { "[" ~ math_expr ~ "]" }
+
+math_expr   = { math_add }
+
+math_add    = { math_mul ~ (WHITESPACE* ~ math_add_op ~ WHITESPACE* ~ math_mul)* }
+math_add_op = { "+" | "-" }
+
+math_mul    = { math_exp ~ (WHITESPACE* ~ math_mul_op ~ WHITESPACE* ~ math_exp)* }
+math_mul_op = { "*" | "/" | "%" }
+
+math_exp    = { math_unary ~ (WHITESPACE* ~ math_exp_op ~ WHITESPACE* ~ math_unary)* }
+math_exp_op = { "^" | "√" | "R" }
+
+math_unary  = { math_unary_op? ~ math_atom }
+math_unary_op = { "-" | "+" }
+
+// Math atom now supports arrays and semantic identifiers inside math blocks
+math_array_literal = { "[" ~ math_expr ~ ("," ~ math_expr)+ ~ "]" }
+math_atom   = { number | semantic_ident | math_array_literal | ident | "(" ~ math_expr ~ ")" }
+
+// Structural expressions ---
+// Precedence layers: flow_expr < struct_expr < access < term
+// Lower precedence (parsed first) = looser binding
+
+// Access (hierarchical navigation - using binary operators below)
+// Added '.' for standard member access
+access = { term ~ (WHITESPACE* ~ path_op ~ WHITESPACE* ~ term)* }
+
+// Structural operators (tighter binding - associations, definitions)
+struct_expr = { access ~ (WHITESPACE* ~ struct_op ~ WHITESPACE* ~ access)* }
+
+// Flow operators (looser binding - data flow between structures)
+flow_expr = { struct_expr ~ (WHITESPACE* ~ flow_op ~ WHITESPACE* ~ struct_expr)* }
+
+// Relations: top-level expression (kept for backward compatibility)
+relation_expr = { flow_expr }
+
+// Expression: structural operations only (no arithmetic)
+expr = { relation_expr }
+
+// --- STATEMENTS ---
+
+// Root declaration (supports namespaces like e8::continuum)
+root_decl = { "root:" ~ WHITESPACE* ~ ident ~ ("::" ~ ident)* }
+
+// TOON/RUNE blocks (indentation-based)
+// Use $ to disable implicit whitespace, @ for atomic capture
+toon_content = @{
+    (
+        // Allow empty lines for readability while remaining inside the TOON block
+        (!NEWLINE ~ ANY)* ~ NEWLINE
+    )+
+}
+
+toon_block = ${
+    ident ~ " "* ~ "~TOON:" ~ NEWLINE ~
+    toon_content
+}
+
+rune_block = ${
+    ident ~ " "* ~ "~RUNE:" ~ NEWLINE ~
+    toon_content
+}
+
+// Kernel archetype declarations
+kernel_param = { ident ~ ":" ~ WHITESPACE* ~ (number | ident | string) }
+kernel_archetype = { "CUDA:Archetype:" ~ ident ~ "(" ~ (kernel_param ~ ("," ~ WHITESPACE* ~ kernel_param)*)? ~ ")" }
+kernel_decl = { semantic_ident ~ WHITESPACE* ~ ":=" ~ WHITESPACE* ~ kernel_archetype }
+
+// Expression statement (catch-all for operator expressions)
+stmt_expr = { relation_expr }
+
+// Top-level statement
+stmt = _{ root_decl | rune_block | toon_block | kernel_decl | stmt_expr }
+
+// File: sequence of statements
+file = { SOI ~ (NEWLINE* ~ stmt ~ WHITESPACE* ~ NEWLINE*)* ~ EOI }

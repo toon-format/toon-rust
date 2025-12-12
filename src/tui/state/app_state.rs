@@ -1,9 +1,9 @@
 //! Main application state.
 
 use super::{EditorState, FileState, ReplState};
-use crate::tui::message::Msg;
 #[cfg(feature = "hydron")]
 use crate::rune::hydron::eval::Evaluator;
+use crate::tui::message::Msg;
 use crate::{
     tui::theme::Theme,
     types::{DecodeOptions, Delimiter, EncodeOptions, Indent, KeyFoldingMode, PathExpansionMode},

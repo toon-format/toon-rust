@@ -1,4 +1,31 @@
-//! Embedded PTX for `DomR` kernel.
+/* src/kernels/dom_r.rs */
+//!▫~•◦-------------------------------‣
+//! # Embedded PTX for DomR kernel.
+//!▫~•◦-------------------------------------------------------------------‣
+//!
+//! This module is designed for integration into rune-curs to provide pre-compiled CUDA kernels for DomR computations.
+//!
+//! ### Key Capabilities
+//! - **Kernel Embedding:** Contains embedded PTX code for the DomR kernel.
+//! - **GPU Computation:** Provides the core computational logic for DomR score calculations.
+//! - **Memory Efficiency:** Optimized for efficient execution on CUDA devices.
+//!
+//! ### Architectural Notes
+//! This module is designed to work with modules such as `cuda` and `lib`.
+//! Result structures adhere to the PTX format and are compatible
+//! with the system's GPU execution pipeline.
+//!
+//! ### Example
+//! ```rust
+//! use crate::rune_curs::kernels::dom_r::{DOMR_PTX};
+//!
+//! let ptx_code = DOMR_PTX;
+//! // The 'ptx_code' can now be used for CUDA module loading.
+//! ```
+
+/*▫~•◦------------------------------------------------------------------------------------‣
+ * © 2025 ArcMoon Studios ◦ SPDX-License-Identifier MIT OR Apache-2.0 ◦ Author: Lord Xyn ✶
+ *///•------------------------------------------------------------------------------------‣
 
 pub const DOMR_PTX: &str = r"
 .version 6.0

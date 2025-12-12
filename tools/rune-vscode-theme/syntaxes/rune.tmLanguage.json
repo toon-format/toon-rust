@@ -4,6 +4,7 @@
     { "name": "comment.line.rune", "match": "#.*$" },
     { "name": "string.quoted.rune", "match": "\"(?:\\.|[^\"])*\"" },
     { "name": "constant.numeric.rune", "match": "-?\\b\\d+(?:\\.\\d+)?\\b" },
+    { "name": "constant.color.rune", "match": "#[0-9a-fA-F]{6}\\b" },
     { "name": "variable.language.rune.semantic.prefix.a", "match": "\\bA:(?=[A-Za-z_])" },
     { "name": "variable.language.rune.semantic.prefix.b", "match": "\\bB:(?=[A-Za-z_])" },
     { "name": "variable.language.rune.semantic.prefix.c", "match": "\\bC:(?=[A-Za-z_])" },

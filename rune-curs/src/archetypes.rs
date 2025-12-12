@@ -1,7 +1,32 @@
-//! Generative Archetype Engine for CUDA kernels.
+/* src/archetypes/archetypes.rs */
+//!▫~•◦-------------------------------‣
+//! # Generative Archetype Engine for CUDA kernels.
+//!▫~•◦-------------------------------------------------------------------‣
 //!
-//! This module provides the `ArchetypeEngine` that compiles CUDA kernel templates
-//! into PTX modules on demand, with caching for performance.
+//! This module is designed for integration into rune-curs to achieve efficient CUDA-based computational operations for Rune.
+//!
+//! ### Key Capabilities
+//! - **CUDA Kernel Template Compilation:** Compiles CUDA kernel templates into PTX modules on demand with caching for performance.
+//! - **Dynamic Kernel Generation:** Generates specialized CUDA kernels from templates by replacing parameters.
+//! - **Caching System:** Implements SHA-256 hashing for cache management to avoid redundant compilations.
+//!
+//! ### Architectural Notes
+//! This module is designed to work with modules such as `runtime` and `buffers`.
+//! Result structures adhere to the CUDA module interface and are compatible
+//! with the system's serialization pipeline.
+//!
+//! ### Example
+//! ```rust
+//! use crate::rune_curs::archetypes::{ArchetypeEngine, compile_archetype};
+//!
+//! let engine = ArchetypeEngine::new();
+//! let module = engine.compile_archetype("row_dot", 8)?;
+//! // The 'module' can now be used for further processing.
+//! ```
+
+/*▫~•◦------------------------------------------------------------------------------------‣
+ * © 2025 ArcMoon Studios ◦ SPDX-License-Identifier MIT OR Apache-2.0 ◦ Author: Lord Xyn ✶
+ *///•------------------------------------------------------------------------------------‣
 
 use std::{
     fs,

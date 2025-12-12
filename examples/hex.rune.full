@@ -254,6 +254,12 @@ Schema ~RUNE:
 
   T:Xuid: [u8; 32]  # Simplified for RUNE representation
 
+  # Concept color overlay (visual semantics layer)
+  T:ConceptColor:
+    opposite: String     # semantic opposite label (may or may not be in the same enum yet)
+    positive: String     # primary hex color for the node
+    inverted: String     # inverted / antipodal hex color for visual contrast
+
 # ----------------------------------------------------------------------------
 # ONTOLOGY DATA MAPPINGS
 # This block binds the abstract semantic concepts (enums) to their concrete
@@ -443,6 +449,133 @@ Ontology:Data ~RUNE:
       Weakness: [-1.0, -1.0, -0.5, -0.5, -1.0, -1.0, -0.5, -0.5]
       Resilience: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
       Fragility: [-1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0]
+
+# ----------------------------------------------------------------------------
+# CONCEPT COLOR PALETTE OVERLAY
+# Visual semantics for nodes/edges. This does not alter E8 geometry; it provides
+# a color vocabulary for renderers (RuneGate, dashboards, etc.).
+# Each entry is a T:ConceptColor with free-text opposites and hex colors.
+# ----------------------------------------------------------------------------
+Ontology:Palette ~RUNE:
+  T:EmotionType:
+    Joy:        { opposite: "Sorrow",        positive: "#FFFF00", inverted: "#0000FF" }
+    Love:       { opposite: "Hate",          positive: "#FF0000", inverted: "#00FFFF" }
+    Hope:       { opposite: "Despair",       positive: "#00FF00", inverted: "#FF00FF" }
+    Pride:      { opposite: "Shame",         positive: "#FFD700", inverted: "#0028FF" }
+    Gratitude:  { opposite: "Guilt",         positive: "#00FF00", inverted: "#FF00FF" }
+    Serenity:   { opposite: "Anxiety",       positive: "#ADD8E6", inverted: "#FF2719" }
+
+  T:CognitiveType:
+    Clarity:        { opposite: "Confusion",    positive: "#FFFF00", inverted: "#0000FF" }
+    Insight:        { opposite: "Ignorance",    positive: "#FFFF00", inverted: "#0000FF" }
+    Learning:       { opposite: "Stagnation",   positive: "#00FF00", inverted: "#FF00FF" }
+    Creativity:     { opposite: "Rigidity",     positive: "#FFA500", inverted: "#005AFF" }
+
+  T:SocialType:
+    Friendship:     { opposite: "Isolation",      positive: "#00FF00", inverted: "#FF00FF" }
+    Romance:        { opposite: "Indifference",   positive: "#FF0000", inverted: "#00FFFF" }
+    Family:         { opposite: "Estrangement",   positive: "#FFA500", inverted: "#005AFF" }
+    Professional:   { opposite: "Unprofessionalism", positive: "#0000FF", inverted: "#FFFF00" }
+    Cooperation:    { opposite: "Sabotage",       positive: "#00FF00", inverted: "#FF00FF" }
+    Collaboration:  { opposite: "Division",       positive: "#0000FF", inverted: "#FFFF00" }
+    Acceptance:     { opposite: "Rejection",      positive: "#00FF00", inverted: "#FF00FF" }
+    Inclusion:      { opposite: "Exclusion",      positive: "#0000FF", inverted: "#FFFF00" }
+    Leader:         { opposite: "Follower",       positive: "#FFD700", inverted: "#0028FF" }
+    Mentor:         { opposite: "Neglect",        positive: "#0000FF", inverted: "#FFFF00" }
+
+  T:ExistentialType:
+    Meaning:        { opposite: "Absurdity",     positive: "#FFA500", inverted: "#005AFF" }
+    Purpose:        { opposite: "Aimlessness",   positive: "#FFD700", inverted: "#0028FF" }
+    Identity:       { opposite: "Alienation",    positive: "#FF0000", inverted: "#00FFFF" }
+    Freedom:        { opposite: "Constraint",    positive: "#00FF00", inverted: "#FF00FF" }
+
+  T:PhysicalType:
+    Pleasure:       { opposite: "Pain",          positive: "#FF69B4", inverted: "#00964B" }
+    Energy:         { opposite: "Fatigue",       positive: "#FFFF00", inverted: "#0000FF" }
+    Health:         { opposite: "Illness",       positive: "#00FF00", inverted: "#FF00FF" }
+
+  T:EthicalType:
+    Justice:        { opposite: "Corruption",    positive: "#0000FF", inverted: "#FFFF00" }
+    Integrity:      { opposite: "Dishonesty",    positive: "#FFD700", inverted: "#0028FF" }
+    Compassion:     { opposite: "Cruelty",       positive: "#00FF00", inverted: "#FF00FF" }
+
+  T:CreativeType:
+    Inspiration:    { opposite: "Apathy",        positive: "#FFA500", inverted: "#005AFF" }
+    Innovation:     { opposite: "Stagnation",    positive: "#FFD700", inverted: "#0028FF" }
+    Artistry:       { opposite: "Mediocrity",    positive: "#FF69B4", inverted: "#00964B" }
+
+  T:SpiritualType:
+    Meditation:     { opposite: "Distraction",   positive: "#ADD8E6", inverted: "#FF2719" }
+    Enlightenment:  { opposite: "Ignorance",     positive: "#FFD700", inverted: "#0028FF" }
+    Unity:          { opposite: "Division",      positive: "#00FF00", inverted: "#FF00FF" }
+
+  T:EconomicType:
+    Wealth:         { opposite: "Poverty",       positive: "#FFD700", inverted: "#0028FF" }
+    Value:          { opposite: "Worthlessness", positive: "#00FF00", inverted: "#FF00FF" }
+    Abundance:      { opposite: "Scarcity",      positive: "#FFFF00", inverted: "#0000FF" }
+
+  T:HealthType:
+    Wellness:       { opposite: "Illness",       positive: "#00FF00", inverted: "#FF00FF" }
+    Vitality:       { opposite: "Fragility",     positive: "#FFFF00", inverted: "#0000FF" }
+    Resilience:     { opposite: "Weakness",      positive: "#0000FF", inverted: "#FFFF00" }
+
+  # Extended conceptual domains for future ontology expansion / UI-only overlays.
+  Technological:
+    Innovation:     { opposite: "Obsolescence",  positive: "#00CED1", inverted: "#FF312E" }
+    Automation:     { opposite: "Manual Labor",  positive: "#4682B4", inverted: "#B97D4B" }
+    AI:             { opposite: "Human Error",   positive: "#7B68EE", inverted: "#849711" }
+
+  Environmental:
+    Sustainability: { opposite: "Exploitation",  positive: "#228B22", inverted: "#DD74DD" }
+    Climate:        { opposite: "Degradation",   positive: "#32CD32", inverted: "#CD32CD" }
+
+  Political:
+    Governance:     { opposite: "Anarchy",       positive: "#8B0000", inverted: "#74FFFF" }
+    Power:          { opposite: "Powerlessness", positive: "#B22222", inverted: "#4DDDDD" }
+
+  Legal:
+    Law:            { opposite: "Lawlessness",   positive: "#000080", inverted: "#FFFF7F" }
+    Rights:         { opposite: "Oppression",    positive: "#191970", inverted: "#E6E68F" }
+
+  Cultural:
+    Tradition:      { opposite: "Disregard",     positive: "#FFD700", inverted: "#0028FF" }
+    Language:       { opposite: "Silence",       positive: "#FF8C00", inverted: "#0073FF" }
+
+  Aesthetic:
+    Beauty:         { opposite: "Ugliness",      positive: "#FF69B4", inverted: "#00964B" }
+    Harmony:        { opposite: "Chaos",         positive: "#FFC0CB", inverted: "#003F34" }
+
+  Temporal:
+    Future:         { opposite: "Past",          positive: "#6A5ACD", inverted: "#95A532" }
+    Continuity:     { opposite: "Disruption",    positive: "#708090", inverted: "#8F7F6F" }
+
+  Informational:
+    Knowledge:      { opposite: "Ignorance",     positive: "#1E90FF", inverted: "#E16F00" }
+    Communication:  { opposite: "Silence",       positive: "#FFFF00", inverted: "#0000FF" }
+
+  InterpersonalDynamics:
+    Trust:          { opposite: "Distrust",      positive: "#00FF7F", inverted: "#FF0080" }
+    Influence:      { opposite: "Insignificance", positive: "#7FFF00", inverted: "#8000FF" }
+
+  EducationalSystems:
+    Pedagogy:       { opposite: "Neglect",       positive: "#FFD700", inverted: "#0028FF" }
+    Curriculum:     { opposite: "Chaos",         positive: "#FF8C00", inverted: "#0073FF" }
+
+  Organizational:
+    LeadershipStructures: { opposite: "Disorder",      positive: "#0000FF", inverted: "#FFFF00" }
+    Coordination:         { opposite: "Fragmentation", positive: "#6495ED", inverted: "#9B6A12" }
+
+  Recreational:
+    Play:           { opposite: "Work",          positive: "#FF69B4", inverted: "#00964B" }
+    Leisure:        { opposite: "Drudgery",      positive: "#FFB6C1", inverted: "#00493E" }
+
+  Technoscientific:
+    Research:       { opposite: "Dogma",         positive: "#8A2BE2", inverted: "#75D41D" }
+    Discovery:      { opposite: "Stagnation",    positive: "#6A5ACD", inverted: "#95A532" }
+
+  Metaphysical:
+    Being:          { opposite: "Nonexistence",  positive: "#9400D3", inverted: "#6BFF2C" }
+    Reality:        { opposite: "Illusion",      positive: "#8B008B", inverted: "#74FF74" }
 
 # ----------------------------------------------------------------------------
 # FUNCTIONS & LOGIC

@@ -3,7 +3,7 @@
 //!
 //! # ArcMoon Utils – Hexadecimal Transcoding Strategy
 //!▫~•◦------------------------------------------------‣
-//! 
+//!
 //! This module is designed for integration into ArcMoon Utils to achieve high-performance,
 //! reliable transformation between binary data and hexadecimal string representations.
 //!
@@ -40,13 +40,13 @@ use std::path::Path;
 use std::sync::OnceLock;
 
 use serde::{Deserialize, Serialize};
-use thiserror::Error;
+use yoshi_derive::AnyError;
 
-#[derive(Debug, Error)]
+#[derive(Debug, AnyError)]
 pub enum HexError {
-    #[error("Invalid operation: {0}")]
+    #[anyerror("Invalid operation: {0}")]
     InvalidOperation(String),
-    #[error("Type mismatch: {0}")]
+    #[anyerror("Type mismatch: {0}")]
     TypeMismatch(String),
 }
 
@@ -340,9 +340,13 @@ impl Vertex {
             SemanticDomain::Relationships => Some(HumanExperience::Social(SocialType::Friendship)),
             SemanticDomain::Economics => Some(HumanExperience::Economic(EconomicType::Wealth)),
             SemanticDomain::Creativity => Some(HumanExperience::Creative(CreativeType::Innovation)),
-            SemanticDomain::Spirituality => Some(HumanExperience::Spiritual(SpiritualType::Meditation)),
+            SemanticDomain::Spirituality => {
+                Some(HumanExperience::Spiritual(SpiritualType::Meditation))
+            }
             SemanticDomain::Physical => Some(HumanExperience::Physical(PhysicalType::Touch)),
-            SemanticDomain::Existential => Some(HumanExperience::Existential(ExistentialType::Meaning)),
+            SemanticDomain::Existential => {
+                Some(HumanExperience::Existential(ExistentialType::Meaning))
+            }
             SemanticDomain::Ethics => Some(HumanExperience::Ethical(EthicalType::Justice)),
             SemanticDomain::Education => Some(HumanExperience::Cognitive(CognitiveType::Learning)),
             SemanticDomain::Health => Some(HumanExperience::Health(HealthType::Wellness)),

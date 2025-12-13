@@ -1,0 +1,48 @@
+[package]
+name = "gf8"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+description = "A foundational 8-dimensional geometric float gf8 (Gf8) for the e8 ecosystem."
+repository = "https://github.com/arcmoonstudios/e8"
+keywords = ["e8", "geometry", "numerics", "ai", "SIMD"]
+categories = ["science", "mathematics", "computer-vision"]
+
+[dependencies]
+# This crate is intentionally lean and has no mandatory dependencies.
+# Optional dependencies, like for serialization, are enabled via features.
+serde = { version = "1.0", features = ["derive"], optional = true }
+lazy_static = "1.5.0"
+
+# E32L compression dependencies (optional)
+zstd = { version = "0.13", optional = true }
+byteorder = { version = "1.5", optional = true }
+blake3 = { version = "1.5", optional = true }
+bytemuck = { version = "1.14", optional = true }
+
+[features]
+# Enables serialization and deserialization support for Gf8 via Serde.
+# This allows Gf8 to be stored, transmitted, and used in configuration files.
+default = []
+serde = ["dep:serde"]
+# Enable SIMD-accelerated math paths at compile time. When enabled, hot paths
+# will prefer compile-time SIMD APIs instead of scalar fallbacks.
+simd = []
+
+# Enable bytemuck support for zero-copy operations
+bytemuck = ["dep:bytemuck"]
+
+# Enable E32L lossless compression framework
+compression = ["dep:zstd", "dep:byteorder", "dep:blake3", "bytemuck"]
+
+[dev-dependencies]
+criterion = "0.7"
+rand = "0.9"
+
+[[bench]]
+name = "perf"
+harness = false
+
+[[bench]]
+name = "fractal_vs_linear"
+harness = false

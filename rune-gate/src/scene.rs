@@ -228,8 +228,8 @@ fn spawn_nodes(
 
 fn orbit_camera_controls(
     time: Res<Time>,
-    mut mouse_motion: MessageReader<MouseMotion>,
-    mut mouse_wheel: MessageReader<MouseWheel>,
+    mut mouse_motion: EventReader<MouseMotion>,
+    mut mouse_wheel: EventReader<MouseWheel>,
     buttons: Res<ButtonInput<MouseButton>>,
     mut rig: ResMut<CameraRig>,
     mut q_cam: Query<&mut Transform, With<MainCamera>>,
@@ -254,7 +254,7 @@ fn orbit_camera_controls(
 
     // Pan
     if pan_delta.length_squared() > 0.0 {
-        if let Ok(transform) = q_cam.single() {
+        if let Ok(transform) = q_cam.get_single() {
             let right = transform.right();
             let up = transform.up();
             let pan_speed = 0.002 * rig.distance.max(1.0);
@@ -269,7 +269,7 @@ fn orbit_camera_controls(
     }
 
     // Apply to camera transform
-    if let Ok(mut transform) = q_cam.single_mut() {
+    if let Ok(mut transform) = q_cam.get_single_mut() {
         let yaw_rot = Quat::from_rotation_y(rig.yaw);
         let pitch_rot = Quat::from_rotation_x(rig.pitch);
         let rotation = yaw_rot * pitch_rot;
@@ -289,7 +289,7 @@ fn pick_vertices(
     if !buttons.just_pressed(MouseButton::Left) {
         return;
     }
-    let window = if let Ok(w) = windows.single() {
+    let window = if let Ok(w) = windows.get_single() {
         w
     } else {
         return;
@@ -299,7 +299,7 @@ fn pick_vertices(
     } else {
         return;
     };
-    let (camera, cam_tf) = if let Ok(c) = camera_q.single() {
+    let (camera, cam_tf) = if let Ok(c) = camera_q.get_single() {
         c
     } else {
         return;
@@ -338,7 +338,7 @@ fn hover_vertices(
     verts: Query<(&GlobalTransform, &VertexData), With<SelectableVertex>>,
     mut hovered: ResMut<HoveredVertex>,
 ) {
-    let window = if let Ok(w) = windows.single() {
+    let window = if let Ok(w) = windows.get_single() {
         w
     } else {
         return;
@@ -349,7 +349,7 @@ fn hover_vertices(
         hovered.0 = None;
         return;
     };
-    let (camera, cam_tf) = if let Ok(c) = camera_q.single() {
+    let (camera, cam_tf) = if let Ok(c) = camera_q.get_single() {
         c
     } else {
         hovered.0 = None;
@@ -406,7 +406,7 @@ fn update_node_visuals(
 
         if let Some(children) = children {
             for child_entity in children.iter() {
-                if let Ok(mut halo_tf) = halo_transforms.get_mut(child_entity) {
+                if let Ok(mut halo_tf) = halo_transforms.get_mut(*child_entity) {
                     let mut halo_scale = 1.1;
                     let mut alpha = 0.2;
                     if Some(data.0.id) == hover_id {
@@ -418,7 +418,7 @@ fn update_node_visuals(
                         alpha = 0.4 + 0.3 * pulse;
                     }
                     halo_tf.scale = Vec3::splat(halo_scale);
-                    if let Ok(Halo(handle)) = halos.get(child_entity) {
+                    if let Ok(Halo(handle)) = halos.get(*child_entity) {
                         if let Some(mat) = materials.get_mut(handle) {
                             mat.base_color = mat.base_color.with_alpha(alpha);
                             mat.emissive = mat.emissive.with_alpha(alpha);

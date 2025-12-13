@@ -1,7 +1,8 @@
 [package]
-name = "rune-gsv"
+name = "rune-xyco"
 version = "0.1.0"
 edition = "2024"
+description = "Xypher Codex (XYCO) - Deterministic E8 Semantic Hypergraph"
 
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }
@@ -18,7 +19,7 @@ default = []
 hydron = []
 
 [lib]
-name = "rune_gsv"
+name = "rune_xyco"
 path = "src/lib.rs"
 
 [dev-dependencies]

@@ -55,7 +55,7 @@ pub fn run_viewer_with_backend<B: E8Backend>(backend: B) {
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
                 title: "rune-gate • E8-Life Viewer".into(),
-                resolution: WindowResolution::new(1400, 900),
+                resolution: WindowResolution::new(1400.0, 900.0),
                 ..default()
             }),
             ..default()

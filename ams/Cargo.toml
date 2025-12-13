@@ -1,7 +1,7 @@
 [workspace]
 resolver = "2"
-members = ["crates/acritic", "crates/geoshi", "crates/yoshi", "crates/yoshi-derive", "crates/yoshi-std", "crates/xuid", "crates/ams-gate"]
-default-members = ["crates/acritic", "crates/geoshi", "crates/yoshi", "crates/yoshi-derive", "crates/yoshi-std", "crates/xuid", "crates/ams-gate"]
+members = ["crates/acritic", "crates/geoshi", "crates/yoshi", "crates/yoshi-derive", "crates/yoshi-std", "crates/xuid", "crates/ams-gate", "crates/gf8"]
+default-members = ["crates/acritic", "crates/geoshi", "crates/yoshi", "crates/yoshi-derive", "crates/yoshi-std", "crates/xuid", "crates/ams-gate", "crates/gf8"]
 
 [workspace.package]
 authors = ["Lord Xyn <LordXyn@proton.me>"]
@@ -19,6 +19,7 @@ acritic = { path = "./crates/acritic" }
 yoshi-derive = { path = "./crates/yoshi-derive" }
 yoshi-std = { path = "./crates/yoshi-std" }
 geoshi = { path = "./crates/geoshi" }
+gf8 = { path = "./crates/gf8" }
 yoshi = { path = "./crates/yoshi" }
 xuid = { path = "./crates/xuid" }
 ahash = "0.8.11"

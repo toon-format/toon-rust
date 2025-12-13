@@ -27,7 +27,8 @@
 
 #[cfg(feature = "viewer")]
 use bevy::prelude::Resource;
-use hydron_core::gf8::get_e8_roots;
+// use hydron_core::gf8::get_e8_roots; // Use Gf8 from gf8 crate via hydron_core
+use hydron_core::get_e8_roots;
 use serde::{Deserialize, Serialize};
 
 /// Trait that defines the contract between the Bevy frontend and the E8 backend.
@@ -84,19 +85,23 @@ impl E8Backend for HydronBackend {
     }
 
     fn list_vertices(&self) -> Vec<VertexDetail> {
+        // If get_e8_roots returns empty (placeholder), we should generate them or use gf8 crate function.
+        // Assuming get_e8_roots returns Vec<Gf8>.
         let roots = get_e8_roots();
         roots
             .iter()
             .enumerate()
-            .map(|(idx, coord)| {
+            .map(|(idx, gf)| {
                 let kind = if idx < 112 { "TypeI" } else { "TypeII" };
                 let domain = if idx < 112 { "E8 Root" } else { "E8 Spinor" };
+                // Gf8 has coords() -> [f32; 8]
+                let coord: [f32; 8] = *gf.coords();
                 VertexDetail {
                     id: idx as u32,
                     label: format!("root-{idx:03}"),
                     domain: domain.into(),
                     kind: kind.into(),
-                    coord8d: *coord,
+                    coord8d: coord,
                     blurb: "Canonical E8 basis element.".into(),
                     positive_color: None,
                     inverted_color: None,

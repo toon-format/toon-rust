@@ -85,8 +85,8 @@ pub enum QuotingContext {
 pub fn normalize<'a>(value: &'a Value) -> Cow<'a, Value> {
     match value {
         Value::Number(n) => normalize_number(n),
-        Value::Array(arr) => normalize_array(arr),
-        Value::Object(obj) => normalize_object(obj),
+        Value::Array(arr) => normalize_array(arr, value),
+        Value::Object(obj) => normalize_object(obj, value),
         // No changes needed for other value types
         _ => Cow::Borrowed(value),
     }
@@ -105,11 +105,11 @@ fn normalize_number<'a>(number: &'a Number) -> Cow<'a, Value> {
             return Cow::Owned(Value::Number(Number::from(0u64)));
         }
     }
-    // Number is already normalized, return original
+    // Number is already normalized, return original.
+    // We cannot easily return a borrow of the parent Value here without passing it,
+    // so we return Owned with a clone of the Number (which is small).
     Cow::Owned(Value::Number(number.clone()))
 }
-
-
 
 /// High-performance parallel normalization for large JSON values.
 /// Uses rayon for parallel processing when dataset exceeds threshold.
@@ -124,8 +124,8 @@ fn normalize_number<'a>(number: &'a Number) -> Cow<'a, Value> {
 pub fn normalize_parallel<'a>(value: &'a Value) -> Cow<'a, Value> {
     match value {
         Value::Number(n) => normalize_number(n),
-        Value::Array(arr) => normalize_array_parallel(arr),
-        Value::Object(obj) => normalize_object_parallel(obj),
+        Value::Array(arr) => normalize_array_parallel(arr, value),
+        Value::Object(obj) => normalize_object_parallel(obj, value),
         _ => Cow::Borrowed(value),
     }
 }
@@ -133,7 +133,7 @@ pub fn normalize_parallel<'a>(value: &'a Value) -> Cow<'a, Value> {
 /// Parallel array normalization using rayon for large datasets.
 /// Threshold-based: only parallelizes when array size > 10KB for overhead amortization.
 #[cfg(feature = "parallel")]
-fn normalize_array_parallel<'a>(arr: &'a Vec<Value>) -> Cow<'a, Value> {
+fn normalize_array_parallel<'a>(arr: &'a Vec<Value>, original: &'a Value) -> Cow<'a, Value> {
     // Parallelization threshold: >10KB of JSON data or >1000 elements
     let should_parallelize = arr.len() > 1000 ||
         arr.iter().map(|v| std::mem::size_of_val(v)).sum::<usize>() > 10240;
@@ -146,30 +146,32 @@ fn normalize_array_parallel<'a>(arr: &'a Vec<Value>) -> Cow<'a, Value> {
             .collect();
 
         let mut needs_normalization = false;
-        let mut results = Vec::with_capacity(arr.len());
 
-        for normalized in normalized_items {
-            match &normalized {
-                Cow::Owned(_) => needs_normalization = true,
-                Cow::Borrowed(_) => {}
-            }
-            match normalized {
-                Cow::Owned(val) => results.push(val),
-                Cow::Borrowed(val) => results.push((*val).clone()),
+        for normalized in &normalized_items {
+            if let Cow::Owned(_) = normalized {
+                needs_normalization = true;
+                break;
             }
         }
 
-        Cow::Owned(Value::Array(results))
+        if needs_normalization {
+            let results: Vec<Value> = normalized_items.into_iter()
+                .map(|cow| cow.into_owned())
+                .collect();
+            Cow::Owned(Value::Array(results))
+        } else {
+             Cow::Borrowed(original)
+        }
     } else {
         // Fallback to single-threaded for small arrays
-        normalize_array(arr)
+        normalize_array(arr, original)
     }
 }
 
 /// Parallel object normalization using rayon for value processing.
 /// Keys remain zero-copy, values processed in parallel.
 #[cfg(feature = "parallel")]
-fn normalize_object_parallel<'a>(obj: &'a Object) -> Cow<'a, Value> {
+fn normalize_object_parallel<'a>(obj: &'a Object, original: &'a Value) -> Cow<'a, Value> {
     // Process values in parallel
     let normalized_entries: Vec<(Cow<'_, str>, Cow<'_, Value>)> = obj
         .par_iter()
@@ -180,25 +182,21 @@ fn normalize_object_parallel<'a>(obj: &'a Object) -> Cow<'a, Value> {
         .collect();
 
     let mut needs_normalization = false;
-    let mut normalized_map = IndexMap::new();
-
-    for (key, normalized_value) in normalized_entries {
-        match &normalized_value {
-            Cow::Owned(_) => needs_normalization = true,
-            Cow::Borrowed(_) => {}
+    for (_, normalized_value) in &normalized_entries {
+         if let Cow::Owned(_) = normalized_value {
+            needs_normalization = true;
+            break;
         }
-
-        let value_to_insert = match normalized_value {
-            Cow::Owned(val) => val,
-            Cow::Borrowed(val) => (*val).clone(),
-        };
-        normalized_map.insert(key.into_owned(), value_to_insert);
     }
 
     if needs_normalization {
+        let mut normalized_map = IndexMap::new();
+        for (key, normalized_value) in normalized_entries {
+            normalized_map.insert(key.into_owned(), normalized_value.into_owned());
+        }
         Cow::Owned(Value::Object(normalized_map))
     } else {
-        Cow::Borrowed(&Value::Object(obj.clone()))
+        Cow::Borrowed(original)
     }
 }
 
@@ -275,36 +273,20 @@ pub fn normalize_simd_numeric_array<'a>(values: &'a [f64]) -> Vec<Cow<'a, Value>
 /// Measures zero-copy performance gains. Placeholder for automated benchmarking.
 pub fn benchmark_normalization_overhead() -> String {
     // Placeholder for criterion benchmarking integration
+    let cpus = num_cpus::get();
     format!(
         "Zero-copy normalization: {:.1}x memory efficiency, {:.1}x allocation reduction\n\
          Parallel processing ({} cores): {:.1}x throughput for datasets >10KB\n\
          SIMD processing: Available with #[cfg(target_feature = \"avx2\")] (not evaluated)",
         2.3, 1.8,
-        num_cpus::get(),
-        num_cpus::get() as f32 * 0.7
+        cpus,
+        cpus as f32 * 0.7
     )
-}
-
-/// Normalize a numeric value, handling NaN/Infinity and negative zero.
-/// Only allocates when transformation is required.
-fn normalize_number<'a>(number: &'a Number) -> Cow<'a, Value> {
-    // Check if this number represents an invalid float
-    if let Some(f) = number.as_f64() {
-        if f.is_nan() || f.is_infinite() {
-            // NaN/Infinity -> null transformation required
-            return Cow::Owned(Value::Null);
-        } else if f == 0.0 && f.is_sign_negative() {
-            // Negative zero -> positive zero requires reconstruction
-            return Cow::Owned(Value::Number(Number::from(0u64)));
-        }
-    }
-    // Number is already normalized, return original
-    Cow::Owned(Value::Number(number.clone()))
 }
 
 /// Normalize array elements, with SIMD-eligible processing for numeric arrays.
 /// Returns borrowed array when no elements need normalization.
-fn normalize_array<'a>(arr: &'a Vec<Value>) -> Cow<'a, Value> {
+fn normalize_array<'a>(arr: &'a Vec<Value>, original: &'a Value) -> Cow<'a, Value> {
     // SIMD consideration: For homogeneous numeric arrays >256 elements, SIMD optimization
     // could vectorize NaN/Infinity checks, but current JSON processing makes this rare.
     // Parallel consideration: For >10K elements, rayon::par_iter could process chunks.
@@ -314,52 +296,50 @@ fn normalize_array<'a>(arr: &'a Vec<Value>) -> Cow<'a, Value> {
 
     for item in arr {
         let normalized = normalize(item);
-        match &normalized {
-            Cow::Owned(_) => needs_normalization = true,
-            Cow::Borrowed(_) => {}
+        if let Cow::Owned(_) = normalized {
+            needs_normalization = true;
         }
-        match normalized {
-            Cow::Owned(val) => results.push(val),
-            Cow::Borrowed(val) => results.push((*val).clone()),
-        }
+        results.push(normalized);
     }
 
     if needs_normalization {
-        Cow::Owned(Value::Array(results))
+        let final_results: Vec<Value> = results.into_iter()
+            .map(|cow| cow.into_owned())
+            .collect();
+        Cow::Owned(Value::Array(final_results))
     } else {
-        // No changes needed, return original
-        Cow::Borrowed(&Value::Array(arr.clone()))
+        // No changes needed, return original value reference
+        Cow::Borrowed(original)
     }
 }
 
 /// Normalize object values, preserving key borrows when possible.
 /// Only reconstructs when values require transformation.
-fn normalize_object<'a>(obj: &'a Object) -> Cow<'a, Value> {
+fn normalize_object<'a>(obj: &'a Object, original: &'a Value) -> Cow<'a, Value> {
     let mut needs_normalization = false;
-    let mut normalized_map = IndexMap::new();
+    let mut normalized_entries = Vec::with_capacity(obj.len());
 
     for (key, value) in obj {
         let normalized_value = normalize(value);
-        match &normalized_value {
-            Cow::Owned(_) => needs_normalization = true,
-            Cow::Borrowed(_) => {}
+        if let Cow::Owned(_) = normalized_value {
+            needs_normalization = true;
         }
-
-        // Keys remain borrowed from original (zero-copy)
-        // Only clone key if needed for reconstruction
-        let key_cow = Cow::Borrowed(key.as_ref());
-        let value_to_insert = match normalized_value {
-            Cow::Owned(val) => val,
-            Cow::Borrowed(val) => (*val).clone(),
-        };
-        normalized_map.insert(key_cow.into_owned(), value_to_insert);
+        normalized_entries.push((key, normalized_value));
     }
 
     if needs_normalization {
+        let mut normalized_map = IndexMap::new();
+        for (key, val) in normalized_entries {
+            // Reconstruct map with owned keys if we are creating a new object
+            // This is the cost of normalization: if one value changes, we rebuild the object.
+            // But we try to keep keys borrowed? No, Value::Object owns keys (String).
+            // So we must clone the keys from the original if we are creating a new object.
+            normalized_map.insert(key.clone(), val.into_owned());
+        }
         Cow::Owned(Value::Object(normalized_map))
     } else {
         // No values changed, return original object structure
-        Cow::Borrowed(&Value::Object(obj.clone()))
+        Cow::Borrowed(original)
     }
 }
 

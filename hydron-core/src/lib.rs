@@ -17,7 +17,7 @@
  *///•------------------------------------------------------------------------------------‣
 
 pub mod fisher;
-pub mod gf8;
+// pub mod gf8; // Replaced by crate gf8
 pub mod hyperbolic;
 pub mod intrinsics;
 pub mod lorentzian;
@@ -28,7 +28,7 @@ pub mod topological;
 
 // Re-export commonly used types from submodules for convenience
 pub use fisher::FisherLayer;
-pub use gf8::{Gf8, Gf8Tensor, get_e8_roots};
+pub use gf8::{Gf8, Gf8Tensor}; // Re-export from the gf8 crate
 pub use hyperbolic::HyperbolicLayer;
 pub use intrinsics::intrinsics_for_f32_width;
 pub use lorentzian::{LorentzianCausalLayer, LorentzianLayer, SpacetimePoint};
@@ -36,3 +36,9 @@ pub use quaternion::QuaternionOps;
 pub use spherical::SphericalLayer;
 pub use symplectic::SymplecticLayer;
 pub use topological::{PersistencePair, TopologicalLayer};
+
+// Helper for root generation using gf8 crate
+pub fn get_e8_roots() -> Vec<Gf8> {
+    // Use the canonical codebook from the gf8 crate
+    gf8::get_e8_codebook().roots.to_vec()
+}

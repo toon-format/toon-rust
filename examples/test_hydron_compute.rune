@@ -1,0 +1,62 @@
+root: hydron_test
+
+# Test function calls for geometric computation with hydron-core
+
+# Define geometric points
+T:point_a := [1, 0, 0, 0, 0, 0, 0, 0]
+T:point_b := [0.707, 0.707, 0, 0, 0, 0, 0, 0]
+
+# ============== SPHERICAL GEOMETRY (S⁷) ==============
+
+# Compute geodesic distance between two S⁷ points
+S:distance_ab := S7Distance(T:point_a, T:point_b)
+
+# Spherical linear interpolation at t=0.5
+T:midpoint := S7Slerp(T:point_a, T:point_b, [0.5])
+
+# Get antipodal point (negation on sphere)
+T:opposite := S7Antipodal(T:point_a)
+
+# ============== GF8 OPERATIONS ==============
+
+# Normalize a point
+T:normalized := Gf8Normalize(T:point_b)
+
+# Compute norm of vector
+S:norm := Gf8Norm(T:point_a)
+
+# Dot product
+S:dot_product := Gf8Dot(T:point_a, T:point_b)
+
+# ============== QUATERNION OPERATIONS ==============
+
+# Define quaternions
+T:quat1 := [1, 0, 0, 0]
+T:quat2 := [0.707, 0.707, 0, 0]
+
+# Quaternion composition
+T:composed := QuatCompose(T:quat1, T:quat2)
+
+# Quaternion conjugate
+T:conj := QuatConjugate(T:quat1)
+
+# ============== HYPERBOLIC GEOMETRY (H⁸) ==============
+
+# Hyperbolic distance in Poincaré ball
+S:hyp_dist := H8Distance(T:point_a, T:point_b)
+
+# Möbius addition
+T:mobius := H8MobiusAdd(T:point_a, T:point_b)
+
+# ============== SYMPLECTIC GEOMETRY ==============
+
+# Hamiltonian energy computation
+S:energy := SymHamiltonian(T:point_a, T:point_b)
+
+# Evolution step
+T:evolved := SymEvolveStep(T:point_a, T:point_b, [0.1])
+
+# ============== TOPOLOGICAL ANALYSIS ==============
+
+# Betti numbers (persistent homology)
+B:betti := TopoBetti(T:point_a)

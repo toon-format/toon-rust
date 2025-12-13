@@ -1,0 +1,33 @@
+# Ignore target directory and other build artifacts
+.ruff_cache
+/target/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Rust specific
+**/*.rs.bk
+
+# Build outputs
+build-output.txt
+
+# Log files
+*.log
+
+# Environment variables
+.env
+.env.local
+.env.*.local

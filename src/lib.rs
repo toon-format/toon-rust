@@ -1,98 +1,82 @@
-//! # TOON Format for Rust
-//!
-//! Token-Oriented Object Notation (TOON) is a compact, human-readable format
-//! designed for passing structured data to Large Language Models with
-//! significantly reduced token usage.
-//!
-//! This crate reserves the `toon-format` namespace for the official Rust
-//! implementation. Full implementation coming soon!
-//!
-//! ## Resources
-//!
-//! - [TOON Specification](https://github.com/johannschopplich/toon/blob/main/SPEC.md)
-//! - [Main Repository](https://github.com/johannschopplich/toon)
-//! - [Other Implementations](https://github.com/johannschopplich/toon#other-implementations)
-//!
-//! ## Example Usage (Future)
-//!
-//! ```ignore
-//! use toon_format::{encode, decode};
-//!
-//! let data = json!({"name": "Alice", "age": 30});
-//! let toon_string = encode(&data)?;
-//! let decoded = decode(&toon_string)?;
-//! # Ok::<(), toon_format::ToonError>(())
-//! ```
+/* rune-xero/src/lib.rs */
 #![warn(rustdoc::missing_crate_level_docs)]
+//!▫~•◦-------------------------------‣
+//! # A high-performance Rust implementation of the RUNE data format.
+//!▫~•◦-------------------------------------------------------------------‣
+//!
+//! **RUNE (Token-Oriented Object Notation)** is a compact, human-readable data
+//! format designed for efficient communication with Large Language Models (LLMs)
+//! by significantly reducing token usage compared to formats like JSON.
+//!
+//! This crate provides a comprehensive toolkit for working with RUNE data, including:
+//! - A robust, high-performance `serde` implementation for encoding and decoding.
+//! - A feature-rich interactive Terminal UI for real-time conversion and analysis.
+//! - A core parsing engine for the full RUNE language specification.
+//! - Zero-copy and minimal-allocation utilities for maximum performance.
+//!
+//! ## Key Capabilities
+//! - **Serialization/Deserialization**: `encode` and `decode` functions for any `serde`-compatible type.
+//! - **Interactive TUI**: A full-featured terminal application, enabled via the `tui` feature.
+//! - **RUNE Language Engine**: A parser and (optional) Hydron evaluator for the RUNE superset.
+//! - **Performance-Obsessed**: Designed from the ground up to minimize allocations and CPU overhead.
+//!
+//! ### Example Usage
+//! ```rust
+//! use rune_xero::{encode_default, decode_default};
+//! use serde_json::json;
+//!
+//! // Encode a serde_json::Value to a RUNE string
+//! let data = json!({"name": "Alice", "age": 30});
+//! let rune_string = encode_default(&data).unwrap();
+//! println!("RUNE: {}", rune_string);
+//!
+//! // Decode a RUNE string back into a serde_json::Value
+//! let decoded: serde_json::Value = decode_default(&rune_string).unwrap();
+//! assert_eq!(decoded["name"], "Alice");
+//! assert_eq!(decoded["age"], 30);
+//! ```
+//! RUNE Format is Copyright (c) 2025-PRESENT Shreyas S Bhat, Johann Schopplich
+/*▫~•◦------------------------------------------------------------------------------------‣
+ * © 2025 ArcMoon Studios ◦ SPDX-License-Identifier MIT OR Apache-2.0 ◦ Author: Lord Xyn ✶
+ *///•------------------------------------------------------------------------------------‣
 
+pub mod ast;
 pub mod constants;
-pub mod decode;
-pub mod encode;
-pub mod tui;
+pub mod decoder;
+pub mod encoder;
+pub mod hydron;
+pub mod operator;
+pub mod renderer;
 pub mod types;
 pub mod utils;
 
-pub use decode::{
-    decode,
-    decode_default,
-    decode_no_coerce,
-    decode_no_coerce_with_options,
-    decode_strict,
+#[cfg(feature = "tui")]
+pub mod tui;
+
+pub use decoder::{
+    decode, decode_default, decode_no_coerce, decode_no_coerce_with_options, decode_strict,
     decode_strict_with_options,
 };
-pub use encode::{
-    encode,
-    encode_array,
-    encode_default,
-    encode_object,
-};
-pub use types::{
-    DecodeOptions,
-    Delimiter,
-    EncodeOptions,
-    Indent,
-    ToonError,
-};
+pub use encoder::{encode, encode_ast, encode_default};
+pub use hydron::{EvalContext, EvalError, Octonion, Value};
+pub use types::{DecodeOptions, Delimiter, EncodeOptions, Indent, KeyFoldingMode, PathExpansionMode, RuneError};
 pub use utils::{
-    literal::{
-        is_keyword,
-        is_literal_like,
-    },
+    literal::{is_keyword, is_literal_like},
     normalize,
-    string::{
-        escape_string,
-        is_valid_unquoted_key,
-        needs_quoting,
-    },
+    string::{escape_string, is_valid_unquoted_key, needs_quoting},
 };
 
 #[cfg(test)]
 mod tests {
-    use serde_json::{
-        json,
-        Value,
-    };
+    use std::borrow::Cow;
+    use serde_json::{json, Value};
 
     use crate::{
         constants::is_keyword,
-        decode::{
-            decode_default,
-            decode_strict,
-        },
-        encode::{
-            encode,
-            encode_default,
-        },
-        types::{
-            Delimiter,
-            EncodeOptions,
-        },
-        utils::{
-            escape_string,
-            is_literal_like,
-            needs_quoting,
-            normalize,
-        },
+        decoder::{decode_default, decode_strict},
+        encoder::{encode, encode_default},
+        types::{Delimiter, EncodeOptions},
+        utils::{escape_string, is_literal_like, needs_quoting, normalize},
     };
 
     #[test]
@@ -129,7 +113,7 @@ mod tests {
         let original = json!({"tags": ["a", "b", "c"]});
         let opts = EncodeOptions::new().with_delimiter(Delimiter::Pipe);
         let encoded = encode(&original, &opts).unwrap();
-        assert!(encoded.contains("|"));
+        assert!(encoded.contains('|'));
 
         let decoded: Value = decode_default(&encoded).unwrap();
         assert_eq!(original, decoded);
@@ -155,14 +139,13 @@ mod tests {
     fn test_utilities_exported() {
         assert!(is_keyword("null"));
         assert!(is_literal_like("true"));
-        assert_eq!(escape_string("hello\nworld"), "hello\\nworld");
+        // Test that the zero-copy escape_string now returns a Cow
+        assert_eq!(escape_string("hello\nworld"), Cow::Owned::<String>("hello\\nworld".into()));
+        assert_eq!(escape_string("hello world"), Cow::Borrowed("hello world"));
         assert!(needs_quoting("true", Delimiter::Comma.as_char()));
     }
 
-    use serde::{
-        Deserialize,
-        Serialize,
-    };
+    use serde::{Deserialize, Serialize};
 
     #[derive(Debug, Serialize, Deserialize, PartialEq)]
     struct TestUser {
@@ -173,10 +156,7 @@ mod tests {
 
     #[test]
     fn test_encode_decode_simple_struct() {
-        use crate::{
-            decode_default,
-            encode_default,
-        };
+        use crate::{decode_default, encode_default};
 
         let user = TestUser {
             name: "Alice".to_string(),
@@ -184,12 +164,12 @@ mod tests {
             active: true,
         };
 
-        let toon = encode_default(&user).unwrap();
-        assert!(toon.contains("name: Alice"));
-        assert!(toon.contains("age: 30"));
-        assert!(toon.contains("active: true"));
+        let rune = encode_default(&user).unwrap();
+        assert!(rune.contains("name: Alice"));
+        assert!(rune.contains("age: 30"));
+        assert!(rune.contains("active: true"));
 
-        let decoded: TestUser = decode_default(&toon).unwrap();
+        let decoded: TestUser = decode_default(&rune).unwrap();
         assert_eq!(user, decoded);
     }
 
@@ -202,10 +182,7 @@ mod tests {
 
     #[test]
     fn test_encode_decode_with_array() {
-        use crate::{
-            decode_default,
-            encode_default,
-        };
+        use crate::{decode_default, encode_default};
 
         let product = TestProduct {
             id: 42,
@@ -213,17 +190,14 @@ mod tests {
             tags: vec!["electronics".to_string(), "gadgets".to_string()],
         };
 
-        let toon = encode_default(&product).unwrap();
-        let decoded: TestProduct = decode_default(&toon).unwrap();
+        let rune = encode_default(&product).unwrap();
+        let decoded: TestProduct = decode_default(&rune).unwrap();
         assert_eq!(product, decoded);
     }
 
     #[test]
     fn test_encode_decode_vec_of_structs() {
-        use crate::{
-            decode_default,
-            encode_default,
-        };
+        use crate::{decode_default, encode_default};
 
         let users = vec![
             TestUser {
@@ -238,8 +212,8 @@ mod tests {
             },
         ];
 
-        let toon = encode_default(&users).unwrap();
-        let decoded: Vec<TestUser> = decode_default(&toon).unwrap();
+        let rune = encode_default(&users).unwrap();
+        let decoded: Vec<TestUser> = decode_default(&rune).unwrap();
         assert_eq!(users, decoded);
     }
 
@@ -261,10 +235,7 @@ mod tests {
 
     #[test]
     fn test_encode_decode_nested_structs() {
-        use crate::{
-            decode_default,
-            encode_default,
-        };
+        use crate::{decode_default, encode_default};
 
         let nested = Nested {
             outer: OuterStruct {
@@ -275,17 +246,14 @@ mod tests {
             },
         };
 
-        let toon = encode_default(&nested).unwrap();
-        let decoded: Nested = decode_default(&toon).unwrap();
+        let rune = encode_default(&nested).unwrap();
+        let decoded: Nested = decode_default(&rune).unwrap();
         assert_eq!(nested, decoded);
     }
 
     #[test]
     fn test_round_trip_list_item_tabular_v3() {
-        use crate::{
-            decode_default,
-            encode_default,
-        };
+        use crate::{decode_default, encode_default};
 
         let original = json!({
             "items": [
@@ -308,10 +276,7 @@ mod tests {
 
     #[test]
     fn test_round_trip_complex_list_item_tabular_v3() {
-        use crate::{
-            decode_default,
-            encode_default,
-        };
+        use crate::{decode_default, encode_default};
 
         let original = json!({
             "data": [
@@ -341,10 +306,7 @@ mod tests {
 
     #[test]
     fn test_round_trip_mixed_list_items_v3() {
-        use crate::{
-            decode_default,
-            encode_default,
-        };
+        use crate::{decode_default, encode_default};
 
         let original = json!({
             "entries": [

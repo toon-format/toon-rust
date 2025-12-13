@@ -1,0 +1,2 @@
+[alias]
+final = "run -p acritic --bin final --"

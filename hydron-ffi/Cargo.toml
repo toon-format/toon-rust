@@ -1,0 +1,27 @@
+[package]
+name = "hydron-ffi"
+version = "0.0.1"
+edition = "2024"
+description = "FFI wrapper crate for hydron geometry core (exports C ABI and wasm-bindgen wrappers)"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/arcmoonstudios/rune-format"
+keywords = ["ffi", "wasm", "geometry", "hydron", "bindings"]
+categories = ["api-bindings", "wasm", "mathematics"]
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+# Depend on the hydron-core crate via path to keep the FFI minimal and Wasm-friendly
+hydron-core = { path = "../hydron-core" }
+
+# Optional wasm-bindgen for JS glue
+wasm-bindgen = { version = "0.2.106", optional = true }
+
+[features]
+# feature to enable JS-friendly wasm bindings
+wasm = ["wasm-bindgen"]
+
+[dev-dependencies]
+# for testing convenience
+rand = "0.9.2"

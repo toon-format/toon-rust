@@ -1,0 +1,49 @@
+[package]
+name         = "yoshi-std"
+version      = { workspace = true }
+edition      = { workspace = true }
+authors      = { workspace = true }
+license      = { workspace = true }
+rust-version = { workspace = true }
+description  = "A monolithically modular module, methodically modifying most messes made by the masses, meticulously mastering mayhem with machine-mindful maneuvers, maintaining mission-critical mechanisms, manifesting miraculous middleware magic, where most might misinterpret as mysticism or mystique, thus the mistakes - morphed mercenaries of the malignant maladies, it mitigates, masterfully manipulating menial migration of maculate machinations manifold - now martyrs, a motley maven momentous in its might, mulling multitudinous myriads of malice maketh man melancholic, albeit it is the mythical, the manifested maverick, it is ArcMoon's Yoshi, witness its majesty."
+repository   = "https://github.com/arcmoon/arcmoon-suite"
+readme       = "README.md"
+keywords     = ["yoshi-std", "runtime", "supervision", "arcmoon"]
+categories   = ["libraries"]
+[dependencies]
+yoshi-derive = { path = "../yoshi-derive" }
+xuid = { path = "../xuid" }
+geoshi = { path = "../geoshi" }
+csv = { workspace = true }
+syn = { workspace = true }
+rand = { workspace = true }
+serde = { workspace = true }
+ahash = { workspace = true }
+futures = { workspace = true }
+tracing = { workspace = true }
+dashmap = { workspace = true }
+smallvec = { workspace = true }
+hostname = { workspace = true }
+once_cell = { workspace = true }
+serde_json = { workspace = true }
+sysinfo = { workspace = true, optional = true }
+tokio = { workspace = true, features = ["full"] }
+async-nats = { workspace = true, optional = true }
+chrono = { workspace = true, features = ["serde"] }
+reqwest = { workspace = true, features = ["json"] }
+ndarray = "0.16.1"
+
+[dev-dependencies]
+tracing-subscriber = { workspace = true }
+
+[features]
+default = ["system-monitoring"]
+system-monitoring = ["dep:sysinfo"]
+workers-network = ["dep:async-nats"]
+nats = ["dep:async-nats"]
+file-processing = []
+workers-basic = []
+http-gateway = []
+ml-recovery = []
+hot-reload = []
+cli = []

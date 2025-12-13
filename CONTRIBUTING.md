@@ -1,6 +1,6 @@
-# Contributing to toon-rust
+# Contributing to RUNE
 
-Thank you for your interest in contributing to the official Rust implementation of TOON!
+Thank you for your interest in contributing to RUNE, a root-centric semantic operator system built on the TOON data format!
 
 ## Project Setup
 
@@ -43,6 +43,7 @@ cargo test
 - Maintain test coverage at **85%+ line coverage**
 - Tests should cover edge cases and spec compliance
 - Run the full test suite:
+
   ```bash
   cargo test
   ```
@@ -52,6 +53,7 @@ cargo test
 All implementations must comply with the [TOON specification](https://github.com/toon-format/spec/blob/main/SPEC.md).
 
 Before submitting changes that affect encoding/decoding behavior:
+
 1. Verify against the official SPEC.md
 2. Add tests for the specific spec sections you're implementing
 3. Document any spec version requirements

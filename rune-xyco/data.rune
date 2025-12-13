@@ -1,0 +1,44 @@
+[
+  {
+    "address": [],
+    "intent": "",
+    "created_at": 0.0,
+    "semantic_graph": {
+      "nodes": [],
+      "frames": []
+    },
+    "execution": {
+      "id": "",
+      "effect_set_id": null,
+      "steps": []
+    },
+    "ranking": {
+      "query_id": "",
+      "text": "",
+      "candidate_ids": [],
+      "elo_scores": {}
+    },
+    "payload": null
+  },
+  {
+    "address": [],
+    "intent": "",
+    "created_at": 0.0,
+    "semantic_graph": {
+      "nodes": [],
+      "frames": []
+    },
+    "execution": {
+      "id": "",
+      "effect_set_id": null,
+      "steps": []
+    },
+    "ranking": {
+      "query_id": "",
+      "text": "",
+      "candidate_ids": [],
+      "elo_scores": {}
+    },
+    "payload": null
+  }
+]

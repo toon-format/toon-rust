@@ -1,9 +1,7 @@
 //! REPL command parser with inline data support
 
-use anyhow::{
-    bail,
-    Result,
-};
+use yoshi::buck;
+use yoshi::error::Result;
 
 /// Parsed REPL command with inline data
 #[derive(Debug, Clone)]
@@ -18,12 +16,12 @@ impl ReplCommand {
     ///
     /// Handles patterns like:
     /// - `encode {"data": true}` - JSON inline
-    /// - `decode name: Alice` - TOON inline
+    /// - `decode name: Alice` - RUNE inline
     /// - `encode $var` - Variable reference
     pub fn parse(input: &str) -> Result<Self> {
         let input = input.trim();
         if input.is_empty() {
-            bail!("Empty command");
+            buck!("Empty command");
         }
 
         let parts: Vec<&str> = input.splitn(2, ' ').collect();

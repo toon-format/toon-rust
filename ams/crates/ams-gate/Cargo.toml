@@ -1,0 +1,16 @@
+[package]
+name = "ams-gate"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[dependencies]
+tokio = { workspace = true, features = ["process", "net", "time"] }
+yoshi-derive = { workspace = true }
+tracing = { workspace = true }
+reqwest = { workspace = true, default-features = true, features = ["json"] }
+zip = "6.0"
+flate2 = "1.1.5"
+tar = "0.4"
+which = "8.0.0"

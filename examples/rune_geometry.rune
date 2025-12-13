@@ -1,0 +1,115 @@
+root: e8_geometry
+
+# ============================================================================
+# RUNE Geometric Computation Examples
+# ============================================================================
+# This file demonstrates real E8 geometric compute in RUNE expressions
+# All operations are evaluated through the Hydron geometry engine
+
+# ============================================================================
+# 1. SPHERICAL GEOMETRY (S⁷) - Points on the 7-sphere in 8D
+# ============================================================================
+
+# Define two normalized points on S⁷
+T:point_a = [1, 0, 0, 0, 0, 0, 0, 0]
+T:point_b = [0, 1, 0, 0, 0, 0, 0, 0]
+
+# Compute geodesic distance between them
+# This calls S7Distance(point_a, point_b) -> π/2 ≈ 1.5708
+S:distance_ab = S7Distance([1, 0, 0, 0, 0, 0, 0, 0], [0, 1, 0, 0, 0, 0, 0, 0])
+
+# Spherical linear interpolation (SLERP) at t=0.5
+T:midpoint = S7Slerp([1, 0, 0, 0, 0, 0, 0, 0], [0, 1, 0, 0, 0, 0, 0, 0], [0.5])
+
+# Antipodal point (negation on sphere)
+T:opposite = S7Antipodal([1, 0, 0, 0, 0, 0, 0, 0])
+
+# ============================================================================
+# 2. GEOLOAT8 (Gf8) - Core geometric type
+# ============================================================================
+
+# Normalize a vector to unit length
+T:normalized = Gf8Normalize([3, 4, 0, 0, 0, 0, 0, 0])
+
+# Dot product (cosine similarity)
+S:similarity = Gf8Dot([1, 0, 0, 0, 0, 0, 0, 0], [0, 1, 0, 0, 0, 0, 0, 0])
+
+# Compute norm of a vector
+S:magnitude = Gf8Norm([3, 4, 0, 0, 0, 0, 0, 0])
+
+# ============================================================================
+# 3. HYPERBOLIC GEOMETRY (H⁸) - Poincaré ball model
+# ============================================================================
+
+# Hyperbolic distance (different metric than Euclidean)
+S:h_dist = H8Distance([0.5, 0, 0, 0, 0, 0, 0, 0], [0, 0.5, 0, 0, 0, 0, 0, 0])
+
+# Möbius addition in hyperbolic space
+T:h_sum = H8MobiusAdd([0.3, 0, 0, 0, 0, 0, 0, 0], [0, 0.3, 0, 0, 0, 0, 0, 0])
+
+# ============================================================================
+# 4. FISHER INFORMATION GEOMETRY - Statistical manifolds
+# ============================================================================
+
+# Fisher information distance (for probability distributions)
+S:fisher_d = FisherDistance([0.5, 0.5, 0, 0, 0, 0, 0, 0], [0.3, 0.7, 0, 0, 0, 0, 0, 0])
+
+# Kullback-Leibler divergence
+S:kl_div = KLDivergence([0.6, 0.4, 0, 0, 0, 0, 0, 0], [0.5, 0.5, 0, 0, 0, 0, 0, 0])
+
+# ============================================================================
+# 5. QUATERNION ALGEBRA - Rotations in 3D
+# ============================================================================
+
+# Quaternion SLERP: smooth rotation interpolation
+V:quat_interp = QuatSlerp([1, 0, 0, 0], [0, 1, 0, 0], [0.5])
+
+# Quaternion composition: combine two rotations
+V:combined_rot = QuatCompose([1, 0, 0, 0], [0, 0.707, 0.707, 0])
+
+# Quaternion conjugate: inverse rotation
+V:inverse_rot = QuatConjugate([0.707, 0.707, 0, 0])
+
+# ============================================================================
+# 6. LORENTZIAN GEOMETRY - Spacetime physics
+# ============================================================================
+
+# Check if two events are causally connected (in past light cone)
+B:is_causal = LorentzianCausal([1, 0, 0, 0, 0, 0, 0, 0], [0.5, 0.3, 0.1, 0, 0, 0, 0, 0])
+
+# Lorentzian spacetime distance
+S:spacetime_dist = LorentzianDistance([0, 0, 0, 0, 0, 0, 0, 0], [1, 0.5, 0.2, 0.1, 0, 0, 0, 0])
+
+# ============================================================================
+# 7. SYMPLECTIC GEOMETRY - Hamiltonian mechanics
+# ============================================================================
+
+# Phase space state: [position_8D | momentum_8D] = 16D vector
+# Hamiltonian (total energy in phase space)
+S:energy = SymHamiltonian([1, 0, 0, 0, 0, 0, 0, 0, 0.5, 0, 0, 0, 0, 0, 0, 0])
+
+# Evolve phase space by time dt
+T:evolved_state = SymEvolveStep([1, 0, 0, 0, 0, 0, 0, 0, 0.5, 0, 0, 0, 0, 0, 0, 0], [0.01])
+
+# ============================================================================
+# 8. SEMANTIC TYPE ANNOTATIONS - Domain-aware computation
+# ============================================================================
+
+# Prefix annotations provide context:
+# T: = Type (geometric point in E8)
+# V: = Vector (velocity, direction)
+# S: = Scalar (magnitude, distance, energy)
+# B: = Boolean (truth value, causality)
+
+# Arithmetic on annotated types:
+V:velocity = [0.1, 0.2, 0.05, 0, 0, 0, 0, 0]
+S:speed = Gf8Norm([0.1, 0.2, 0.05, 0, 0, 0, 0, 0])
+
+# ============================================================================
+# COMPUTED RESULTS (when evaluated):
+# - S:distance_ab ≈ 1.5708 (π/2, orthogonal points)
+# - S:similarity = 0.0 (orthogonal vectors)
+# - S:magnitude = 5.0 (norm of [3,4,0,0,0,0,0,0])
+# - Various distances and transformed points stored in variables
+# ============================================================================
+

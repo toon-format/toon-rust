@@ -1,18 +1,92 @@
-# TOON Format for Rust
+# RUNE: Root Universal Notation Encoding
 
-[![Crates.io](https://img.shields.io/crates/v/toon-format.svg)](https://crates.io/crates/toon-format)
-[![Documentation](https://docs.rs/toon-format/badge.svg)](https://docs.rs/toon-format)
-[![Spec v2.0](https://img.shields.io/badge/spec-v2.0-brightgreen.svg)](https://github.com/toon-format/spec/blob/main/SPEC.md)
+[![Crates.io](https://img.shields.io/crates/v/rune-format.svg)](https://crates.io/crates/rune-format)
+[![Documentation](https://docs.rs/rune-format/badge.svg)](https://docs.rs/rune-format)
+[![Built on TOON](https://img.shields.io/badge/built%20on-TOON-purple.svg)](https://github.com/toon-format/toon)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
-[![Tests](https://img.shields.io/badge/tests-%20passing-success.svg)]()
 
-**Token-Oriented Object Notation (TOON)** is a compact, human-readable format designed for passing structured data to Large Language Models with significantly reduced token usage.
+**RUNE (Root Universal Notation Encoding)** is a root-centric, semantic operator system for the E8 ecosystem. It wraps the **TOON** data format to provide geometric flow, hierarchical definitions, and explicit semantic wiring for LLMs and generative systems.
 
-This crate provides the official, **spec-compliant Rust implementation** of TOON v2.0 with v1.5 optional features, offering both a library (`toon-format`) and a full-featured command-line tool (`toon`).
+> **Attribution Note:**
+> RUNE is built upon the foundational work of **[Token-Oriented Object Notation (TOON)](https://github.com/toon-format/toon)**.
+> It extends the TOON serialization format with root-oriented operators (`/`, `->`, `:=`) and topological glyphs.
+> We gratefully acknowledge Johann Schopplich and Shreyas S Bhat for their excellent work on the underlying data format.
 
-## Quick Example
+---
+
+## The RUNE Philosophy
+
+While **TOON** solves the problem of *efficient data serialization* for LLMs, **RUNE** solves the problem of *semantic structure and flow*.
+
+RUNE treats data blocks as **Nodes** in a root-oriented hierarchy. It introduces a notation to:
+
+1. **Define Roots:** Explicitly anchor data to a context (`root: context`).
+2. **Embed Data:** Use TOON syntax for efficient, token-cheap data payloads.
+3. **Define Flow:** Use directed operators (`->`) and glyphs (`\|/`) to describe relationships between data nodes.
+
+### RUNE = Root + Operators + TOON Data
+
+```rune
+# 1. Define the Root Context
+root: e8_continuum
+
+# 2. Embed Data (using RUNE syntax)
+layers ~RUNE:
+  config[2]{id, type}:
+    1,Lattice
+    2,Projection
+
+# 3. Define Semantic Flow (RUNE Operators)
+layers / 1 -> type := Lattice
+layers / 2 -> type := Projection
+
+# 4. Semantic Prefixes (A-Z domain notation)
+T:Gf8 * V:velocity -> R:continuum
+
+# 5. Array Literals and Math
+[1, 2, 3] + [4, 5, 6]  # Array operations
+[[3,3,3]*[3,3,3]]      # Math on nested arrays
+
+# 6. Topological Relations (Glyphs)
+layers / 1 \|/ layers / 2   # Symmetric split relation
+```
+
+---
+
+## Features
+
+- **Root-Centric Architecture**: Every document is anchored to a specific root/context.
+- **TOON Data Layer**: Uses the spec-compliant TOON format for all data blocks (see below).
+- **Semantic Operators**: First-class support for flow (`->`), definition (`:=`), and hierarchy (`/`).
+- **Token Efficiency**: Inherits TOON's 18-40% token savings over JSON.
+- **E8 Geometry**: Native support for E8 primitives (Gf8, XUID) in the AST.
+
+---
+
+## Installation
+
+### As a Library
+
+```bash
+cargo add geo-rune
+```
+
+### As a CLI Tool
+
+```bash
+cargo install geo-rune
+```
+
+---
+
+## Data Layer: TOON Format
+
+*RUNE uses TOON v2.0 as its native data serialization format. The following documentation applies to data blocks within RUNE.*
+
+### Quick Example (Data Layer)
 
 **JSON** (16 tokens, 40 bytes):
+
 ```json
 {
   "users": [
@@ -22,565 +96,199 @@ This crate provides the official, **spec-compliant Rust implementation** of TOON
 }
 ```
 
-**TOON** (13 tokens, 28 bytes) - **18.75% token savings**:
-```toon
+**RUNE** (13 tokens, 28 bytes) - **18.75% token savings**:
+
+```rune
 users[2]{id,name}:
   1,Alice
   2,Bob
 ```
 
-## Features
+### RUNE Semantic Extensions
 
-- **Generic API**: Works with any `Serialize`/`Deserialize` type - custom structs, enums, JSON values, and more
-- **Spec-Compliant**: Fully compliant with [TOON Specification v2.0](https://github.com/toon-format/spec/blob/main/SPEC.md)
-- **v1.5 Optional Features**: Key folding and path expansion
-- **Safe & Performant**: Built with safe, fast Rust
-- **Powerful CLI**: Full-featured command-line tool
-- **Strict Validation**: Enforces all spec rules (configurable)
-- **Well-Tested**: Comprehensive test suite with unit tests, spec fixtures, and real-world scenarios
+**Traditional notation** (verbose, unclear domain):
 
-## Installation
-
-### As a Library
-
-```bash
-cargo add toon-format
+```json
+{
+  "tensor_Gf8": {"value": 2.5},
+  "vector_velocity": {"value": 3.0},
+  "result": 7.5
+}
 ```
 
-### As a CLI Tool
+**RUNE with semantic prefixes** (concise, domain-explicit):
 
-```bash
-cargo install toon-format
+```rune
+T:Gf8: 2.5
+V:velocity: 3.0
+R:result: T:Gf8 * V:velocity
 ```
+
+Semantic prefixes (A-Z) provide explicit domain context while maintaining token efficiency.
+
+### Benchmarks
+
+RUNE extends TOON with semantic operators while maintaining competitive efficiency:
+
+| Format | Token Savings | Byte Savings | Example Size |
+|--------|---------------|--------------|----------------|
+| **TOON** | **13.9%** | **62.7%** | **31 tokens / 194 bytes** |
+| **RUNE** | **5.6%** | **65.6%** | **34 tokens / 179 bytes** |
+| JSON Compact | baseline | baseline | 36 tokens / 243 bytes |
+| JSON Pretty | baseline | -114% | 36 tokens / 520 bytes |
+
+**Key Insight**: RUNE adds 3 semantic prefix tokens (`T:`, `V:`, `M:`) for domain clarity while saving 15 bytes through compact notation. The semantic overhead is minimal (~9% more tokens than TOON) but provides explicit domain context that improves LLM understanding.
+
+**Complex Structures**: On nested tensor data, RUNE achieves 17.2% token savings and 68.9% byte savings vs JSON.
 
 ---
 
 ## Library Usage
 
-### Basic Encode & Decode
+The `rune` crate exposes APIs to parse full RUNE documents as well as raw TOON blocks.
 
-The `encode` and `decode` functions work with any type implementing `Serialize`/`Deserialize`:
-
-**With custom structs:**
+### Parsing RUNE
 
 ```rust
-use serde::{Serialize, Deserialize};
-use toon_format::{encode_default, decode_default};
+use rune_format::{RuneParser, Stmt};
 
-#[derive(Serialize, Deserialize, Debug, PartialEq)]
-struct User {
-    name: String,
-    age: u32,
-    email: String,
-}
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let input = r#"
+        root: system_config
+        
+        users ~RUNE:
+          users[2]{id,role}:
+            1,admin
+            2,viewer
+            
+        users / 1 -> role := admin
+        
+        # Semantic prefixes for domain-specific notation
+        T:Gf8 * 2.5
+        V:velocity: [1, 2, 3]
+    "#;
 
-fn main() -> Result<(), toon_format::ToonError> {
-    let user = User {
-        name: "Alice".to_string(),
-        age: 30,
-        email: "alice@example.com".to_string(),
-    };
-
-    // Encode to TOON
-    let toon = encode_default(&user)?;
-    println!("{}", toon);
-    // Output:
-    // name: Alice
-    // age: 30
-    // email: alice@example.com
-
-    // Decode back to struct
-    let decoded: User = decode_default(&toon)?;
-    assert_eq!(user, decoded);
-
-    Ok(())
-}
-```
-
-**With JSON values:**
-
-```rust
-use serde_json::{json, Value};
-use toon_format::{encode_default, decode_default};
-
-fn main() -> Result<(), toon_format::ToonError> {
-    let data = json!({
-        "users": [
-            {"id": 1, "name": "Alice"},
-            {"id": 2, "name": "Bob"}
-        ]
-    });
-
-    // Encode to TOON
-    let toon_str = encode_default(&data)?;
-    println!("{}", toon_str);
-    // Output:
-    // users[2]{id,name}:
-    //   1,Alice
-    //   2,Bob
-
-    // Decode back to JSON
-    let decoded: Value = decode_default(&toon_str)?;
-    assert_eq!(decoded, data);
+    let file = RuneParser::parse(input)?;
     
+    for stmt in file.statements {
+        match stmt {
+            Stmt::RootDef(root) => println!("Root: {}", root),
+            Stmt::ToonBlock(block) => {
+                println!("Found data block '{}'", block.name);
+                // Parse the inner content using the standard TOON decoder
+                let data: serde_json::Value = rune_format::decode(&block.raw_content)?;
+                println!("Data: {:?}", data);
+            }
+            Stmt::Def { name, value } => println!("Defined {} := {}", name, value),
+            _ => {}
+        }
+    }
+
     Ok(())
 }
 ```
----
-
-## API Reference
-
-### Encoding
-
-#### `encode<T: Serialize>(&value, &options) -> Result<String, ToonError>`
-
-Encode any serializable type to TOON format. Works with custom structs, enums, collections, and `serde_json::Value`.
-
-```rust
-use toon_format::{encode, EncodeOptions, Delimiter, Indent};
-use serde_json::json;
-
-let data = json!({"items": ["a", "b", "c"]});
-
-// Default encoding
-let toon = encode(&data, &EncodeOptions::default())?;
-// items[3]: a,b,c
-
-// Custom delimiter
-let opts = EncodeOptions::new()
-    .with_delimiter(Delimiter::Pipe);
-let toon = encode(&data, &opts)?;
-// items[3|]: a|b|c
-
-// Custom indentation
-let opts = EncodeOptions::new()
-    .with_indent(Indent::Spaces(4));
-let toon = encode(&data, &opts)?;
-```
-
-#### `EncodeOptions`
-
-| Method | Description | Default |
-|--------|-------------|---------|
-| `with_delimiter(d)` | Set delimiter: `Comma`, `Tab`, or `Pipe` | `Comma` |
-| `with_indent(i)` | Set indentation (spaces only) | `Spaces(2)` |
-| `with_spaces(n)` | Shorthand for `Indent::Spaces(n)` | `2` |
-| `with_key_folding(mode)` | Enable key folding (v1.5) | `Off` |
-| `with_flatten_depth(n)` | Set max folding depth | `usize::MAX` |
-
-### Decoding
-
-#### `decode<T: Deserialize>(&input, &options) -> Result<T, ToonError>`
-
-Decode TOON format into any deserializable type. Works with custom structs, enums, collections, and `serde_json::Value`.
-
-**With custom structs:**
-```rust
-use serde::Deserialize;
-use toon_format::{decode, DecodeOptions};
-
-#[derive(Deserialize)]
-struct Config {
-    host: String,
-    port: u16,
-}
-
-let toon = "host: localhost\nport: 8080";
-let config: Config = decode(toon, &DecodeOptions::default())?;
-```
-
-**With JSON values:**
-```rust
-use serde_json::Value;
-use toon_format::{decode, DecodeOptions};
-
-let toon = "name: Alice\nage: 30";
-
-// Default (strict) decode
-let json: Value = decode(toon, &DecodeOptions::default())?;
-
-// Non-strict mode (relaxed validation)
-let opts = DecodeOptions::new().with_strict(false);
-let json: Value = decode(toon, &opts)?;
-
-// Disable type coercion
-let opts = DecodeOptions::new().with_coerce_types(false);
-let json: Value = decode("active: true", &opts)?;
-// With coercion: {"active": true}
-// Without: {"active": "true"}
-```
-
-**Helper functions:**
-- `encode_default<T>(&value)` - Encode with default options
-- `decode_default<T>(&input)` - Decode with default options
-
-#### `DecodeOptions`
-
-| Method | Description | Default |
-|--------|-------------|---------|
-| `with_strict(b)` | Enable strict validation | `true` |
-| `with_coerce_types(b)` | Auto-convert strings to types | `true` |
-| `with_expand_paths(mode)` | Enable path expansion (v1.5) | `Off` |
 
 ---
 
-## v1.5 Features
+## RUNE Language Features
 
-### Key Folding (Encoder)
+RUNE extends TOON with semantic operators and domain-specific notation.
 
-**New in v1.5**: Collapse single-key object chains into dotted paths to reduce tokens.
+### Semantic Prefixes (A-Z)
 
-**Standard nesting:**
-```toon
-data:
-  metadata:
-    items[2]: a,b
+Use capital letters with colon syntax for domain-specific identifiers:
+
+```rune
+T:Gf8        # Tensor in Gf8 space
+V:velocity   # Vector quantity
+R:continuum  # Result in continuum
+M:transform  # Matrix transformation
 ```
 
-**With key folding:**
-```toon
-data.metadata.items[2]: a,b
+### Array Literals
+
+Comma-separated values for arrays:
+
+```rune
+[1, 2, 3]           # Numeric array
+[a, b, c]           # Identifier array
+[T:Gf8, V:velocity] # Semantic array
 ```
 
-**Example:**
+Math blocks use single brackets:
 
-```rust
-use serde_json::json;
-use toon_format::{encode, EncodeOptions, KeyFoldingMode};
-
-let data = json!({
-    "data": {
-        "metadata": {
-            "items": ["a", "b"]
-        }
-    }
-});
-
-// Enable key folding
-let opts = EncodeOptions::new()
-    .with_key_folding(KeyFoldingMode::Safe);
-
-let toon = encode(&data, &opts)?;
-// Output: data.metadata.items[2]: a,b
+```rune
+[a + b]             # Math expression
+[[3,3,3]*[3,3,3]]   # Nested array math
 ```
 
-#### With Depth Control
+### v1.5 Features (Supported in Data Blocks)
 
-```rust
-let data = json!({"a": {"b": {"c": {"d": 1}}}});
+RUNE supports all modern TOON features within `~RUNE:` blocks.
 
-// Fold only 2 levels
-let opts = EncodeOptions::new()
-    .with_key_folding(KeyFoldingMode::Safe)
-    .with_flatten_depth(2);
+### Key Folding
 
-let toon = encode(&data, &opts)?;
-// Output:
-// a.b:
-//   c:
-//     d: 1
+Collapse single-key object chains into dotted paths.
+
+```rune
+config ~RUNE:
+  data.metadata.items[2]: a,b
 ```
 
-#### Safety Features
+### Path Expansion
 
-Key folding only applies when:
-- All segments are valid identifiers (`a-z`, `A-Z`, `0-9`, `_`)
-- Each level contains exactly one key
-- No collision with sibling literal keys
-- Within the specified `flatten_depth`
+Automatically expand dotted keys into nested objects during decoding.
 
-Keys like `full-name`, `user.email` (if quoted), or numeric keys won't be folded.
-
-### Path Expansion (Decoder)
-
-**New in v1.5**: Automatically expand dotted keys into nested objects.
-
-**Compact input:**
-```toon
-a.b.c: 1
-a.b.d: 2
-a.e: 3
+```rune
+settings ~RUNE:
+  a.b.c: 1
+  a.b.d: 2
 ```
 
-**Expanded output:**
+Expands to:
+
 ```json
-{
-  "a": {
-    "b": {
-      "c": 1,
-      "d": 2
-    },
-    "e": 3
-  }
-}
+{"a": {"b": {"c": 1, "d": 2}}}
 ```
-
-**Example:**
-
-```rust
-use serde_json::Value;
-use toon_format::{decode, DecodeOptions, PathExpansionMode};
-
-let toon = "a.b.c: 1\na.b.d: 2";
-
-// Enable path expansion
-let opts = DecodeOptions::new()
-    .with_expand_paths(PathExpansionMode::Safe);
-
-let json: Value = decode(toon, &opts)?;
-// {"a": {"b": {"c": 1, "d": 2}}}
-```
-
-**Round-Trip Example:**
-
-```rust
-use serde_json::{json, Value};
-use toon_format::{encode, decode, EncodeOptions, DecodeOptions, KeyFoldingMode, PathExpansionMode};
-
-let original = json!({
-    "user": {
-        "profile": {
-            "name": "Alice"
-        }
-    }
-});
-
-// Encode with folding
-let encode_opts = EncodeOptions::new()
-    .with_key_folding(KeyFoldingMode::Safe);
-let toon = encode(&original, &encode_opts)?;
-// Output: "user.profile.name: Alice"
-
-// Decode with expansion
-let decode_opts = DecodeOptions::new()
-    .with_expand_paths(PathExpansionMode::Safe);
-let restored: Value = decode(&toon, &decode_opts)?;
-
-assert_eq!(restored, original); // Perfect round-trip!
-```
-
-**Quoted Keys Remain Literal:**
-
-```rust
-use serde_json::Value;
-use toon_format::{decode, DecodeOptions, PathExpansionMode};
-
-let toon = r#"a.b: 1
-"c.d": 2"#;
-
-let opts = DecodeOptions::new()
-    .with_expand_paths(PathExpansionMode::Safe);
-let json: Value = decode(toon, &opts)?;
-// {
-//   "a": {"b": 1},
-//   "c.d": 2        <- quoted key preserved
-// }
-```
-
----
-
-## Interactive TUI
-
-TOON includes a full-featured Terminal User Interface for interactive conversions!
-
-```bash
-# Launch interactive mode
-toon --interactive
-# or
-toon -i
-```
-
-### Features:
-- Real-time conversion as you type
-- Live statistics (tokens, bytes, savings)
-- Interactive settings - adjust all options on-the-fly
-- File browser with visual navigation
-- Side-by-side diff viewer
-- Conversion history tracking
-- File operations (open, save, new)
-- Clipboard integration (copy/paste)
-- REPL mode for command-line interaction
-- Round-trip testing
-- Theme support (Dark/Light)
-- Built-in help with keyboard shortcuts
-
-**Perfect for:**
-- Learning TOON format interactively
-- Testing conversions in real-time
-- Experimenting with different settings
-- Visual before/after comparisons
-- Quick data transformations
-
-See [docs/TUI.md](docs/TUI.md) for complete documentation and keyboard shortcuts!
 
 ---
 
 ## CLI Usage
 
-### Basic Commands
+The `rune` CLI works as a superset of the `toon` CLI.
 
 ```bash
-# Auto-detect from extension
-toon data.json        # Encode
-toon data.toon        # Decode
+# Parse a RUNE file and output the resolved JSON tree
+rune input.rune --json
 
-# Force mode
-toon -e data.txt      # Force encode
-toon -d output.txt    # Force decode
-
-# Pipe from stdin
-cat data.json | toon
-echo '{"name": "Alice"}' | toon -e
+# Interactive TUI mode (inherited from TOON)
+rune -i
 ```
 
-### Encode Options
+### Options
 
 ```bash
-# Custom delimiter
-toon data.json --delimiter pipe
-toon data.json --delimiter tab
+# Custom indentation for data blocks
+rune data.rune --indent 4
 
-# Custom indentation
-toon data.json --indent 4
-
-# Key folding (v1.5)
-toon data.json --fold-keys
-toon data.json --fold-keys --flatten-depth 2
+# Key folding for data blocks
+rune data.rune --fold-keys
 
 # Show statistics
-toon data.json --stats
-```
-
-### Decode Options
-
-```bash
-# Pretty-print JSON
-toon data.toon --json-indent 2
-
-# Relaxed validation
-toon data.toon --no-strict
-
-# Disable type coercion
-toon data.toon --no-coerce
-
-# Path expansion (v1.5)
-toon data.toon --expand-paths
-```
-
-### Full Example
-
-```bash
-$ echo '{"data":{"meta":{"items":["x","y"]}}}' | toon --fold-keys --stats
-
-data.meta.items[2]: x,y
-
-Stats:
-+--------------+------+------+---------+
-| Metric       | JSON | TOON | Savings |
-+======================================+
-| Tokens       | 13   | 8    | 38.46%  |
-|--------------+------+------+---------|
-| Size (bytes) | 38   | 23   | 39.47%  |
-+--------------+------+------+---------+
+rune data.rune --stats
 ```
 
 ---
 
-## Testing
+## License & Attribution
 
-The library includes a comprehensive test suite covering core functionality, edge cases, spec compliance, and real-world scenarios.
+This project is a fork and extension of [toon-format](https://github.com/arcmoonstudios/rune).
 
-```bash
-# Run all tests
-cargo test
+- **RUNE Extensions & Modifications**: Copyright © 2025 ArcMoon Studios
+- **Original TOON Format & Code**: Copyright © 2025-PRESENT Johann Schopplich and Shreyas S Bhat
 
-# Run specific test suites
-cargo test --test spec_fixtures
-cargo test --lib
+Licensed under the **MIT License**.
 
-# With output
-cargo test -- --nocapture
-```
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
 
-## Error Handling
-
-All operations return `Result<T, ToonError>` with descriptive error messages:
-
-```rust
-use serde_json::Value;
-use toon_format::{decode_strict, ToonError};
-
-match decode_strict::<Value>("items[3]: a,b") {
-    Ok(value) => println!("Success: {:?}", value),
-    Err(ToonError::LengthMismatch { expected, found, .. }) => {
-        eprintln!("Array length mismatch: expected {}, found {}", expected, found);
-    }
-    Err(e) => eprintln!("Error: {}", e),
-}
-```
-
-### Error Types
-
-- `ParseError` - Syntax errors with line/column info
-- `LengthMismatch` - Array length doesn't match header
-- `TypeMismatch` - Unexpected value type
-- `InvalidStructure` - Malformed TOON structure
-- `SerializationError` / `DeserializationError` - Conversion failures
-
----
-
-
-## Examples
-Run with `cargo run --example examples` to see all examples:
-- `structs.rs` - Custom struct serialization
-- `tabular.rs` - Tabular array formatting
-- `arrays.rs` - Various array formats
-- `arrays_of_arrays.rs` - Nested arrays
-- `objects.rs` - Object encoding
-- `mixed_arrays.rs` - Mixed-type arrays
-- `delimiters.rs` - Custom delimiters
-- `round_trip.rs` - Encode/decode round-trips
-- `decode_strict.rs` - Strict validation
-- `empty_and_root.rs` - Edge cases
-
----
-
-## Resources
-
-- 📖 [TOON Specification v2.0](https://github.com/toon-format/spec/blob/main/SPEC.md)
-- 📦 [Crates.io Package](https://crates.io/crates/toon-format)
-- 📚 [API Documentation](https://docs.rs/toon-format)
-- 🔧 [Main Repository (JS/TS)](https://github.com/toon-format/toon)
-- 🎯 [Benchmarks & Performance](https://github.com/toon-format/toon#benchmarks)
-
----
-
-## Contributing
-
-Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-
-### Development
-
-```bash
-# Clone the repository
-git clone https://github.com/your-org/toon-rust.git
-cd toon-rust
-
-# Run tests
-cargo test --all
-
-# Run lints
-cargo clippy -- -D warnings
-
-# Format code
-cargo fmt
-
-# Build docs
-cargo doc --open
-```
-
----
-
-## License
-
-MIT License © 2025-PRESENT [Johann Schopplich](https://github.com/johannschopplich) and [Shreyas K S](https://github.com/shreyasbhat0)
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.

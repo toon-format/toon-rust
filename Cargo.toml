@@ -1,52 +1,202 @@
-[package]
-name = "toon-format"
-version = "0.4.0"
-edition = "2021"
-authors = [
-    "Johann Schopplich <hello@johannschopplich.com>",
-    "Shreyas K S <ks.shreyas0@gmail.com>",
-]
-license = "MIT"
-description = "Token-Oriented Object Notation (TOON) - a token-efficient JSON alternative for LLM prompts"
-repository = "https://github.com/toon-format/toon-rust"
-homepage = "https://toonformat.dev"
-documentation = "https://docs.rs/toon-format"
-keywords = ["toon", "format", "llm", "token", "serialization"]
-categories = ["encoding", "parser-implementations"]
+[workspace]
+members = [".", "hydron-core", "hydron-ffi", "rune-curs", "rune-hex", "rune-xyco", "rune-gate", "rune-cros"]
+resolver = "2"
+
+[workspace.package]
+authors = ["Lord Xyn <LordXyn@proton.me>"]
+license = "MIT OR Apache-2.0"
+rust-version = "1.89"
+version = "0.1.0"
+edition = "2024"
+repository = "https://github.com/arcmoonstudios/ams"
 readme = "README.md"
+description = "ArcMoon Suite"
+
+[workspace.dependencies]
+ 
+yoshi = { path = "./ams/crates/yoshi" }
+yoshi-std = { path = "./ams/crates/yoshi-std" }
+yoshi-derive = { path = "./ams/crates/yoshi-derive" }
+proc-macro2 = { version = "1.0.103", features = ["span-locations"] }
+syn = "2.0.111"
+quote = "1.0"
+chrono = { version = "0.4", features = ["serde"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0.145"
+thiserror = "1.0.61"
+async-trait = "0.1"
+tracing = "0.1.43"
+tokio = { version = "1.48", features = ["full"] }
+rand = "0.9.2"
+hex = "0.4.3"
+blake3 = "1.3"
+ahash = "0.8.11"
+dashmap = "6.1.0"
+once_cell = "1.20"
+parking_lot = "0.12"
+smallvec = "1.13"
+clap = "4.5.52"
+rayon = "1.7"
+tempfile = "3.10"
+criterion = "0.8.1"
+toml = "0.9.8"
+url = "2.5"
+regex = "1.12"
+futures = "0.3"
+lz4_flex = "0.12"
+zstd = "0.13.3"
+sysinfo = "0.37.2"
+hostname = "0.4"
+csv = "1.4.0"
+statistical = "1.0"
+plotters = "0.3"
+proptest = "1.4"
+reqwest = { version = "0.12.25", features = ["json"] }
+tracing-subscriber = "0.3.22"
+xuid = { path = "./ams/crates/xuid" }
+acritic = { path = "./ams/crates/acritic" }
+geoshi = { path = "./ams/crates/geoshi" }
+ams-gate = { path = "./ams/crates/ams-gate" }
+gf8 = { path = "./ams/crates/gf8" }
+ed25519-dalek = { version = "2.1", features = ["std"] }
+getrandom = { version = "0.3.4", features = ["std"] }
+num_cpus = { version = "1.16", default-features = false }
+parity-scale-codec = { version = "3.7", features = ["derive"] }
+snap = "1.1.1"
+toml_edit = "0.23.9"
+tokio-test = "0.4"
+qdrant-client = "1.16.0"
+fory = "0.13.2"
+fory-core = "0.13.2"
+fory-derive = "0.13.2"
+async-nats = "0.45.0"
+nalgebra = "0.34.1"
+
+[package]
+name = "rune-format"
+version = "0.0.1"
+edition = "2024"
+authors = ["Lord Xyn <LordXyn@proton.me",]
+license = "MIT OR Apache-2.0"
+description = "Root Universal Notation Encoding (RUNE) - geometric control language with E8 lattice mathematics and Token-Oriented Object Notation (TOON) serialization"
+repository = "https://github.com/arcmoonstudios/rune-format"
+documentation = "https://docs.rs/rune-format"
+keywords = ["rune", "geometry", "e8", "toon", "serialization"]
+categories = ["mathematics", "encoding", "parser-implementations", "science"]
+readme = "README.md"
+
+[features]
+default = []
+fory = ["dep:fory", "dep:fory-core", "hydron-core?/fory"]
+hydron = ["hydron-core"]  # Geometry Math Engine for RUNE (depends on hydron-core crate)
+simd = ["hydron", "hydron-core/simd"]  # SIMD acceleration for Gf8 operations (enables hydron-core simd)
+cuda = ["cust", "rune-curs"]
+gsv = ["rune-xyco"]
+tui = []  # Terminal User Interface
 
 [[example]]
 name = "examples"
 path = "examples/main.rs"
 
 [[bin]]
-name = "toon"
+name = "rune"
 path = "src/cli/main.rs"
 
+[[bin]]
+name = "san"
+path = "src/utils/san.rs"
+
 [dependencies]
+hydron-core = { path = "./hydron-core", optional = true, features = ["serde", "fory"] }
+rune-curs = { path = "./rune-curs", optional = true }
+rune-hex = { path = "./rune-hex" }
+rune-xyco = { path = "./rune-xyco", optional = true }
 serde = { version = "1.0.228", features = ["derive"] }
-indexmap = "2.0"
+indexmap = "2.12.1"
 serde_json = { version = "1.0.145", features = ["preserve_order"] }
-thiserror = "2.0.17"
+cust = { version = "0.3.2", optional = true }
+# Yoshi error stack (workspace paths).
+yoshi = { workspace = true }
+yoshi-std = { workspace = true }
+yoshi-derive = { workspace = true }
+
+# RUNE-specific dependencies
+pest = "2.8.4"
+pest_derive = "2.8.4"
 
 clap = { version = "4.5.11", features = ["derive"] }
-anyhow = "1.0.86"
 tiktoken-rs = "0.9.1"
-comfy-table = "7.1"
+comfy-table = "7.2.1"
+rayon = "1.10.0" # Added for parallel iterators
+thiserror = "1.0.61" # Added for custom error types and attributes
+itoa = "1.0.11" # Added for efficient integer to ASCII conversion
+simd-json = "0.13.1" # Added for zero-copy, SIMD-accelerated JSON parsing
 
 # TUI dependencies
 ratatui = "0.29"
-crossterm = "0.28"
+crossterm = "0.29"
 tui-textarea = "0.7"
-arboard = "3.4"
-syntect = "5.2"
+arboard = "3.6.1"
+syntect = "5.3.0"
 unicode-width = "0.2"
 chrono = "0.4"
+fory = { version = "0.13.2", optional = true }
+fory-core = { version = "0.13.2", optional = true }
+num_cpus = { workspace = true }
 
 [dev-dependencies]
-datatest-stable = "0.3.3"
-glob = "0.3"
+glob = "0.3.3"
+criterion = { version = "0.8.1", features = ["html_reports"] }
+tempfile = "3.5"
 
-[[test]]
-name = "spec_fixtures"
+[build-dependencies]
+ptx-builder = { version = "0.5.3", optional = true }
+
+[[bench]]
+name = "rune_parser"
 harness = false
+
+[[bench]]
+name = "rune_operators"
+harness = false
+
+[[bench]]
+name = "rune_vs_toon"
+harness = false
+
+[[bench]]
+name = "hydron_geometry"
+harness = false
+required-features = ["hydron"]
+
+[[bench]]
+name = "fory_ops"
+harness = false
+required-features = ["fory"]
+
+[[bench]]
+name = "serde_hydron"
+harness = false
+required-features = ["hydron"]
+
+[[bench]]
+name = "fory_hydron"
+harness = false
+required-features = ["fory", "hydron", "simd"]
+
+[profile.dev]
+lto = "thin"
+opt-level = 3
+incremental = true
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = "symbols"
+
+[profile.bench]
+opt-level = 3
+lto = false
+codegen-units = 1

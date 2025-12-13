@@ -1,3 +1,16 @@
+/* rune-xero/src/types/folding.rs */
+//!▫~•◦-----------------------------‣
+//! # RUNE-Xero – Key Folding Types
+//!▫~•◦-----------------------------‣
+//!
+//! Enums and validation logic for key folding and path expansion.
+//! Zero-allocation implementation operating purely on stack types and string slices.
+//!
+/*▫~•◦------------------------------------------------------------------------------------‣
+ * © 2025 ArcMoon Studios ◦ SPDX-License-Identifier MIT OR Apache-2.0 ◦ Author: Lord Xyn ✶
+ *///•------------------------------------------------------------------------------------‣
+
+/// Configuration for key folding behavior during encoding.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum KeyFoldingMode {
     /// No folding performed. All objects use standard nesting.
@@ -7,6 +20,7 @@ pub enum KeyFoldingMode {
     Safe,
 }
 
+/// Configuration for path expansion behavior during decoding.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum PathExpansionMode {
     /// Dotted keys are treated as literal keys. No expansion.
@@ -16,8 +30,14 @@ pub enum PathExpansionMode {
     Safe,
 }
 
-/// Check if a key segment is a valid IdentifierSegment (stricter than unquoted
-/// keys).
+/// Check if a key segment is a valid IdentifierSegment.
+///
+/// Strict rules for segments involved in folding/expansion:
+/// - Must start with alphabetic char or `_`.
+/// - Must contain only alphanumeric chars or `_`.
+/// - NO dots allowed (dot is the separator).
+///
+/// Operates on borrowed string slice without allocation.
 pub fn is_identifier_segment(s: &str) -> bool {
     if s.is_empty() {
         return false;
@@ -55,7 +75,6 @@ mod tests {
 
     #[test]
     fn test_is_identifier_segment() {
-        // Valid segments
         assert!(is_identifier_segment("a"));
         assert!(is_identifier_segment("_private"));
         assert!(is_identifier_segment("userName"));
@@ -63,25 +82,12 @@ mod tests {
         assert!(is_identifier_segment("user123"));
         assert!(is_identifier_segment("_123"));
 
-        // Invalid segments
         assert!(!is_identifier_segment(""));
         assert!(!is_identifier_segment("123"));
         assert!(!is_identifier_segment("user-name"));
-        assert!(!is_identifier_segment("user.name")); // Contains dot
-        assert!(!is_identifier_segment("user name")); // Contains space
-        assert!(!is_identifier_segment("user:name")); // Contains colon
-        assert!(!is_identifier_segment(".name")); // Starts with dot
-    }
-
-    #[test]
-    fn test_identifier_segment_vs_general_key() {
-        // These are valid unquoted keys but NOT IdentifierSegments
-        assert!(!is_identifier_segment("a.b")); // Contains dot
-        assert!(!is_identifier_segment("a.b.c")); // Contains dots
-
-        // These are valid for both
-        assert!(is_identifier_segment("abc"));
-        assert!(is_identifier_segment("_private"));
-        assert!(is_identifier_segment("key123"));
+        assert!(!is_identifier_segment("user.name"));
+        assert!(!is_identifier_segment("user name"));
+        assert!(!is_identifier_segment("user:name"));
+        assert!(!is_identifier_segment(".name"));
     }
 }

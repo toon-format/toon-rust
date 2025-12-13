@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>hydron-ffi example</title>
+  </head>
+  <body>
+    <h1>hydron-ffi WebAssembly Example</h1>
+    <p id="output">Loading...</p>
+    <script type="module">
+      import init, { s7_distance_js } from "./pkg/hydron_ffi.js";
+
+      async function run() {
+        await init();
+
+        // Two orthogonal unit vectors on S7
+        const a = new Float32Array([1,0,0,0,0,0,0,0]);
+        const b = new Float32Array([0,1,0,0,0,0,0,0]);
+        const d = s7_distance_js(a, b);
+        document.getElementById('output').innerText = `S7 distance = ${d}`;
+        console.log('S7 distance:', d);
+      }
+
+      run().catch(console.error);
+    </script>
+  </body>
+</html>

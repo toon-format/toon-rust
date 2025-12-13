@@ -1,10 +1,21 @@
-//! Constants
+/* rune-xero/src/constants.rs */
+//!▫~•◦-----------------------------‣
+//! # RUNE-Xero – Constants
+//!▫~•◦-----------------------------‣
+//!
+//! System-wide constants and static lookup tables.
+//! Optimized for compile-time evaluation where possible.
+//!
+/*▫~•◦------------------------------------------------------------------------------------‣
+ * © 2025 ArcMoon Studios ◦ SPDX-License-Identifier MIT OR Apache-2.0 ◦ Author: Lord Xyn ✶
+ *///•------------------------------------------------------------------------------------‣
+
 use crate::types::Delimiter;
 
-/// Characters that have structural meaning in TOON format.
+/// Characters that have structural meaning in RUNE format.
 pub const STRUCTURAL_CHARS: &[char] = &['[', ']', '{', '}', ':', '-'];
 
-/// TOON keywords that must be quoted when used as strings.
+/// RUNE keywords that must be quoted when used as strings.
 pub const KEYWORDS: &[&str] = &["null", "true", "false"];
 
 /// Default indentation size (2 spaces).
@@ -17,18 +28,22 @@ pub const DEFAULT_DELIMITER: Delimiter = Delimiter::Comma;
 pub const MAX_DEPTH: usize = 256;
 
 /// Internal marker prefix for quoted keys containing dots.
-/// Used during path expansion to distinguish quoted keys (which should remain
-/// literal) from unquoted keys (which may be expanded).
-/// This marker is added during parsing and removed during expansion.
-pub(crate) const QUOTED_KEY_MARKER: char = '\x00';
+pub(crate) const QUOTED_KEY_MARKER: &str = "\x00";
 
+/// Check if a character is structural.
+/// Const-compatible implementation using match.
 #[inline]
-pub fn is_structural_char(ch: char) -> bool {
-    STRUCTURAL_CHARS.contains(&ch)
+pub const fn is_structural_char(ch: char) -> bool {
+    match ch {
+        '[' | ']' | '{' | '}' | ':' | '-' => true,
+        _ => false,
+    }
 }
 
+/// Check if a string is a reserved keyword.
 #[inline]
 pub fn is_keyword(s: &str) -> bool {
+    // Linear search is optimal for very small set (N=3)
     KEYWORDS.contains(&s)
 }
 

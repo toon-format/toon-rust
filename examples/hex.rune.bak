@@ -1,0 +1,296 @@
+# hex.rune
+# HEX – E8-Life Ontology Module
+# ----------------------------------------------------------------------------
+# This file serves as the definitive semantic source for the HoloSphere system.
+# It maps the complete taxonomy of human experience to E8 root coordinates.
+#
+# STRUCTURE:
+# 1. Root & Meta: Context definitions.
+# 2. Schema: Type definitions for the semantic engine.
+# 3. Ontology: THE COMPLETE DATASET of semantic coordinates (Ground Truth).
+# 4. Genesis: Procedural graph construction using Hydron builtins.
+# 5. Logic: Semantic operations expressed via RUNE glyphs.
+# ----------------------------------------------------------------------------
+
+root: Hex
+
+# ----------------------------------------------------------------------------
+# 1. META DEFINITIONS
+# ----------------------------------------------------------------------------
+Meta ~TOON:
+  description: "Complete semantic graph ontology aligned with the E8 root system."
+  version: "1.0.0"
+  source: "holosphere.rs"
+  dependencies: ["fory", "gf8", "xuid", "tokio"]
+
+# ----------------------------------------------------------------------------
+# 2. SCHEMA DEFINITIONS
+# ----------------------------------------------------------------------------
+Schema ~TOON:
+  T:Vertex:
+    id: String
+    label: String
+    coords: Vec8
+    domain: SemanticDomain
+
+  T:HumanExperience:
+    variant: [Emotional, Cognitive, Social, Spiritual, Existential, Physical, Ethical, Creative, Economic, Health]
+    payload: String
+
+  # Core vector type for E8 roots
+  T:Vec8: [f32; 8]
+
+# ----------------------------------------------------------------------------
+# 3. ONTOLOGY DATA (COMPLETE GROUND TRUTH)
+# Every coordinate from holosphere.rs is mapped here.
+# ----------------------------------------------------------------------------
+Ontology ~TOON:
+  Axes:
+    - { id: "A", index: 0, plus: "Self-Agency", minus: "Communion", weight: 1.0 }
+    - { id: "B", index: 1, plus: "Structure", minus: "Flux", weight: 0.9 }
+    - { id: "C", index: 2, plus: "Foresight", minus: "Memory", weight: 0.95 }
+    - { id: "D", index: 3, plus: "Clarity", minus: "Awe", weight: 0.85 }
+    - { id: "E", index: 4, plus: "Virtue", minus: "Temptation", weight: 0.9 }
+    - { id: "F", index: 5, plus: "Momentum", minus: "Stillness", weight: 0.8 }
+    - { id: "G", index: 6, plus: "Stewardship", minus: "Openness", weight: 0.85 }
+    - { id: "H", index: 7, plus: "Mastery", minus: "Risk", weight: 0.9 }
+
+  Coordinates:
+    # --- Emotional Domain ---
+    EmotionType:
+      Joy:           [ 0.5,  0.0,  0.5,  0.5,  0.5,  0.5,  0.0,  0.0]
+      Sorrow:        [-0.5,  0.0, -0.5, -0.5, -0.5,  0.0,  0.0, -0.5]
+      Anger:         [ 0.5, -0.5,  0.0, -0.5,  1.0,  0.5, -0.5,  0.5]
+      Fear:          [-0.5, -0.5, -0.5, -0.5, -0.5,  0.5, -0.5, -0.5]
+      Surprise:      [ 0.0,  1.0,  0.5,  1.0,  0.0,  0.5,  0.0,  0.0]
+      Disgust:       [-0.5,  0.0,  0.0, -0.5, -0.5,  0.0, -0.5, -0.5]
+      Love:          [ 1.0,  0.0,  0.5,  0.5,  0.5,  0.0,  1.0,  0.0]
+      Hate:          [-1.0,  0.0, -0.5, -0.5, -1.0,  0.0, -1.0,  0.0]
+      Hope:          [ 0.5,  0.5,  1.0,  0.5,  0.5,  0.5,  0.5,  0.5]
+      Despair:       [-0.5, -0.5, -1.0, -0.5, -0.5, -0.5, -0.5, -0.5]
+      Pride:         [ 1.0,  0.5,  0.0,  0.5,  1.0,  0.0,  0.0,  0.5]
+      Shame:         [-0.5, -0.5,  0.0, -0.5, -0.5,  0.0,  0.0, -0.5]
+      Awe:           [ 0.0, -0.5,  0.5,  1.0,  0.0,  0.0,  0.5,  1.0]
+      Envy:          [ 0.0, -0.5,  0.0, -0.5,  0.5,  0.0, -0.5,  0.0]
+      Guilt:         [-0.5,  0.0, -0.5, -0.5, -0.5,  0.5, -0.5,  0.0]
+      Gratitude:     [ 0.5,  0.5,  0.5,  0.5,  0.5,  0.5,  0.5,  0.5]
+      Nostalgia:     [ 0.0, -0.5,  1.0, -0.5,  0.0,  0.5,  0.0, -0.5]
+      Serenity:      [ 0.5,  0.5,  0.5,  0.5,  0.5,  0.5,  0.5,  0.0]
+      Empathy:       [ 0.5,  0.0,  0.5,  0.5,  0.5,  1.0,  1.0,  0.0]
+      Compassion:    [ 0.5,  0.5,  0.5,  0.5,  0.5,  1.0,  1.0,  0.5]
+      Jealousy:      [ 0.0, -0.5,  0.0, -0.5,  0.5, -0.5, -0.5,  0.0]
+      Loneliness:    [-0.5, -0.5, -0.5, -0.5, -0.5, -0.5,  0.0, -0.5]
+      Belonging:     [ 0.5,  0.5,  0.5,  0.5,  0.5,  0.5,  1.0,  0.5]
+      Confidence:    [ 1.0,  0.5,  0.5,  0.5,  1.0,  0.5,  0.5,  0.5]
+      Insecurity:    [-0.5, -0.5, -0.5, -0.5, -0.5, -0.5, -0.5, -0.5]
+      Embarrassment: [ 0.0, -0.5,  0.0, -0.5,  0.0, -0.5, -0.5, -0.5]
+      Humility:      [ 0.0,  0.5,  0.0,  0.5,  0.0,  0.5,  0.5,  0.0]
+      Frustration:   [ 0.5, -0.5,  0.0, -0.5,  0.5, -0.5,  0.0, -0.5]
+      Calm:          [ 0.0,  0.5,  0.5,  0.5,  0.0,  0.5,  0.5,  0.5]
+      Anxiety:       [-0.5, -0.5,  0.0, -0.5, -0.5,  0.0, -0.5,  0.0]
+
+    # --- Cognitive Domain ---
+    CognitiveType:
+      Attention:        [ 0.0,  1.0,  0.5,  1.0,  0.0,  0.5,  0.0,  0.0]
+      Memory:           [ 0.0, -0.5,  1.0, -0.5,  0.0,  0.5,  0.0, -0.5]
+      Learning:         [ 0.5,  0.5,  1.0,  0.5,  0.5,  0.5,  0.5,  0.5]
+      Perception:       [ 0.5,  1.0,  0.5,  1.0,  0.0,  0.0,  0.0,  0.5]
+      Reasoning:        [ 1.0,  0.5,  1.0,  0.5,  1.0,  0.0,  0.5,  0.0]
+      ProblemSolving:   [ 1.0,  0.5,  1.0,  0.5,  1.0,  1.0,  0.5,  0.5]
+      DecisionMaking:   [ 1.0,  0.0,  0.5,  0.0,  1.0,  1.0,  0.0,  0.5]
+      Planning:         [ 0.5,  0.5,  1.0,  0.5,  0.5,  0.5,  0.5,  0.5]
+      Creativity:       [ 0.5,  1.0,  1.0,  1.0,  0.5,  0.5,  1.0,  1.0]
+      SelfAwareness:    [ 1.0,  0.0,  0.5,  0.5,  1.0,  0.0,  1.0,  0.0]
+      Reflection:       [ 0.5, -0.5,  1.0,  0.5,  0.5,  0.5,  1.0,  0.0]
+      Introspection:    [ 0.5, -0.5,  1.0,  0.5,  0.5,  0.5,  1.0, -0.5]
+      Insight:          [ 1.0,  0.5,  1.0,  1.0,  1.0,  0.5,  1.0,  0.5]
+      Understanding:    [ 1.0,  0.5,  1.0,  0.5,  1.0,  0.5,  0.5,  0.0]
+      Confusion:        [-0.5, -0.5, -0.5, -0.5, -0.5, -0.5, -0.5, -0.5]
+      Clarity:          [ 1.0,  0.5,  1.0,  1.0,  1.0,  0.5,  0.5,  0.5]
+      Realization:      [ 1.0,  0.5,  1.0,  1.0,  1.0,  0.5,  1.0,  0.5]
+      ConfirmationBias: [ 1.0,  0.0,  0.5,  0.0,  1.0,  0.0,  0.0,  0.0]
+      Anchoring:        [ 1.0,  0.0,  0.5,  0.0,  1.0,  0.0,  0.0,  0.0]
+      Availability:     [ 0.5,  0.0,  0.5,  0.0,  0.5,  0.0,  0.0,  0.0]
+      Overconfidence:   [ 1.0,  0.5,  0.5,  0.5,  1.0,  0.5,  0.0,  0.5]
+
+    # --- Social Domain ---
+    SocialType:
+      Friendship:    [ 0.5,  0.0,  0.5,  0.5,  0.5,  0.5,  1.0,  0.0]
+      Romance:       [ 1.0,  0.0,  0.5,  0.5,  0.5,  0.0,  1.0,  0.0]
+      Family:        [ 0.5,  0.5,  0.5,  0.5,  0.5,  0.5,  1.0,  0.5]
+      Professional:  [ 1.0,  1.0,  0.5,  0.5,  1.0,  1.0,  0.0,  0.5]
+      Cooperation:   [ 0.5,  0.5,  0.5,  0.5,  0.5,  1.0,  1.0,  0.5]
+      Competition:   [ 0.5, -0.5,  0.0, -0.5,  1.0,  0.5, -0.5,  0.5]
+      Conflict:      [-0.5, -1.0, -0.5, -0.5, -1.0, -0.5, -1.0, -0.5]
+      Collaboration: [ 1.0,  0.5,  1.0,  0.5,  1.0,  1.0,  1.0,  0.5]
+      Acceptance:    [ 0.5,  0.5,  0.5,  0.5,  0.5,  0.5,  1.0,  0.5]
+      Rejection:     [-0.5, -0.5, -0.5, -0.5, -0.5, -0.5, -1.0, -0.5]
+      Inclusion:     [ 0.5,  0.5,  0.5,  0.5,  0.5,  0.5,  1.0,  0.5]
+      Exclusion:     [-0.5, -0.5, -0.5, -0.5, -0.5, -0.5, -1.0, -0.5]
+      Listening:     [ 0.0,  0.5,  0.5,  1.0,  0.0,  0.5,  0.5,  0.0]
+      Speaking:      [ 0.5,  0.5,  0.5,  0.5,  1.0,  0.5,  0.5,  0.5]
+      Arguing:       [ 0.5, -1.0,  0.0, -0.5,  1.0,  0.0, -0.5,  0.5]
+      Negotiating:   [ 0.5,  0.5,  0.5,  0.5,  1.0,  1.0,  0.5,  0.5]
+      Leader:        [ 1.0,  1.0,  0.5,  0.5,  1.0,  1.0,  1.0,  0.5]
+      Follower:      [ 0.0,  0.5,  0.5,  0.5,  0.0,  0.5,  0.5,  0.0]
+      Mentor:        [ 1.0,  0.5,  1.0,  0.5,  1.0,  0.5,  1.0,  0.0]
+      Student:       [ 0.5,  0.5,  1.0,  0.5,  0.5,  0.5,  0.5,  0.5]
+
+    # --- Existential Domain ---
+    ExistentialType:
+      Meaning:        [ 0.5,  0.5,  1.0,  0.5,  0.5,  0.5,  0.5,  0.5]
+      Purpose:        [ 1.0,  0.5,  1.0,  0.5,  1.0,  0.5,  0.5,  0.5]
+      Identity:       [ 1.0,  0.0,  0.5,  0.5,  1.0,  0.0,  1.0,  0.0]
+      Freedom:        [ 0.5,  1.0,  0.5,  1.0,  0.5,  1.0,  0.5,  1.0]
+      Responsibility: [ 1.0,  0.5,  0.5,  0.5,  1.0,  1.0,  0.5,  0.0]
+      Mortality:      [-0.5, -0.5, -0.5, -0.5, -0.5, -0.5, -0.5, -0.5]
+      Authenticity:   [ 1.0,  0.0,  0.5,  0.5,  1.0,  0.0,  1.0,  0.0]
+      Absurdity:      [-0.5,  0.0, -0.5, -0.5, -0.5,  0.0, -0.5, -0.5]
+      Alienation:     [-0.5, -0.5, -0.5, -0.5, -0.5, -0.5, -1.0, -0.5]
+      Transcendence:  [ 0.0,  0.5,  1.0,  1.0,  0.0,  0.5,  1.0,  1.0]
+
+    # --- Physical Domain ---
+    PhysicalType:
+      Pain:        [-1.0, -0.5, -0.5, -0.5, -1.0, -0.5, -0.5, -0.5]
+      Pleasure:    [ 1.0,  0.5,  0.5,  0.5,  1.0,  0.5,  0.5,  0.5]
+      Hunger:      [ 0.0, -0.5, -0.5,  0.0,  0.0, -0.5, -0.5,  0.0]
+      Thirst:      [ 0.0, -0.5,  0.0, -0.5,  0.0, -0.5,  0.0, -0.5]
+      Fatigue:     [-0.5, -0.5, -0.5, -0.5, -0.5, -1.0, -0.5, -0.5]
+      Energy:      [ 1.0,  1.0,  1.0,  1.0,  1.0,  1.0,  1.0,  1.0]
+      Touch:       [ 0.5,  0.5,  0.0,  1.0,  0.5,  0.5,  0.5,  0.5]
+      Temperature: [ 0.0,  1.0,  0.0,  1.0,  0.0,  1.0,  0.0,  1.0]
+      Movement:    [ 1.0,  1.0,  0.5,  0.5,  1.0,  1.0,  0.5,  0.5]
+      Balance:     [ 0.5,  0.5,  0.5,  0.5,  0.5,  1.0,  0.5,  0.5]
+      Health:      [ 0.5,  0.5,  0.5,  0.5,  0.5,  0.5,  0.5,  0.5]
+      Illness:     [-0.5, -0.5, -0.5, -0.5, -0.5, -0.5, -0.5, -0.5]
+
+    # --- Ethical Domain ---
+    EthicalType:
+      Righteousness:  [ 1.0,  0.5,  0.5,  0.5,  1.0,  0.5,  0.5,  0.5]
+      Compassion:     [ 0.5,  0.5,  0.5,  0.5,  0.5,  1.0,  1.0,  0.5]
+      Justice:        [ 1.0,  0.0,  0.5,  0.5,  1.0,  1.0,  0.5,  0.0]
+      Fairness:       [ 0.5,  0.5,  0.5,  0.5,  1.0,  1.0,  0.5,  0.5]
+      Integrity:      [ 1.0,  0.5,  0.5,  0.5,  1.0,  0.5,  0.5,  0.5]
+      Honesty:        [ 1.0,  0.5,  0.5,  0.5,  1.0,  0.5,  0.5,  0.5]
+      Empathy:        [ 0.5,  0.0,  0.5,  0.5,  0.5,  1.0,  1.0,  0.0]
+      Responsibility: [ 1.0,  0.5,  0.5,  0.5,  1.0,  1.0,  0.5,  0.0]
+      Duty:           [ 1.0,  0.0,  0.5,  0.5,  1.0,  1.0,  0.5,  0.0]
+      Virtue:         [ 1.0,  0.5,  0.5,  0.5,  1.0,  0.5,  0.5,  0.5]
+      Temptation:     [-0.5,  0.0,  0.0, -0.5, -1.0,  0.0, -0.5,  0.0]
+      Guilt:          [-0.5,  0.0, -0.5, -0.5, -0.5,  0.5, -0.5,  0.0]
+
+    # --- Creative Domain ---
+    CreativeType:
+      Inspiration: [ 0.5,  1.0,  1.0,  1.0,  0.5,  0.5,  1.0,  1.0]
+      Imagination: [ 0.5,  1.0,  1.0,  1.0,  0.5,  0.5,  1.0,  1.0]
+      Innovation:  [ 1.0,  1.0,  1.0,  1.0,  1.0,  0.5,  1.0,  1.0]
+      Expression:  [ 0.5,  0.5,  0.5,  1.0,  0.5,  0.5,  1.0,  0.5]
+      Design:      [ 1.0,  1.0,  0.5,  1.0,  1.0,  0.5,  0.5,  1.0]
+      Artistry:    [ 0.5,  0.5,  0.5,  1.0,  0.5,  0.5,  1.0,  1.0]
+      Invention:   [ 1.0,  1.0,  1.0,  1.0,  1.0,  0.5,  1.0,  1.0]
+      Discovery:   [ 0.5,  1.0,  1.0,  1.0,  0.5,  1.0,  1.0,  1.0]
+      Revelation:  [ 1.0,  0.5,  1.0,  1.0,  1.0,  0.5,  1.0,  1.0]
+      Synthesis:   [ 1.0,  1.0,  1.0,  1.0,  1.0,  1.0,  1.0,  0.5]
+      Originality: [ 1.0,  1.0,  1.0,  1.0,  1.0,  1.0,  1.0,  1.0]
+      Vision:      [ 0.5,  1.0,  1.0,  1.0,  0.5,  0.5,  1.0,  1.0]
+
+    # --- Spiritual Domain ---
+    SpiritualType:
+      Meditation:    [ 0.0,  0.5,  0.5,  1.0,  0.0,  0.5,  0.5,  1.0]
+      Prayer:        [ 0.5,  0.5,  0.5,  0.5,  0.5,  0.5,  1.0,  0.5]
+      Contemplation: [ 0.0,  0.5,  1.0,  1.0,  0.0,  0.5,  1.0,  1.0]
+      Transcendence: [ 0.0,  0.5,  1.0,  1.0,  0.0,  0.5,  1.0,  1.0]
+      Enlightenment: [ 1.0,  0.5,  1.0,  1.0,  1.0,  0.5,  1.0,  1.0]
+      Devotion:      [ 1.0,  0.5,  0.5,  0.5,  1.0,  0.5,  1.0,  0.5]
+      Surrender:     [ 0.0, -0.5,  0.0,  0.5,  0.0, -0.5,  1.0,  0.5]
+      Grace:         [ 0.5,  0.5,  0.5,  0.5,  0.5,  0.5,  1.0,  1.0]
+      Sacredness:    [ 0.5,  0.5,  0.5,  1.0,  0.5,  0.5,  1.0,  1.0]
+      Mysticism:     [ 0.0,  0.5,  1.0,  1.0,  0.0,  0.5,  1.0,  1.0]
+      Presence:      [ 0.5,  0.5,  0.5,  0.5,  0.5,  0.5,  0.5,  1.0]
+      Unity:         [ 1.0,  1.0,  1.0,  1.0,  1.0,  1.0,  1.0,  1.0]
+
+    # --- Economic Domain ---
+    EconomicType:
+      Wealth:      [ 1.0,  0.5,  0.5,  0.5,  1.0,  0.5,  0.5,  0.5]
+      Poverty:     [-0.5, -0.5, -0.5, -0.5, -0.5, -0.5, -0.5, -0.5]
+      Value:       [ 0.5,  0.5,  0.5,  0.5,  1.0,  0.5,  0.5,  0.5]
+      Exchange:    [ 0.5,  0.5,  0.5,  0.5,  0.5,  1.0,  0.5,  0.5]
+      Trade:       [ 1.0,  0.5,  0.5,  0.5,  1.0,  1.0,  0.5,  0.5]
+      Investment:  [ 1.0,  1.0,  0.5,  0.5,  1.0,  1.0,  0.5,  0.5]
+      Production:  [ 1.0,  1.0,  1.0,  0.5,  1.0,  1.0,  0.5,  0.5]
+      Consumption: [ 0.5,  0.5,  0.5,  0.5,  0.5,  1.0,  0.5,  0.5]
+      Scarcity:    [-0.5, -0.5, -0.5, -0.5, -0.5, -0.5, -0.5, -0.5]
+      Abundance:   [ 1.0,  1.0,  1.0,  1.0,  1.0,  1.0,  1.0,  1.0]
+      Profit:      [ 1.0,  0.5,  0.5,  0.5,  1.0,  0.5,  0.5,  0.5]
+      Loss:        [-1.0, -0.5, -0.5, -0.5, -1.0, -0.5, -0.5, -0.5]
+
+    # --- Health Domain ---
+    HealthType:
+      Wellness:   [ 0.5,  0.5,  0.5,  0.5,  0.5,  0.5,  0.5,  0.5]
+      Illness:    [-0.5, -0.5, -0.5, -0.5, -0.5, -0.5, -0.5, -0.5]
+      Healing:    [ 0.5,  0.5,  0.5,  0.5,  0.5,  1.0,  0.5,  0.5]
+      Recovery:   [ 0.5,  0.5,  0.5,  0.5,  0.5,  1.0,  0.5,  0.5]
+      Vitality:   [ 1.0,  1.0,  1.0,  1.0,  1.0,  1.0,  1.0,  1.0]
+      Fatigue:    [-0.5, -0.5, -0.5, -0.5, -0.5, -1.0, -0.5, -0.5]
+      Balance:    [ 0.5,  0.5,  0.5,  0.5,  0.5,  1.0,  0.5,  0.5]
+      Imbalance:  [-0.5, -0.5, -0.5, -0.5, -0.5, -1.0, -0.5, -0.5]
+      Strength:   [ 1.0,  1.0,  0.5,  0.5,  1.0,  1.0,  0.5,  0.5]
+      Weakness:   [-1.0, -1.0, -0.5, -0.5, -1.0, -1.0, -0.5, -0.5]
+      Resilience: [ 1.0,  1.0,  1.0,  1.0,  1.0,  1.0,  1.0,  1.0]
+      Fragility:  [-1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0]
+
+# ----------------------------------------------------------------------------
+# 4. GENESIS: GRAPH CONSTRUCTION FLOW
+# ----------------------------------------------------------------------------
+
+# Generate Type-I Roots (Dyadic Acts)
+Genesis:VerticesT1 := Ontology / Axes -> E8TypeI
+
+# Generate Type-II Roots (Context Fields)
+Genesis:VerticesT2 := Ontology / Axes -> E8TypeII
+
+# Union all vertices (Parallel operator ||)
+Genesis:AllVertices := Genesis:VerticesT1 || Genesis:VerticesT2
+
+# Generate Edges using the Inner Product rule (0.5)
+# Flow: Vertices -> Builtin -> Edges
+Genesis:Edges := Genesis:AllVertices -> E8EdgesWhere(0.5)
+
+# Final Graph Construction
+Genesis:Graph := HexGraph(Genesis:AllVertices, Genesis:Edges)
+
+# ----------------------------------------------------------------------------
+# 5. SEMANTIC LOGIC & GLYPH OPERATIONS
+# Logic logic expressed as relational expressions and flow.
+# ----------------------------------------------------------------------------
+
+# --- Interpretation Logic ---
+# Logic: Target -> Distance(|/) -> Filter -> Match
+
+Logic:TargetCoords := InputExp -> to_e8_coordinates
+
+# Find Matching Vertex using Distance Glyph (|/)
+Logic:PrimaryMatch := Genesis:Graph / vertices |> filter(v -> (v / coords |/ Logic:TargetCoords) < 0.5) |> first
+
+# --- Conflict Resolution (HoloArbiter) ---
+# Logic: Tension(\/) vs Synthesis(/\)
+
+Var:LabelA := Ontology / Coordinates / EmotionType / Joy
+Var:LabelB := Ontology / Coordinates / EmotionType / Sorrow
+
+# Dialectic Tension (Join Glyph \/)
+Logic:Tension := Var:LabelA \/ Var:LabelB
+
+# Synthesis (Meet Glyph /\)
+Logic:Synthesis := Var:LabelA /\ Var:LabelB
+
+# Divergence (Distance Glyph |/)
+Logic:Distance := Var:LabelA |/ Var:LabelB
+
+# --- Trajectory Navigation ---
+# Path: Confusion -> Clarity
+Logic:Path := Ontology / Coordinates / CognitiveType / Confusion -> Ontology / Coordinates / CognitiveType / Clarity
+
+# --- System Binding ---
+Hex::Graph := Genesis:Graph
+Hex::Lookup := Logic:PrimaryMatch

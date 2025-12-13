@@ -1,3 +1,15 @@
+/* rune-xero/src/utils/literal.rs */
+//!▫~•◦-----------------------------‣
+//! # RUNE-Xero – Literal Utilities
+//!▫~•◦-----------------------------‣
+//!
+//! Helper functions for identifying literal values (numbers, keywords).
+//! Optimized for zero-allocation byte-level inspection.
+//!
+/*▫~•◦------------------------------------------------------------------------------------‣
+ * © 2025 ArcMoon Studios ◦ SPDX-License-Identifier MIT OR Apache-2.0 ◦ Author: Lord Xyn ✶
+ *///•------------------------------------------------------------------------------------‣
+
 use crate::constants;
 
 /// Check if a string looks like a keyword or number (needs quoting).
@@ -16,35 +28,50 @@ pub fn is_structural_char(ch: char) -> bool {
 }
 
 /// Check if a string looks like a number (starts with digit, no leading zeros).
+///
+/// Zero-copy implementation: inspects bytes directly without allocation.
 pub fn is_numeric_like(s: &str) -> bool {
     if s.is_empty() {
         return false;
     }
 
-    let chars: Vec<char> = s.chars().collect();
+    let bytes = s.as_bytes();
     let mut i = 0;
 
-    if chars[i] == '-' {
+    // Optional sign
+    if bytes[i] == b'-' {
         i += 1;
     }
 
-    if i >= chars.len() {
+    // Must have at least one digit after optional sign
+    if i >= bytes.len() {
         return false;
     }
 
-    if !chars[i].is_ascii_digit() {
+    let first_digit = bytes[i];
+    if !first_digit.is_ascii_digit() {
         return false;
     }
 
-    if chars[i] == '0' && i + 1 < chars.len() && chars[i + 1].is_ascii_digit() {
-        return false;
+    // Leading zero check: "01" is invalid (likely string), "0" or "0.5" is valid.
+    // If starts with '0', next char (if exists) cannot be a digit.
+    if first_digit == b'0' {
+        if let Some(&next) = bytes.get(i + 1) {
+            if next.is_ascii_digit() {
+                return false;
+            }
+        }
     }
 
-    let has_valid_chars = chars[i..].iter().all(|c| {
-        c.is_ascii_digit() || *c == '.' || *c == 'e' || *c == 'E' || *c == '+' || *c == '-'
-    });
-
-    has_valid_chars
+    // Check remainder for valid numeric characters
+    // Note: This loose check allows "1.2.3", relying on parser to strict validate later.
+    // It strictly replicates the original semantic equivalence.
+    bytes[i..].iter().all(|&c| {
+        c.is_ascii_digit() 
+            || c == b'.' 
+            || c == b'e' || c == b'E' 
+            || c == b'+' || c == b'-'
+    })
 }
 
 #[cfg(test)]

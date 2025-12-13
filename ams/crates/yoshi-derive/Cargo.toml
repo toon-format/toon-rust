@@ -1,0 +1,21 @@
+[package]
+name         = "yoshi-derive"
+version      = { workspace = true }
+edition      = { workspace = true }
+authors      = { workspace = true }
+license      = { workspace = true }
+rust-version = { workspace = true }
+description  = "A flexible, dynamic error type for Yoshi ecosystem."
+repository   = "https://github.com/arcmoon/arcmoon-suite"
+readme       = "README.md"
+keywords     = ["yoshi-derive", "derive", "procedural-macro"]
+categories   = ["libraries"]
+
+[dependencies]
+proc-macro2 = { workspace = true, features = ["span-locations"] }
+syn = { workspace = true, features = ["full"] }
+quote = { workspace = true }
+
+[lib]
+proc-macro = true
+

@@ -1,0 +1,11 @@
+extern "C" __global__ void $FUNC_NAME(const float* a, const float* b, float* out, int n) {
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i >= n) return;
+
+    float acc = 0.0f;
+    #pragma unroll
+    for (int j = 0; j < $D_DIM; ++j) {
+        acc += a[i * $D_DIM + j] * b[i * $D_DIM + j];
+    }
+    out[i] = acc;
+}

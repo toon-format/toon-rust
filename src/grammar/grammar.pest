@@ -1,0 +1,185 @@
+/* grammar.pest */
+// RUNE Xero Grammar Definition for Pest
+//
+// Zero-Copy, Deterministic, Canonical
+//▫~•◦────────────────────────────────────────────────────────────────────────────────────‣
+// © 2025 ArcMoon Studios ◦ SPDX-License-Identifier MIT OR Apache-2.0 ◦ Author: Lord Xyn ✶
+/////•────────────────────────────────────────────────────────────────────────────────────‣
+
+//▫~•◦───────────────────────────────────────────────────────────‣
+// WHITESPACE & COMMENTS
+/////•───────────────────────────────────────────────────────────‣
+
+WHITESPACE = _{ " " | "\t" }
+NEWLINE    = _{ "\r\n" | "\n" }
+COMMENT    = _{ "//" ~ (!NEWLINE ~ ANY)* }
+
+//▫~•◦───────────────────────────────────────────────────────────‣
+// LEXICAL PRIMITIVES (ZERO-COPY SAFE)
+/////•───────────────────────────────────────────────────────────‣
+
+ident = @{ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
+
+// Semantic identifier: T:Name
+semantic_prefix = @{ ASCII_ALPHA_UPPER ~ ":" }
+semantic_ident  = { semantic_prefix ~ ident }
+
+number = @{
+    "-"? ~ ASCII_DIGIT+ ~ ("." ~ ASCII_DIGIT+)?
+}
+
+string = ${ "\"" ~ string_inner ~ "\"" }
+string_inner = @{
+    (
+        !("\"" | "\\") ~ ANY
+        | "\\" ~ ("\"" | "\\" | "/" | "b" | "f" | "n" | "r" | "t")
+    )*
+}
+
+boolean_literal = { "B:" ~ ("t" | "f") }
+
+//▫~•◦───────────────────────────────────────────────────────────‣
+// OPERATORS (ORDERED, NON-AMBIGUOUS)
+/////•───────────────────────────────────────────────────────────‣
+
+flow_op = {
+      "<->" | ">-<" | "->" | "<-"
+}
+
+struct_op = {
+      "\\|/" | "/|\\" | "=:=" | ":=:"
+    | "/\\" | "\\/" | "|/" | "/|" | "\\|" | "|\\"
+    | "=:" | "::" | ":=" | ":>" | "<:" | "|>" | "<|"
+    | "<=" | ">=" | "||"
+    | ":" | "=" | "<" | ">" | "\\" | "|" | "~"
+}
+
+relation_op = { flow_op | struct_op }
+path_op     = { "/" | "\\" | "." }
+
+//▫~•◦───────────────────────────────────────────────────────────‣
+// EXPRESSIONS (PRATT-COMPATIBLE)
+/////•───────────────────────────────────────────────────────────‣
+
+fn_call = {
+    ident ~ "(" ~ (relation_expr ~ ("," ~ relation_expr)*)? ~ ")"
+}
+
+array_literal = {
+    "[" ~ relation_expr ~ ("," ~ relation_expr)* ~ "]"
+}
+
+tabular_array = {
+    "[" ~ WHITESPACE* ~ ASCII_DIGIT+ ~ WHITESPACE* ~ "]" ~ WHITESPACE* ~ "|" ~ WHITESPACE* ~
+    (ident ~ ("," ~ WHITESPACE* ~ ident)*)? ~ WHITESPACE* ~ "|" ~ WHITESPACE* ~
+    (tabular_row ~ (WHITESPACE* ~ NEWLINE ~ WHITESPACE* ~ tabular_row)*)?
+}
+tabular_row = {
+    (term ~ ("," ~ WHITESPACE* ~ term)*)
+}
+
+object_entry   = { (ident | string) ~ ":" ~ relation_expr }
+object_literal = {
+    "{" ~ (object_entry ~ ("," ~ object_entry)*)? ~ ","? ~ "}"
+}
+
+term = {
+      object_literal
+    | array_literal
+    | tabular_array // Added tabular_array to term rule
+    | math_block
+    | fn_call
+    | string
+    | number
+    | boolean_literal
+    | semantic_ident
+    | ident
+    | "(" ~ relation_expr ~ ")"
+}
+
+//▫~•◦───────────────────────────────────────────────────────────‣
+// MATH DOMAIN (ISOLATED)
+/////•───────────────────────────────────────────────────────────‣
+
+math_block  = { "[" ~ math_expr ~ "]" }
+
+math_expr   = { math_add }
+math_add    = { math_mul ~ (WHITESPACE* ~ math_add_op ~ WHITESPACE* ~ math_mul)* }
+math_add_op = { "+" | "-" }
+
+math_mul    = { math_exp ~ (WHITESPACE* ~ math_mul_op ~ WHITESPACE* ~ math_exp)* }
+math_mul_op = { "*" | "/" | "%" }
+
+math_exp    = { math_unary ~ (WHITESPACE* ~ math_exp_op ~ WHITESPACE* ~ math_unary)* }
+math_exp_op = { "^" | "R" }
+
+math_unary  = { math_unary_op? ~ math_atom }
+math_unary_op = { "-" | "+" }
+
+math_array_literal = { "[" ~ math_expr ~ ("," ~ math_expr)+ ~ "]" }
+
+math_atom = {
+      number
+    | semantic_ident
+    | ident
+    | math_array_literal
+    | "(" ~ math_expr ~ ")"
+}
+
+//▫~•◦───────────────────────────────────────────────────────────‣
+// STRUCTURAL PRECEDENCE
+/////•───────────────────────────────────────────────────────────‣
+
+access        = { term ~ (WHITESPACE* ~ path_op ~ WHITESPACE* ~ term)* }
+struct_expr   = { access ~ (WHITESPACE* ~ struct_op ~ WHITESPACE* ~ access)* }
+flow_expr     = { struct_expr ~ (WHITESPACE* ~ flow_op ~ WHITESPACE* ~ struct_expr)* }
+relation_expr = { flow_expr }
+expr          = { relation_expr }
+
+stmt_expr = { relation_expr }
+
+//▫~•◦───────────────────────────────────────────────────────────‣
+// STATEMENTS & BLOCKS
+/////•───────────────────────────────────────────────────────────‣
+
+root_decl = {
+    "root:" ~ WHITESPACE* ~ ident ~ ("::" ~ ident)*
+}
+
+// Indentation-bounded greedy block capture (zero-copy safe)
+block_content = @{
+    (NEWLINE ~ (" " | "\t")+ ~ (!NEWLINE ~ ANY)*)*
+}
+
+toon_block = ${
+    ident ~ " "* ~ "~TOON:" ~ block_content
+}
+
+rune_block = ${
+    ident ~ " "* ~ "~RUNE:" ~ block_content
+}
+
+//▫~•◦───────────────────────────────────────────────────────────‣
+// KERNEL DECLARATIONS
+/////•───────────────────────────────────────────────────────────‣
+
+kernel_param      = { ident ~ ":" ~ WHITESPACE* ~ (number | string | ident) }
+kernel_params     = { kernel_param ~ ("," ~ WHITESPACE* ~ kernel_param)* }
+kernel_archetype  = { "CUDA:Archetype:" ~ ident ~ "(" ~ kernel_params? ~ ")" }
+kernel_decl       = { semantic_ident ~ WHITESPACE* ~ ":=" ~ WHITESPACE* ~ kernel_archetype }
+
+//▫~•◦───────────────────────────────────────────────────────────‣
+// FILE
+/////•───────────────────────────────────────────────────────────‣
+
+stmt = {
+      root_decl
+    | rune_block
+    | toon_block
+    | kernel_decl
+    | stmt_expr
+}
+
+file = {
+    SOI ~ (NEWLINE* ~ stmt)* ~ NEWLINE* ~ EOI
+}

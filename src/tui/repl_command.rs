@@ -16,7 +16,7 @@ impl ReplCommand {
     ///
     /// Handles patterns like:
     /// - `encode {"data": true}` - JSON inline
-    /// - `decode name: Alice` - TOON inline
+    /// - `decode name: Alice` - RUNE inline
     /// - `encode $var` - Variable reference
     pub fn parse(input: &str) -> Result<Self> {
         let input = input.trim();

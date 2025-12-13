@@ -313,14 +313,15 @@ For each feature flag in `Cargo.toml`:
 ## Phase 7: ArcMoon Studios Compliant Header
 
 ```rust
-/* src/[MODULE_PATH]/[FILE_NAME].rs */
+/* [CRATE_NAME]/src/[MODULE_PATH]/[FILE_NAME].rs */
 //!▫~•◦-------------------------------‣
 //! # High-level summary of the module's purpose and its primary function.
 //!▫~•◦-------------------------------------------------------------------‣
-//!
+//! [NOTE: The underline above must underline the "Remarks:" line only.]
+//! 
 //! This module is designed for integration into [SYSTEM_OR_FRAMEWORK_NAME] to achieve [PrimaryGoal].
 //!
-//! ### Key Capabilities
+//! ## Key Capabilities
 //! - **[Capability A Description]:** e.g., Provides real-time data analysis via stream processing.
 //! - **[Capability B Description]:** e.g., Manages user authentication using JWT and role-based access control.
 //! - **[Capability C Description]:** e.g., Optimizes data structures for low-latency, high-throughput access.
@@ -330,15 +331,15 @@ For each feature flag in `Cargo.toml`:
 //! Result structures adhere to the `[TraitNameOrSignature]` and are compatible
 //! with the system's serialization pipeline.
 //!
-//! ### Example
-//! \```rust
+//! #### Example
+//! ```rust
 //! use crate::[MODULE_NAME]::{[primary_exported_function], [configuration_function]};
 //!
 //! let config = [configuration_function](/* ... */);
 //! let result = [primary_exported_function]([input_value], config);
 //!
 //! // The 'result' can now be used for further processing.
-//! \```
+//! ```
 /*▫~•◦------------------------------------------------------------------------------------‣
  * © 2025 ArcMoon Studios ◦ SPDX-License-Identifier MIT OR Apache-2.0 ◦ Author: Lord Xyn ✶
  *///•------------------------------------------------------------------------------------‣

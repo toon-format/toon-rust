@@ -1,8 +1,9 @@
 [workspace]
-members = [".", "hydron-core", "hydron-ffi", "rune-curs", "rune-hex", "rune-gsv", "rune-gate", "rune-cros", "rune-zero", "rune-zuno"]
+members = [".", "hydron-core", "hydron-ffi", "rune-curs", "rune-hex", "rune-gsv", "rune-gate", "rune-cros"]
 resolver = "2"
 
 [workspace.dependencies]
+ 
 yoshi = { path = "X:/_Repos/ams/crates/yoshi" }
 yoshi-std = { path = "X:/_Repos/ams/crates/yoshi-std" }
 yoshi-derive = { path = "X:/_Repos/ams/crates/yoshi-derive" }
@@ -11,11 +12,7 @@ yoshi-derive = { path = "X:/_Repos/ams/crates/yoshi-derive" }
 name = "rune-format"
 version = "0.0.1"
 edition = "2024"
-authors = [
-    "Lord Xyn <LordXyn@proton.me", # RUNE Author
-    "Johann Schopplich <hello@johannschopplich.com>", # TOON Author 1
-    "Shreyas K S <ks.shreyas0@gmail.com>", # TOON Author 2
-]
+authors = ["Lord Xyn <LordXyn@proton.me",]
 license = "MIT OR Apache-2.0"
 description = "Root Universal Notation Encoding (RUNE) - geometric control language with E8 lattice mathematics and Token-Oriented Object Notation (TOON) serialization"
 repository = "https://github.com/arcmoonstudios/rune-format"
@@ -31,6 +28,7 @@ hydron = ["hydron-core"]  # Geometry Math Engine for RUNE (depends on hydron-cor
 simd = ["hydron", "hydron-core/simd"]  # SIMD acceleration for Gf8 operations (enables hydron-core simd)
 cuda = ["cust", "rune-curs"]
 gsv = ["rune-gsv"]
+tui = []  # Terminal User Interface
 
 [[example]]
 name = "examples"
@@ -41,18 +39,18 @@ name = "rune"
 path = "src/cli/main.rs"
 
 [[bin]]
-name = "utf8_sanitize"
-path = "src/utf8_sanitize.rs"
+name = "san"
+path = "src/utils/san.rs"
 
 [dependencies]
+hydron-core = { path = "./hydron-core", optional = true, features = ["serde", "fory"] }
+rune-curs = { path = "./rune-curs", optional = true }
+rune-hex = { path = "./rune-hex" }
+rune-gsv = { path = "./rune-gsv", optional = true }
 serde = { version = "1.0.228", features = ["derive"] }
 indexmap = "2.12.1"
 serde_json = { version = "1.0.145", features = ["preserve_order"] }
 cust = { version = "0.3.2", optional = true }
-rune-curs = { path = "./rune-curs", optional = true }
-rune-hex = { path = "./rune-hex" }
-rune-gsv = { path = "./rune-gsv", optional = true }
-
 # Yoshi error stack (workspace paths).
 yoshi = { workspace = true }
 yoshi-std = { workspace = true }
@@ -65,10 +63,13 @@ pest_derive = "2.8.4"
 clap = { version = "4.5.11", features = ["derive"] }
 tiktoken-rs = "0.9.1"
 comfy-table = "7.2.1"
+rayon = "1.10.0" # Added for parallel iterators
+thiserror = "1.0.61" # Added for custom error types and attributes
+itoa = "1.0.11" # Added for efficient integer to ASCII conversion
+simd-json = "0.13.1" # Added for zero-copy, SIMD-accelerated JSON parsing
 
 # TUI dependencies
 ratatui = "0.29"
-hydron-core = { path = "./hydron-core", optional = true, features = ["serde", "fory"] }
 crossterm = "0.29"
 tui-textarea = "0.7"
 arboard = "3.6.1"

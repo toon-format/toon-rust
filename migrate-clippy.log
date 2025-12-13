@@ -1,5 +1,0 @@
-error: unexpected argument '-D' found
-
-Usage: cargo.exe check [OPTIONS]
-
-For more information, try '--help'.

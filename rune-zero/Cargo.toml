@@ -1,9 +1,0 @@
-[package]
-name = "rune-zero"
-version = "0.1.0"
-edition = "2024"
-
-[dependencies]
-fory = "0.13"
-memmap2 = "0.9"
-yoshi = { workspace = true }

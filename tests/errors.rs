@@ -1,4 +1,4 @@
-use rune_format::{DecodeOptions, ToonError, decode, decode_default, decode_strict};
+use rune_format::{DecodeOptions, RuneError, decode, decode_default, decode_strict};
 use serde_json::{Value, json};
 
 #[test]
@@ -67,7 +67,7 @@ fn test_length_mismatch_strict_mode() {
             "Expected error for input '{input}' (expected: {expected}, actual: {actual})",
         );
 
-        if let Err(ToonError::LengthMismatch {
+        if let Err(RuneError::LengthMismatch {
             expected: exp,
             found: fnd,
             ..
@@ -158,7 +158,7 @@ fn test_tabular_array_errors() {
         "Should error on row count mismatch in strict mode"
     );
 
-    if let Err(ToonError::LengthMismatch {
+    if let Err(RuneError::LengthMismatch {
         expected, found, ..
     }) = result
     {
@@ -225,7 +225,7 @@ fn test_parse_error_line_column() {
     let input = "line1: value\nline2: bad syntax!\nline3: value";
     let result = decode_default::<Value>(input);
 
-    if let Err(ToonError::ParseError { line, column, .. }) = result {
+    if let Err(RuneError::ParseError { line, column, .. }) = result {
         println!("Parse error at line {line}, column {column}");
         assert!(line > 0, "Line number should be positive");
         assert!(column > 0, "Column number should be positive");
@@ -337,7 +337,7 @@ fn test_strict_mode_indentation_errors() {
         "Should error on insufficient items in strict mode"
     );
 
-    if let Err(ToonError::LengthMismatch {
+    if let Err(RuneError::LengthMismatch {
         expected, found, ..
     }) = result
     {
@@ -444,7 +444,7 @@ fn test_error_context_information() {
         );
 
         match e {
-            ToonError::ParseError {
+            RuneError::ParseError {
                 context: Some(ctx), ..
             } => {
                 println!(
@@ -453,7 +453,7 @@ fn test_error_context_information() {
                     ctx.following_lines.len()
                 );
             }
-            ToonError::LengthMismatch {
+            RuneError::LengthMismatch {
                 context: Some(ctx), ..
             } => {
                 println!("Length mismatch context available:{ctx}");

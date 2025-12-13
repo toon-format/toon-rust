@@ -40,7 +40,7 @@
  * © 2025 ArcMoon Studios ◦ SPDX-License-Identifier MIT OR Apache-2.0 ◦ Author: Lord Xyn ✶
  *///•------------------------------------------------------------------------------------‣
 
-use super::values::{gf8_dot_simd, gf8_norm2_simd};
+use super::values::{    , gf8_norm2_simd};
 
 // Use portable SIMD if the feature is enabled.
 #[cfg(feature = "simd")]

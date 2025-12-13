@@ -17,10 +17,9 @@ pub mod writer;
 use crate::{
     constants::MAX_DEPTH,
     decoder::parser::ast::Value,
-    types::{EncodeOptions, KeyFoldingMode, RuneError, RuneResult, Number},
+    types::{EncodeOptions, RuneError, RuneResult, Number},
     utils::{format_canonical_number, validation::validate_depth, QuotingContext},
 };
-use std::borrow::Cow;
 
 /// Encode a Zero-Copy AST Value to RUNE format.
 ///

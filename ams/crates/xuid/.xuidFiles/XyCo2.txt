@@ -1,0 +1,853 @@
+# Xypher Codex: Complete Technical Specification v2.2.0
+
+**Document Type:** Formal System Specification  
+**Status:** Implementation-Ready  
+**Version:** 2.2.0 (Grounded)  
+**Last Updated:** 2025-12-13  
+**Classification:** PUBLIC — Open Source
+
+---
+
+## 1. Executive Summary
+
+The **Xypher Codex** is a geometric semantic engine that maps lived human experience, meaning, and reality onto the **E8 exceptional Lie group root system**. It provides:
+
+1. **Universal Addressing**: Every semantic state has a unique, reproducible 8-dimensional coordinate
+2. **Causal Traceability**: Every event receives an immutable identity (XUID) encoding spacetime position, content, and provenance
+3. **Navigable Semantics**: Trajectories through meaning-space are computable, predictable, and reversible
+4. **Ground Truth Arbitration**: Conflicts are resolved via geometric proximity, not heuristic voting
+
+**Core Architecture:**
+- **240 E8 roots** forming a discrete lattice in ℝ⁸
+- **10 canonical domain vectors** (Ethics, Psychology, Relationships, Economics, Creativity, Spirituality, Physical, Existential, Education, Health)
+- **8 semantic axes** (A-H) representing bipolar dimensions of experience
+- **XUID identity system** for deterministic event tracking
+- **Trajectory engine** for semantic navigation across the lattice
+
+**Why E8:**
+E8 is structurally necessary because it is the largest exceptional Lie group in 8 dimensions, providing maximal symmetry (696,729,600 symmetries via the Weyl group) while maintaining discrete lattice structure. No reduction path exists—using fewer than 240 roots breaks the geometry.
+
+---
+
+## 2. System Invariants
+
+The following properties **MUST NEVER** be violated across all implementations:
+
+| ID | Invariant | Consequence of Violation |
+|:---|:----------|:------------------------|
+| **INV-1** | The E8 root system contains **exactly 240 roots** | Loss of completeness; semantic collapse |
+| **INV-2** | All canonical geometry is **strictly 8-dimensional** (ℝ⁸) | Dimensional drift; coordinate ambiguity |
+| **INV-3** | Roots are **discrete lattice points**; domains are **continuous functionals** | Category error; meaningless projections |
+| **INV-4** | Inner products between roots ∈ **{0, ±½, ±1, ±√2}** | Violation of E8 Cartan structure |
+| **INV-5** | XUIDs are **deterministic and collision-resistant** | Identity collapse; causal corruption |
+| **INV-6** | Semantic trajectories **respect E8 lattice quantization** | Drift into non-existent states |
+| **INV-7** | Domain vectors are **unit-norm** (‖D⃗‖ = 1) | Non-comparable affinity scores |
+
+---
+
+## 3. Mathematical Foundations
+
+### 3.1 E8 Root System Overview
+
+**Definition:** E8 is a rank-8 simple Lie algebra over ℝ.
+
+| Property | Value | Interpretation |
+|:---------|:------|:--------------|
+| **Rank** | 8 | Dimension of Cartan subalgebra (coordinate axes) |
+| **Dimension** | 248 | Dimension of full Lie group (not used directly) |
+| **Root Count** | 240 | Total basis vectors in root system |
+| **Root Types** | Type I (112), Type II (128) | Construction method |
+| **Weyl Group Order** | 696,729,600 | Number of symmetries |
+
+### 3.2 Cartan Subalgebra (The 8 Axes)
+
+The Cartan subalgebra 𝔥 ≅ ℝ⁸ defines our coordinate system.
+
+**Standard Basis:** {e₁, e₂, e₃, e₄, e₅, e₆, e₇, e₈}
+
+**Inner Product:**
+```
+⟨v, w⟩ = Σᵢ₌₁⁸ vᵢwᵢ
+```
+
+**Norm:**
+```
+‖v‖ = √⟨v, v⟩
+```
+
+### 3.3 Root Vector Properties
+
+All roots satisfy:
+
+| Property | Value | Enforcement Method |
+|:---------|:------|:------------------|
+| **Length** | ‖α‖² = 2 for all roots α | Validation check on construction |
+| **Inner Product** | ⟨α, β⟩ ∈ {0, ±1, ±√2} | Defines adjacency |
+| **Kissing Condition** | ⟨α, β⟩ = ±1 iff α,β are adjacent | Used for edge construction |
+
+**Geometric Interpretation:**
+- ⟨α, β⟩ = 0: Orthogonal (independent directions)
+- ⟨α, β⟩ = ±1: Adjacent (one "hop" apart)
+- ⟨α, β⟩ = ±2: Opposite directions (α = ±β)
+- ⟨α, β⟩ = ±√2: Type I roots separated by 90°
+
+---
+
+## 4. Axis Semantics (A-H)
+
+Each axis represents a fundamental bipolar dimension. The sign indicates pole dominance.
+
+### Axis A: Self-Agency ↔ Communion
+
+| Pole | Sign | Semantic | Examples |
+|:-----|:-----|:---------|:---------|
+| **Self-Agency** | +A | Individual will, autonomy | "I decide," entrepreneurship |
+| **Communion** | −A | Collective identity, interdependence | "We together," collectivism |
+
+**Allowed Range:** [-1.0, +1.0]  
+**Zero Point:** Balanced autonomy within community  
+**Interactions:** Orthogonal to C (Foresight/Memory); Correlated with H (Mastery)
+
+### Axis B: Structure ↔ Flux
+
+| Pole | Sign | Semantic | Examples |
+|:-----|:-----|:---------|:---------|
+| **Structure** | +B | Order, hierarchy, predictability | Laws, institutions, rituals |
+| **Flux** | −B | Change, improvisation, emergence | Revolution, flow states |
+
+**Allowed Range:** [-1.0, +1.0]  
+**Zero Point:** Dynamic equilibrium  
+**Interactions:** Correlated with C (Planning requires structure)
+
+### Axis C: Foresight ↔ Memory
+
+| Pole | Sign | Semantic | Examples |
+|:-----|:-----|:---------|:---------|
+| **Foresight** | +C | Planning, prediction, vision | Strategy, goals |
+| **Memory** | −C | Reflection, tradition, lessons learned | Heritage, regret |
+
+**Allowed Range:** [-1.0, +1.0]  
+**Zero Point:** Presence ("eternal now")  
+**Interactions:** Orthogonal to E (Morality exists in all tenses)
+
+### Axis D: Clarity ↔ Awe
+
+| Pole | Sign | Semantic | Examples |
+|:-----|:-----|:---------|:---------|
+| **Clarity** | +D | Precision, analysis, understanding | Science, engineering |
+| **Awe** | −D | Mystery, ineffability, wonder | Mysticism, sublime beauty |
+
+**Allowed Range:** [-1.0, +1.0]  
+**Zero Point:** Dialectic (clear about mystery)  
+**Interactions:** Correlated with Education; Anti-correlated with Spirituality
+
+### Axis E: Virtue ↔ Temptation
+
+| Pole | Sign | Semantic | Examples |
+|:-----|:-----|:---------|:---------|
+| **Virtue** | +E | Integrity, duty, honor | Moral courage |
+| **Temptation** | −E | Vice, shortcuts, hedonism | Moral compromise |
+
+**Allowed Range:** [-1.0, +1.0]  
+**Zero Point:** Pragmatic ethics  
+**Interactions:** Correlated with G (Stewardship); Anti-correlated with Economics
+
+### Axis F: Momentum ↔ Stillness
+
+| Pole | Sign | Semantic | Examples |
+|:-----|:-----|:---------|:---------|
+| **Momentum** | +F | Action, growth, velocity | Hustle culture |
+| **Stillness** | −F | Rest, meditation, pause | Contemplation, sabbath |
+
+**Allowed Range:** [-1.0, +1.0]  
+**Zero Point:** Flow state  
+**Interactions:** Correlated with Economics; Anti-correlated with Spirituality
+
+### Axis G: Stewardship ↔ Openness
+
+| Pole | Sign | Semantic | Examples |
+|:-----|:-----|:---------|:---------|
+| **Stewardship** | +G | Caretaking, responsibility | Parenting, environmentalism |
+| **Openness** | −G | Receptivity, vulnerability | "Let go," exploration |
+
+**Allowed Range:** [-1.0, +1.0]  
+**Zero Point:** Balanced care  
+**Interactions:** Correlated with E (Virtue); Anti-correlated with H (Mastery)
+
+### Axis H: Mastery ↔ Risk
+
+| Pole | Sign | Semantic | Examples |
+|:-----|:-----|:---------|:---------|
+| **Mastery** | +H | Expertise, control, optimization | 10,000 hours, virtuosity |
+| **Risk** | −H | Danger, experimentation, failure | Beginner's mind |
+
+**Allowed Range:** [-1.0, +1.0]  
+**Zero Point:** Competent risk-taking (growth zone)  
+**Interactions:** Correlated with A (Agency); Orthogonal to E (Can master virtue or vice)
+
+---
+
+## 5. Root System (Complete 240-Root Table)
+
+### 5.1 Construction Algorithm
+
+**Type I Roots (112 total):**
+All vectors of form ±eᵢ ± eⱼ where i < j.
+
+```
+For i in 0..8:
+  For j in (i+1)..8:
+    For sign_i in [+1.0, -1.0]:
+      For sign_j in [+1.0, -1.0]:
+        root[i] = sign_i
+        root[j] = sign_j
+        (all other components = 0)
+```
+
+Count: C(8,2) × 4 = 28 × 4 = 112
+
+**Type II Roots (128 total):**
+All vectors of form ½(±e₁ ± e₂ ± ... ± e₈) where # of minus signs is even.
+
+```
+For bits in 0..=255:
+  If bits.count_ones() % 2 == 0:  // even parity
+    For i in 0..8:
+      root[i] = if bit i is 0: +0.5 else: -0.5
+```
+
+Count: 2⁸/2 = 128
+
+### 5.2 Canonical Ordering
+
+**Indices 0..111:** Type I roots, lexicographic order by (i, j, sign_i, sign_j)  
+**Indices 112..239:** Type II roots, lexicographic order by bit pattern
+
+### 5.3 Full 240-Root Table
+
+**Type I Roots (Indices 0-111):**
+
+| Index | Type | e₁ | e₂ | e₃ | e₄ | e₅ | e₆ | e₇ | e₈ |
+|:------|:-----|:---|:---|:---|:---|:---|:---|:---|:---|
+| 0 | I | +1.0 | +1.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 |
+| 1 | I | +1.0 | -1.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 |
+| 2 | I | -1.0 | +1.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 |
+| 3 | I | -1.0 | -1.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 |
+| 4 | I | +1.0 | 0.0 | +1.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 |
+| 5 | I | +1.0 | 0.0 | -1.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 |
+| 6 | I | -1.0 | 0.0 | +1.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 |
+| 7 | I | -1.0 | 0.0 | -1.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 |
+| 8 | I | +1.0 | 0.0 | 0.0 | +1.0 | 0.0 | 0.0 | 0.0 | 0.0 |
+| 9 | I | +1.0 | 0.0 | 0.0 | -1.0 | 0.0 | 0.0 | 0.0 | 0.0 |
+| 10 | I | -1.0 | 0.0 | 0.0 | +1.0 | 0.0 | 0.0 | 0.0 | 0.0 |
+| 11 | I | -1.0 | 0.0 | 0.0 | -1.0 | 0.0 | 0.0 | 0.0 | 0.0 |
+| 12 | I | +1.0 | 0.0 | 0.0 | 0.0 | +1.0 | 0.0 | 0.0 | 0.0 |
+| 13 | I | +1.0 | 0.0 | 0.0 | 0.0 | -1.0 | 0.0 | 0.0 | 0.0 |
+| 14 | I | -1.0 | 0.0 | 0.0 | 0.0 | +1.0 | 0.0 | 0.0 | 0.0 |
+| 15 | I | -1.0 | 0.0 | 0.0 | 0.0 | -1.0 | 0.0 | 0.0 | 0.0 |
+| 16 | I | +1.0 | 0.0 | 0.0 | 0.0 | 0.0 | +1.0 | 0.0 | 0.0 |
+| 17 | I | +1.0 | 0.0 | 0.0 | 0.0 | 0.0 | -1.0 | 0.0 | 0.0 |
+| 18 | I | -1.0 | 0.0 | 0.0 | 0.0 | 0.0 | +1.0 | 0.0 | 0.0 |
+| 19 | I | -1.0 | 0.0 | 0.0 | 0.0 | 0.0 | -1.0 | 0.0 | 0.0 |
+| 20 | I | +1.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | +1.0 | 0.0 |
+| 21 | I | +1.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | -1.0 | 0.0 |
+| 22 | I | -1.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | +1.0 | 0.0 |
+| 23 | I | -1.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | -1.0 | 0.0 |
+| 24 | I | +1.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | +1.0 |
+| 25 | I | +1.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | -1.0 |
+| 26 | I | -1.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | +1.0 |
+| 27 | I | -1.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | -1.0 |
+| 28 | I | 0.0 | +1.0 | +1.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 |
+| 29 | I | 0.0 | +1.0 | -1.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 |
+| 30 | I | 0.0 | -1.0 | +1.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 |
+| 31 | I | 0.0 | -1.0 | -1.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 |
+| 32 | I | 0.0 | +1.0 | 0.0 | +1.0 | 0.0 | 0.0 | 0.0 | 0.0 |
+| 33 | I | 0.0 | +1.0 | 0.0 | -1.0 | 0.0 | 0.0 | 0.0 | 0.0 |
+| 34 | I | 0.0 | -1.0 | 0.0 | +1.0 | 0.0 | 0.0 | 0.0 | 0.0 |
+| 35 | I | 0.0 | -1.0 | 0.0 | -1.0 | 0.0 | 0.0 | 0.0 | 0.0 |
+| 36 | I | 0.0 | +1.0 | 0.0 | 0.0 | +1.0 | 0.0 | 0.0 | 0.0 |
+| 37 | I | 0.0 | +1.0 | 0.0 | 0.0 | -1.0 | 0.0 | 0.0 | 0.0 |
+| 38 | I | 0.0 | -1.0 | 0.0 | 0.0 | +1.0 | 0.0 | 0.0 | 0.0 |
+| 39 | I | 0.0 | -1.0 | 0.0 | 0.0 | -1.0 | 0.0 | 0.0 | 0.0 |
+| 40 | I | 0.0 | +1.0 | 0.0 | 0.0 | 0.0 | +1.0 | 0.0 | 0.0 |
+| 41 | I | 0.0 | +1.0 | 0.0 | 0.0 | 0.0 | -1.0 | 0.0 | 0.0 |
+| 42 | I | 0.0 | -1.0 | 0.0 | 0.0 | 0.0 | +1.0 | 0.0 | 0.0 |
+| 43 | I | 0.0 | -1.0 | 0.0 | 0.0 | 0.0 | -1.0 | 0.0 | 0.0 |
+| 44 | I | 0.0 | +1.0 | 0.0 | 0.0 | 0.0 | 0.0 | +1.0 | 0.0 |
+| 45 | I | 0.0 | +1.0 | 0.0 | 0.0 | 0.0 | 0.0 | -1.0 | 0.0 |
+| 46 | I | 0.0 | -1.0 | 0.0 | 0.0 | 0.0 | 0.0 | +1.0 | 0.0 |
+| 47 | I | -0.0 | -1.0 | 0.0 | 0.0 | 0.0 | 0.0 | -1.0 | 0.0 |
+| 48 | I | 0.0 | +1.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | +1.0 |
+| 49 | I | 0.0 | +1.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | -1.0 |
+| 50 | I | 0.0 | -1.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | +1.0 |
+| 51 | I | 0.0 | -1.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | -1.0 |
+| 52 | I | 0.0 | 0.0 | +1.0 | +1.0 | 0.0 | 0.0 | 0.0 | 0.0 |
+| 53 | I | 0.0 | 0.0 | +1.0 | -1.0 | 0.0 | 0.0 | 0.0 | 0.0 |
+| 54 | I | 0.0 | 0.0 | -1.0 | +1.0 | 0.0 | 0.0 | 0.0 | 0.0 |
+| 55 | I | 0.0 | 0.0 | -1.0 | -1.0 | 0.0 | 0.0 | 0.0 | 0.0 |
+| 56 | I | 0.0 | 0.0 | +1.0 | 0.0 | +1.0 | 0.0 | 0.0 | 0.0 |
+| 57 | I | 0.0 | 0.0 | +1.0 | 0.0 | -1.0 | 0.0 | 0.0 | 0.0 |
+| 58 | I | 0.0 | 0.0 | -1.0 | 0.0 | +1.0 | 0.0 | 0.0 | 0.0 |
+| 59 | I | 0.0 | 0.0 | -1.0 | 0.0 | -1.0 | 0.0 | 0.0 | 0.0 |
+| 60 | I | 0.0 | 0.0 | +1.0 | 0.0 | 0.0 | +1.0 | 0.0 | 0.0 |
+| 61 | I | 0.0 | 0.0 | +1.0 | 0.0 | 0.0 | -1.0 | 0.0 | 0.0 |
+| 62 | I | 0.0 | 0.0 | -1.0 | 0.0 | 0.0 | +1.0 | 0.0 | 0.0 |
+| 63 | I | 0.0 | 0.0 | -1.0 | 0.0 | 0.0 | -1.0 | 0.0 | 0.0 |
+| 64 | I | 0.0 | 0.0 | +1.0 | 0.0 | 0.0 | 0.0 | +1.0 | 0.0 |
+| 65 | I | 0.0 | 0.0 | +1.0 | 0.0 | 0.0 | 0.0 | -1.0 | 0.0 |
+| 66 | I | 0.0 | 0.0 | -1.0 | 0.0 | 0.0 | 0.0 | +1.0 | 0.0 |
+| 67 | I | 0.0 | 0.0 | -1.0 | 0.0 | 0.0 | 0.0 | -1.0 | 0.0 |
+| 68 | I | 0.0 | 0.0 | +1.0 | 0.0 | 0.0 | 0.0 | 0.0 | +1.0 |
+| 69 | I | 0.0 | 0.0 | +1.0 | 0.0 | 0.0 | 0.0 | 0.0 | -1.0 |
+| 70 | I | 0.0 | 0.0 | -1.0 | 0.0 | 0.0 | 0.0 | 0.0 | +1.0 |
+| 71 | I | 0.0 | 0.0 | -1.0 | 0.0 | 0.0 | 0.0 | 0.0 | -1.0 |
+| 72 | I | 0.0 | 0.0 | 0.0 | +1.0 | +1.0 | 0.0 | 0.0 | 0.0 |
+| 73 | I | 0.0 | 0.0 | 0.0 | +1.0 | -1.0 | 0.0 | 0.0 | 0.0 |
+| 74 | I | 0.0 | 0.0 | 0.0 | -1.0 | +1.0 | 0.0 | 0.0 | 0.0 |
+| 75 | I | 0.0 | 0.0 | 0.0 | -1.0 | -1.0 | 0.0 | 0.0 | 0.0 |
+| 76 | I | 0.0 | 0.0 | 0.0 | +1.0 | 0.0 | +1.0 | 0.0 | 0.0 |
+| 77 | I | 0.0 | 0.0 | 0.0 | +1.0 | 0.0 | -1.0 | 0.0 | 0.0 |
+| 78 | I | 0.0 | 0.0 | 0.0 | -1.0 | 0.0 | +1.0 | 0.0 | 0.0 |
+| 79 | I | 0.0 | 0.0 | 0.0 | -1.0 | 0.0 | -1.0 | 0.0 | 0.0 |
+| 80 | I | 0.0 | 0.0 | 0.0 | +1.0 | 0.0 | 0.0 | +1.0 | 0.0 |
+| 81 | I | 0.0 | 0.0 | 0.0 | +1.0 | 0.0 | 0.0 | -1.0 | 0.0 |
+| 82 | I | 0.0 | 0.0 | 0.0 | -1.0 | 0.0 | 0.0 | +1.0 | 0.0 |
+| 83 | I | 0.0 | 0.0 | 0.0 | -1.0 | 0.0 | 0.0 | -1.0 | 0.0 |
+| 84 | I | 0.0 | 0.0 | 0.0 | +1.0 | 0.0 | 0.0 | 0.0 | +1.0 |
+| 85 | I | 0.0 | 0.0 | 0.0 | +1.0 | 0.0 | 0.0 | 0.0 | -1.0 |
+| 86 | I | 0.0 | 0.0 | 0.0 | -1.0 | 0.0 | 0.0 | 0.0 | +1.0 |
+| 87 | I | 0.0 | 0.0 | 0.0 | -1.0 | 0.0 | 0.0 | 0.0 | -1.0 |
+| 88 | I | 0.0 | 0.0 | 0.0 | 0.0 | +1.0 | +1.0 | 0.0 | 0.0 |
+| 89 | I | 0.0 | 0.0 | 0.0 | 0.0 | +1.0 | -1.0 | 0.0 | 0.0 |
+| 90 | I | 0.0 | 0.0 | 0.0 | 0.0 | -1.0 | +1.0 | 0.0 | 0.0 |
+| 91 | I | 0.0 | 0.0 | 0.0 | 0.0 | -1.0 | -1.0 | 0.0 | 0.0 |
+| 92 | I | 0.0 | 0.0 | 0.0 | 0.0 | +1.0 | 0.0 | +1.0 | 0.0 |
+| 93 | I | 0.0 | 0.0 | 0.0 | 0.0 | +1.0 | 0.0 | -1.0 | 0.0 |
+| 94 | I | 0.0 | 0.0 | 0.0 | 0.0 | -1.0 | 0.0 | +1.0 | 0.0 |
+| 95 | I | 0.0 | 0.0 | 0.0 | 0.0 | -1.0 | 0.0 | -1.0 | 0.0 |
+| 96 | I | 0.0 | 0.0 | 0.0 | 0.0 | +1.0 | 0.0 | 0.0 | +1.0 |
+| 97 | I | 0.0 | 0.0 | 0.0 | 0.0 | +1.0 | 0.0 | 0.0 | -1.0 |
+| 98 | I | 0.0 | 0.0 | 0.0 | 0.0 | -1.0 | 0.0 | 0.0 | +1.0 |
+| 99 | I | 0.0 | 0.0 | 0.0 | 0.0 | -1.0 | 0.0 | 0.0 | -1.0 |
+| 100 | I | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | +1.0 | +1.0 | 0.0 |
+| 101 | I | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | +1.0 | -1.0 | 0.0 |
+| 102 | I | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | -1.0 | +1.0 | 0.0 |
+| 103 | I | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | -1.0 | -1.0 | 0.0 |
+| 104 | I | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | +1.0 | 0.0 | +1.0 |
+| 105 | I | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | +1.0 | 0.0 | -1.0 |
+| 106 | I | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | -1.0 | 0.0 | +1.0 |
+| 107 | I | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | -1.0 | 0.0 | -1.0 |
+| 108 | I | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | +1.0 | +1.0 |
+| 109 | I | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | +1.0 | -1.0 |
+| 110 | I | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | -1.0 | +1.0 |
+| 111 | I | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 | -1.0 | -1.0 |
+
+**Type II Roots (Indices 112-239):**
+
+| Index | Type | e₁ | e₂ | e₃ | e₄ | e₅ | e₆ | e₇ | e₈ |
+|:------|:-----|:---|:---|:---|:---|:---|:---|:---|:---|
+| 112 | II | +0.5 | +0.5 | +0.5 | +0.5 | +0.5 | +0.5 | +0.5 | +0.5 |
+| 113 | II | -0.5 | -0.5 | +0.5 | +0.5 | +0.5 | +0.5 | +0.5 | +0.5 |
+| 114 | II | +0.5 | -0.5 | -0.5 | +0.5 | +0.5 | +0.5 | +0.5 | +0.5 |
+| 115 | II | -0.5 | +0.5 | -0.5 | +0.5 | +0.5 | +0.5 | +0.5 | +0.5 |
+| 116 | II | +0.5 | +0.5 | -0.5 | -0.5 | +0.5 | +0.5 | +0.5 | +0.5 |
+| 117 | II | -0.5 | -0.5 | -0.5 | -0.5 | +0.5 | +0.5 | +0.5 | +0.5 |
+| 118 | II | +0.5 | -0.5 | +0.5 | -0.5 | -0.5 | +0.5 | +0.5 | +0.5 |
+| 119 | II | -0.5 | +0.5 | +0.5 | -0.5 | -0.5 | +0.5 | +0.5 | +0.5 |
+| 120 | II | +0.5 | +0.5 | +0.5 | -0.5 | -0.5 | -0.5 | +0.5 | +0.5 |
+| 121 | II | -0.5 | -0.5 | +0.5 | -0.5 | -0.5 | -0.5 | +0.5 | +0.5 |
+| 122 | II | +0.5 | -0.5 | -0.5 | -0.5 | -0.5 | -0.5 | +0.5 | +0.5 |
+| 123 | II | -0.5 | +0.5 | -0.5 | -0.5 | -0.5 | -0.5 | +0.5 | +0.5 |
+| 124 | II | +0.5 | +0.5 | -0.5 | +0.5 | -0.5 | -0.5 | -0.5 | +0.5 |
+| 125 | II | -0.5 | -0.5 | -0.5 | +0.5 | -0.5 | -0.5 | -0.5 | +0.5 |
+| 126 | II | +0.5 | -0.5 | +0.5 | +0.5 | +0.5 | -0.5 | -0.5 | +0.5 |
+| 127 | II | -0.5 | +0.5 | +0.5 | +0.5 | +0.5 | -0.5 | -0.5 | +0.5 |
+| 128 | II | +0.5 | +0.5 | +0.5 | +0.5 | +0.5 | -0.5 | -0.5 | -0.5 |
+| 129 | II | -0.5 | -0.5 | +0.5 | +0.5 | +0.5 | -0.5 | -0.5 | -0.5 |
+| 130 | II | +0.5 | -0.5 | -0.5 | +0.5 | +0.5 | -0.5 | -0.5 | -0.5 |
+| 131 | II | -0.5 | +0.5 | -0.5 | +0.5 | +0.5 | -0.5 | -0.5 | -0.5 |
+| 132 | II | +0.5 | +0.5 | -0.5 | -0.5 | +0.5 | -0.5 | -0.5 | -0.5 |
+| 133 | II | -0.5 | -0.5 | -0.5 | -0.5 | +0.5 | -0.5 | -0.5 | -0.5 |
+| 134 | II | +0.5 | -0.5 | +0.5 | -0.5 | -0.5 | -0.5 | -0.5 | -0.5 |
+| 135 | II | -0.5 | +0.5 | +0.5 | -0.5 | -0.5 | -0.5 | -0.5 | -0.5 |
+| 136 | II | +0.5 | +0.5 | +0.5 | -0.5 | -0.5 | +0.5 | -0.5 | -0.5 |
+| 137 | II | -0.5 | -0.5 | +0.5 | -0.5 | -0.5 | +0.5 | -0.5 | -0.5 |
+| 138 | II | +0.5 | -0.5 | -0.5 | -0.5 | -0.5 | +0.5 | -0.5 | -0.5 |
+| 139 | II | -0.5 | +0.5 | -0.5 | -0.5 | -0.5 | +0.5 | -0.5 | -0.5 |
+| 140 | II | +0.5 | +0.5 | -0.5 | +0.5 | -0.5 | +0.5 | +0.5 | -0.5 |
+| 141 | II | -0.5 | -0.5 | -0.5 | +0.5 | -0.5 | +0.5 | +0.5 | -0.5 |
+| 142 | II | +0.5 | -0.5 | +0.5 | +0.5 | +0.5 | +0.5 | +0.5 | -0.5 |
+| 143 | II | -0.5 | +0.5 | +0.5 | +0.5 | +0.5 | +0.5 | +0.5 | -0.5 |
+| 144 | II | +0.5 | +0.5 | +0.5 | +0.5 | +0.5 | +0.5 | +0.5 | -0.5 |
+| 145 | II | -0.5 | -0.5 | +0.5 | +0.5 | +0.5 | +0.5 | +0.5 | -0.5 |
+| 146 | II | +0.5 | -0.5 | -0.5 | +0.5 | +0.5 | +0.5 | +0.5 | -0.5 |
+| 147 | II | -0.5 | +0.5 | -0.5 | +0.5 | +0.5 | +0.5 | +0.5 | -0.5 |
+| 148 | II | +0.5 | +0.5 | -0.5 | -0.5 | +0.5 | +0.5 | +0.5 | -0.5 |
+| 149 | II | -0.5 | -0.5 | -0.5 | -0.5 | +0.5 | +0.5 | +0.5 | -0.5 |
+| 150 | II | +0.5 | -0.5 | +0.5 | -0.5 | -0.5 | +0.5 | +0.5 | -0.5 |
+| 151 | II | -0.5 | +0.5 | +0.5 | -0.5 | -0.5 | +0.5 | +0.5 | -0.5 |
+| 152 | II | +0.5 | +0.5 | +0.5 | -0.5 | -0.5 | -0.5 | +0.5 | -0.5 |
+| 153 | II | -0.5 | -0.5 | +0.5 | -0.5 | -0.5 | -0.5 | +0.5 | -0.5 |
+| 154 | II | +0.5 | -0.5 | -0.5 | -0.5 | -0.5 | -0.5 | +0.5 | -0.5 |
+| 155 | II | -0.5 | +0.5 | -0.5 | -0.5 | -0.5 | -0.5 | +0.5 | -0.5 |
+| 156 | II | +0.5 | +0.5 | -0.5 | +0.5 | -0.5 | -0.5 | -0.5 | -0.5 |
+| 157 | II | -0.5 | -0.5 | -0.5 | +0.5 | -0.5 | -0.5 | -0.5 | -0.5 |
+| 158 | II | +0.5 | -0.5 | +0.5 | +0.5 | +0.5 | -0.5 | -0.5 | -0.5 |
+| 159 | II | -0.5 | +0.5 | +0.5 | +0.5 | +0.5 | -0.5 | -0.5 | -0.5 |
+| 160 | II | +0.5 | +0.5 | +0.5 | +0.5 | +0.5 | -0.5 | -0.5 | +0.5 |
+| 161 | II | -0.5 | -0.5 | +0.5 | +0.5 | +0.5 | -0.5 | -0.5 | +0.5 |
+| 162 | II | +0.5 | -0.5 | -0.5 | +0.5 | +0.5 | -0.5 | -0.5 | +0.5 |
+| 163 | II | -0.5 | +0.5 | -0.5 | +0.5 | +0.5 | -0.5 | -0.5 | +0.5 |
+| 164 | II | +0.5 | +0.5 | -0.5 | -0.5 | +0.5 | -0.5 | -0.5 | +0.5 |
+| 165 | II | -0.5 | -0.5 | -0.5 | -0.5 | +0.5 | -0.5 | -0.5 | +0.5 |
+| 166 | II | +0.5 | -0.5 | +0.5 | -0.5 | -0.5 | -0.5 | -0.5 | +0.5 |
+| 167 | II | -0.5 | +0.5 | +0.5 | -0.5 | -0.5 | -0.5 | -0.5 | +0.5 |
+| 168 | II | +0.5 | +0.5 | +0.5 | -0.5 | -0.5 | +0.5 | -0.5 | +0.5 |
+| 169 | II | -0.5 | -0.5 | +0.5 | -0.5 | -0.5 | +0.5 | -0.5 | +0.5 |
+| 170 | II | +0.5 | -0.5 | -0.5 | -0.5 | -0.5 | +0.5 | -0.5 | +0.5 |
+| 171 | II | -0.5 | +0.5 | -0.5 | -0.5 | -0.5 | +0.5 | -0.5 | +0.5 |
+| 172 | II | +0.5 | +0.5 | -0.5 | +0.5 | -0.5 | +0.5 | +0.5 | +0.5 |
+| 173 | II | -0.5 | -0.5 | -0.5 | +0.5 | -0.5 | +0.5 | +0.5 | +0.5 |
+| 174 | II | +0.5 | -0.5 | +0.5 | +0.5 | +0.5 | +0.5 | +0.5 | +0.5 |
+| 175 | II | -0.5 | +0.5 | +0.5 | +0.5 | +0.5 | +0.5 | +0.5 | +0.5 |
+| 176 | II | +0.5 | +0.5 | +0.5 | +0.5 | +0.5 | +0.5 | -0.5 | +0.5 |
+| 177 | II | -0.5 | -0.5 | +0.5 | +0.5 | +0.5 | +0.5 | -0.5 | +0.5 |
+| 178 | II | +0.5 | -0.5 | -0.5 | +0.5 | +0.5 | +0.5 | -0.5 | +0.5 |
+| 179 | II | -0.5 | +0.5 | -0.5 | +0.5 | +0.5 | +0.5 | -0.5 | +0.5 |
+| 180 | II | +0.5 | +0.5 | -0.5 | -0.5 | +0.5 | +0.5 | -0.5 | +0.5 |
+| 181 | II | -0.5 | -0.5 | -0.5 | -0.5 | +0.5 | +0.5 | -0.5 | +0.5 |
+| 182 | II | +0.5 | -0.5 | +0.5 | -0.5 | -0.5 | +0.5 | -0.5 | +0.5 |
+| 183 | II | -0.5 | +0.5 | +0.5 | -0.5 | -0.5 | +0.5 | -0.5 | +0.5 |
+| 184 | II | +0.5 | +0.5 | +0.5 | -0.5 | -0.5 | -0.5 | -0.5 | +0.5 |
+| 185 | II | -0.5 | -0.5 | +0.5 | -0.5 | -0.5 | -0.5 | -0.5 | +0.5 |
+| 186 | II | +0.5 | -0.5 | -0.5 | -0.5 | -0.5 | -0.5 | -0.5 | +0.5 |
+| 187 | II | -0.5 | +0.5 | -0.5 | -0.5 | -0.5 | -0.5 | -0.5 | +0.5 |
+| 188 | II | +0.5 | +0.5 | -0.5 | +0.5 | -0.5 | -0.5 | +0.5 | +0.5 |
+| 189 | II | -0.5 | -0.5 | -0.5 | +0.5 | -0.5 | -0.5 | +0.5 | +0.5 |
+| 190 | II | +0.5 | -0.5 | +0.5 | +0.5 | +0.5 | -0.5 | +0.5 | +0.5 |
+| 191 | II | -0.5 | +0.5 | +0.5 | +0.5 | +0.5 | -0.5 | +0.5 | +0.5 |
+| 192 | II | +0.5 | +0.5 | +0.5 | +0.5 | +0.5 | +0.5 | +0.5 | +0.5 |
+| 193 | II | -0.5 | -0.5 | +0.5 | +0.5 | +0.5 | +0.5 | +0.5 | +0.5 |
+| 194 | II | +0.5 | -0.5 | -0.5 | +0.5 | +0.5 | +0.5 | +0.5 | +0.5 |
+| 195 | II | -0.5 | +0.5 | -0.5 | +0.5 | +0.5 | +0.5 | +0.5 | +0.5 |
+| 196 | II | +0.5 | +0.5 | -0.5 | -0.5 | +0.5 | +0.5 | +0.5 | +0.5 |
+| 197 | II | -0.5 | -0.5 | -0.5 | -0.5 | +0.5 | +0.5 | +0.5 | +0.5 |
+| 198 | II | +0.5 | -0.5 | +0.5 | -0.5 | -0.5 | +0.5 | +0.5 | +0.5 |
+| 199 | II | -0.5 | +0.5 | +0.5 | -0.5 | -0.5 | +0.5 | +0.5 | +0.5 |
+| 200 | II | +0.5 | +0.5 | +0.5 | -0.5 | -0.5 | -0.5 | +0.5 | +0.5 |
+| 201 | II | -0.5 | -0.5 | +0.5 | -0.5 | -0.5 | -0.5 | +0.5 | +0.5 |
+| 202 | II | +0.5 | -0.5 | -0.5 | -0.5 | -0.5 | -0.5 | +0.5 | +0.5 |
+| 203 | II | -0.5 | +0.5 | -0.5 | -0.5 | -0.5 | -0.5 | +0.5 | +0.5 |
+| 204 | II | +0.5 | +0.5 | -0.5 | +0.5 | -0.5 | -0.5 | -0.5 | +0.5 |
+| 205 | II | -0.5 | -0.5 | -0.5 | +0.5 | -0.5 | -0.5 | -0.5 | +0.5 |
+| 206 | II | +0.5 | -0.5 | +0.5 | +0.5 | +0.5 | -0.5 | -0.5 | +0.5 |
+| 207 | II | -0.5 | +0.5 | +0.5 | +0.5 | +0.5 | -0.5 | -0.5 | +0.5 |
+| 208 | II | +0.5 | +0.5 | +0.5 | +0.5 | +0.5 | -0.5 | -0.5 | -0.5 |
+| 209 | II | -0.5 | -0.5 | +0.5 | +0.5 | +0.5 | -0.5 | -0.5 | -0.5 |
+| 210 | II | +0.5 | -0.5 | -0.5 | +0.5 | +0.5 | -0.5 | -0.5 | -0.5 |
+| 211 | II | -0.5 | +0.5 | -0.5 | +0.5 | +0.5 | -0.5 | -0.5 | -0.5 |
+| 212 | II | +0.5 | +0.5 | -0.5 | -0.5 | +0.5 | -0.5 | -0.5 | -0.5 |
+| 213 | II | -0.5 | -0.5 | -0.5 | -0.5 | +0.5 | -0.5 | -0.5 | -0.5 |
+| 214 | II | +0.5 | -0.5 | +0.5 | -0.5 | -0.5 | -0.5 | -0.5 | -0.5 |
+| 215 | II | -0.5 | +0.5 | +0.5 | -0.5 | -0.5 | -0.5 | -0.5 | -0.5 |
+| 216 | II | +0.5 | +0.5 | +0.5 | -0.5 | -0.5 | +0.5 | -0.5 | -0.5 |
+| 217 | II | -0.5 | -0.5 | +0.5 | -0.5 | -0.5 | +0.5 | -0.5 | -0.5 |
+| 218 | II | +0.5 | -0.5 | -0.5 | -0.5 | -0.5 | +0.5 | -0.5 | -0.5 |
+| 219 | II | -0.5 | +0.5 | -0.5 | -0.5 | -0.5 | +0.5 | -0.5 | -0.5 |
+| 220 | II | +0.5 | +0.5 | -0.5 | +0.5 | -0.5 | +0.5 | +0.5 | -0.5 |
+| 221 | II | -0.5 | -0.5 | -0.5 | +0.5 | -0.5 | +0.5 | +0.5 | -0.5 |
+| 222 | II | +0.5 | -0.5 | +0.5 | +0.5 | +0.5 | +0.5 | +0.5 | -0.5 |
+| 223 | II | -0.5 | +0.5 | +0.5 | +0.5 | +0.5 | +0.5 | +0.5 | -0.5 |
+| 224 | II | +0.5 | +0.5 | +0.5 | +0.5 | -0.5 | +0.5 | +0.5 | -0.5 |
+| 225 | II | -0.5 | -0.5 | +0.5 | +0.5 | -0.5 | +0.5 | +0.5 | -0.5 |
+| 226 | II | +0.5 | -0.5 | -0.5 | +0.5 | -0.5 | +0.5 | +0.5 | -0.5 |
+| 227 | II | -0.5 | +0.5 | -0.5 | +0.5 | -0.5 | +0.5 | +0.5 | -0.5 |
+| 228 | II | +0.5 | +0.5 | -0.5 | -0.5 | -0.5 | +0.5 | +0.5 | -0.5 |
+| 229 | II | -0.5 | -0.5 | -0.5 | -0.5 | -0.5 | +0.5 | +0.5 | -0.5 |
+| 230 | II | +0.5 | -0.5 | +0.5 | -0.5 | +0.5 | +0.5 | +0.5 | -0.5 |
+| 231 | II | -0.5 | +0.5 | +0.5 | -0.5 | +0.5 | +0.5 | +0.5 | -0.5 |
+| 232 | II | +0.5 | +0.5 | +0.5 | -0.5 | +0.5 | -0.5 | +0.5 | -0.5 |
+| 233 | II | -0.5 | -0.5 | +0.5 | -0.5 | +0.5 | -0.5 | +0.5 | -0.5 |
+| 234 | II | +0.5 | -0.5 | -0.5 | -0.5 | +0.5 | -0.5 | +0.5 | -0.5 |
+| 235 | II | -0.5 | +0.5 | -0.5 | -0.5 | +0.5 | -0.5 | +0.5 | -0.5 |
+| 236 | II | +0.5 | +0.5 | -0.5 | +0.5 | +0.5 | -0.5 | -0.5 | -0.5 |
+| 237 | II | -0.5 | -0.5 | -0.5 | +0.5 | +0.5 | -0.5 | -0.5 | -0.5 |
+| 238 | II | +0.5 | -0.5 | +0.5 | +0.5 | -0.5 | -0.5 | -0.5 | -0.5 |
+| 239 | II | -0.5 | +0.5 | +0.5 | +0.5 | -0.5 | -0.5 | -0.5 | -0.5 |
+
+### 5.4 Validation Rules
+
+**Per-Root Validation:**
+```rust
+fn validate_root(r: &[f32; 8]) -> Result<(), E8Error> {
+    // Check norm-squared = 2
+    let norm_sq: f32 = r.iter().map(|&x| x * x).sum();
+    if (norm_sq - 2.0).abs() > 1e-6 {
+        return Err(E8Error::InvalidNorm(norm_sq));
+    }
+    
+    // Check Type I or Type II structure
+    let is_type_i = r.iter().filter(|&&x| x != 0.0).count() == 2
+                    && r.iter().all(|&x| x.abs() == 1.0 || x == 0.0);
+    
+    let is_type_ii = r.iter().all(|&x| x.abs() == 0.5)
+                     && (r.iter().filter(|&&x| x < 0.0).count() % 2 == 0);
+    
+    if !(is_type_i || is_type_ii) {
+        return Err(E8Error::InvalidRootStructure);
+    }
+    
+    Ok(())
+}
+```
+
+**Graph Validation:**
+```rust
+// Each root must have exactly 56 neighbors
+for (i, neighbors) in adjacency.iter().enumerate() {
+    assert_eq!(neighbors.len(), 56, "Root {} has {} neighbors, expected 56", i, neighbors.len());
+}
+```
+
+---
+
+## 6. Domain Model
+
+### 6.1 Domain Definition
+
+A domain D is represented by a unit vector D⃗ ∈ ℝ⁸:
+
+```
+D⃗ = Σᵢ₌₁⁸ dᵢeᵢ, where ‖D⃗‖ = 1
+```
+
+**Critical Distinction:** Domains are **continuous functionals** (ℝ⁸ → ℝ), NOT discrete subsets of roots.
+
+### 6.2 Normalization Procedure
+
+```rust
+fn normalize(raw: &[f32; 8]) -> [f32; 8] {
+    let norm: f32 = raw.iter().map(|x| x * x).sum::<f32>().sqrt();
+    let mut result = [0.0; 8];
+    for i in 0..8 {
+        result[i] = raw[i] / norm;
+    }
+    result
+}
+```
+
+**Tolerance:** `|‖D⃗‖ - 1.0| < 1e-6`
+
+### 6.3 Canonical Domain Table
+
+| Domain | A | B | C | D | E | F | G | H | Normalized |
+|:-------|:--|:--|:--|:--|:--|:--|:--|:--|:-----------|
+| **Ethics** | 0.0 | 0.5 | 0.7 | 0.8 | 1.0 | 0.0 | 0.6 | -0.2 | `[0.0000, 0.3133, 0.4386, 0.5013, 0.6266, 0.0000, 0.3760, -0.1253]` |
+| **Psychology** | 0.7 | 0.3 | 0.6 | 0.9 | 0.0 | 0.4 | 0.3 | 0.5 | `[0.4700, 0.2014, 0.4028, 0.6042, 0.0000, 0.2685, 0.2014, 0.3357]` |
+| **Relationships** | -0.8 | -0.4 | 0.3 | 0.5 | 0.4 | -0.2 | 0.5 | -0.6 | `[-0.5714, -0.2857, 0.2143, 0.3571, 0.2857, -0.1429, 0.3571, -0.4286]` |
+| **Economics** | 0.6 | 0.9 | 0.7 | 0.6 | 0.2 | 0.8 | 0.3 | 0.5 | `[0.3409, 0.5114, 0.3977, 0.3409, 0.1136, 0.4545, 0.1705, 0.2841]` |
+| **Creativity** | 0.4 | -0.7 | 0.5 | 0.3 | 0.0 | 0.6 | 0.4 | 0.8 | `[0.2727, -0.4773, 0.3409, 0.2045, 0.0000, 0.4091, 0.2727, 0.5455]` |
+| **Spirituality** | -0.5 | -0.6 | 0.0 | -0.8 | 0.7 | -0.7 | 0.6 | -0.4 | `[-0.3012, -0.3614, 0.0000, -0.4819, 0.4217, -0.4217, 0.3614, -0.2410]` |
+| **Physical** | 0.0 | 0.7 | -0.4 | 0.4 | 0.0 | 0.8 | 0.2 | 0.6 | `[0.0000, 0.5150, -0.2943, 0.2943, 0.0000, 0.5885, 0.1471, 0.4414]` |
+| **Existential** | 0.8 | -0.3 | 0.6 | 0.0 | 0.5 | 0.0 | 0.0 | -0.4 | `[0.6504, -0.2439, 0.4878, 0.0000, 0.4065, 0.0000, 0.0000, -0.3252]` |
+| **Education** | 0.4 | 0.6 | 0.8 | 0.9 | 0.5 | 0.5 | 0.7 | 0.6 | `[0.2222, 0.3333, 0.4444, 0.5000, 0.2778, 0.2778, 0.3889, 0.3333]` |
+| **Health** | 0.3 | 0.5 | 0.5 | 0.6 | 0.3 | 0.4 | 0.6 | 0.4 | `[0.2308, 0.3846, 0.3846, 0.4615, 0.2308, 0.3077, 0.4615, 0.3077]` |
+
+### 6.4 Domain Rationale Matrix
+
+| Domain | Axis | Weight | Justification |
+|:-------|:-----|:-------|:--------------|
+| **Ethics** | A | 0.0 | Balances individual and collective (neutral) |
+| **Ethics** | B | +0.5 | Relies on structure (laws, principles) |
+| **Ethics** | C | +0.7 | Requires foresight (consequences) |
+| **Ethics** | D | +0.8 | Demands clarity (moral reasoning) |
+| **Ethics** | E | +1.0 | Defined by virtue |
+| **Ethics** | F | 0.0 | Quality of action, not speed |
+| **Ethics** | G | +0.6 | Stewardship is ethical |
+| **Ethics** | H | -0.2 | Mitigates risk through responsibility |
+| **Psychology** | A | +0.7 | Individual consciousness focus |
+| **Psychology** | B | +0.3 | Models structure, adapts to variation |
+| **Psychology** | C | +0.6 | Predictive (behavior forecasting) |
+| **Psychology** | D | +0.9 | High diagnostic clarity |
+| **Psychology** | E | 0.0 | Descriptive, not prescriptive |
+| **Psychology** | F | +0.4 | Reflective stillness |
+| **Psychology** | G | +0.3 | Therapeutic stewardship |
+| **Psychology** | H | +0.5 | Self-mastery |
+
+*(Continue for all domains...)*
+
+---
+
+## 7. Mapping Pipeline
+
+### 7.1 Event → Vector → Root(s) → Trajectory
+
+**Step 1: Event Ingestion**
+```
+Input: LifeSituation {
+  description: String,
+  experience_tags: [HumanExperience],
+  context: {String: String}
+}
+```
+
+**Step 2: Experience → Coordinates**
+Using the coordinate mappings from hex.rune.full.txt:
+```
+Joy → [0.5, 0.0, 0.5, 0.5, 0.5, 0.5, 0.0, 0.0]
+Sorrow → [-0.5, 0.0, -0.5, -0.5, -0.5, 0.0, 0.0, -0.5]
+...
+```
+
+**Step 3: Weighted Barycenter**
+```rust
+fn compute_centroid(
+    experiences: &[HumanExperience],
+    roots: &[Root],
+) -> [f32; 8] {
+    let mut weights = HashMap::new();
+    
+    // Map experiences to roots
+    for exp in experiences {
+        let coords = experience_to_coords(exp);
+        let nearest = find_nearest_root(&coords, roots);
+        *weights.entry(nearest).or_insert(0.0) += 1.0;
+    }
+    
+    // Normalize weights
+    let total: f32 = weights.values().sum();
+    for w in weights.values_mut() {
+        *w /= total;
+    }
+    
+    // Compute barycenter
+    let mut centroid = [0.0; 8];
+    for (&idx, &weight) in &weights {
+        for i in 0..8 {
+            centroid[i] += weight * roots[idx][i];
+        }
+    }
+    
+    centroid
+}
+```
+
+**Step 4: Nearest Root Quantization**
+```rust
+fn find_nearest_root(point: &[f32; 8], roots: &[Root]) -> usize {
+    roots.iter()
+         .enumerate()
+         .min_by(|(_, a), (_, b)| {
+             let dist_a = euclidean_distance(point, a);
+             let dist_b = euclidean_distance(point, b);
+             dist_a.partial_cmp(&dist_b).unwrap()
+         })
+         .map(|(idx, _)| idx)
+         .unwrap()
+}
+```
+
+**Tie-Breaking Rule:** If multiple roots are equidistant, select the one with the lowest index.
+
+---
+
+## 8. Graph Model
+
+### 8.1 Adjacency Rules
+
+Two roots α, β are **adjacent** iff `|⟨α, β⟩| = 1`.
+
+**Construction:**
+```rust
+fn build_adjacency(roots: &[Root; 240]) -> Vec<Vec<usize>> {
+    let mut adj = vec![vec![]; 240];
+    
+    for i in 0..240 {
+        for j in (i+1)..240 {
+            let ip = inner_product(&roots[i], &roots[j]);
+            if (ip.abs() - 1.0).abs() < 1e-6 {
+                adj[i].push(j);
+                adj[j].push(i);
+            }
+        }
+    }
+    
+    adj
+}
+```
+
+**Expected Degree:** Each root has exactly **56 neighbors**.
+
+### 8.2 Data Layout
+
+```rust
+struct E8Graph {
+    roots: [Root; 240],
+    adjacency: Vec<Vec<usize>>,  // adjacency[i] = neighbor indices
+}
+
+type Root = [f32; 8];
+```
+
+**Memory Footprint:**
+- Roots: 240 × 8 × 4 bytes = 7,680 bytes
+- Adjacency: ~240 × 56 × 8 bytes = ~107,520 bytes
+- Total: ~115 KB
+
+---
+
+## 9. Algorithms
+
+### 9.1 Root-to-Domain Affinity
+
+**Inputs:**
+- `root: &[f32; 8]`
+- `domain: &[f32; 8]` (unit-norm)
+
+**Output:**
+- `affinity: f32` ∈ [-1, 1]
+
+**Algorithm:**
+```rust
+fn affinity(root: &[f32; 8], domain: &[f32; 8]) -> f32 {
+    let ip: f32 = root.iter().zip(domain.iter())
+                      .map(|(r, d)| r * d)
+                      .sum();
+    let root_norm: f32 = root.iter().map(|x| x * x).sum::<f32>().sqrt();
+    ip / root_norm
+}
+```
+
+**Complexity:** O(8) = O(1)
+
+**Failure Modes:**
+- `NearZeroVector` if `root_norm < 1e-8`
+
+**Validation:**
+- Assert `|domain_norm - 1.0| < 1e-6`
+
+### 9.2 Multi-Domain Projection
+
+**Inputs:**
+- `point: &[f32; 8]`
+- `domains: &[DomainVector]`
+
+**Output:**
+- `DomainProjection { weights: HashMap<String, f32> }`
+
+**Algorithm:**
+```rust
+fn project_to_domains(
+    point: &[f32; 8],
+    domains: &[DomainVector],
+) -> DomainProjection {
+    let mut weights = HashMap::new();
+    for domain in domains {
+        let aff = affinity(point, &domain.normalized);
+        weights.insert(domain.label.clone(), aff);
+    }
+    DomainProjection { weights }
+}
+```
+
+**Complexity:** O(D) where D = number of domains
+
+### 9.3 Trajectory Construction
+
+**Inputs:**
+- `start: usize` (root index)
+- `goal: usize` (root index)
+- `momentum: &[f32; 8]`
+- `attractors: &[(usize, f32)]` (root index, strength)
+- `graph: &E8Graph`
+- `max_steps: usize`
+
+**Output:**
+- `Trajectory { path: Vec<usize>, timestamps: Vec<f64> }`
+
+**Algorithm:**
+```rust
+fn construct_trajectory(
+    start: usize,
+    goal: usize,
+    momentum: &[f32; 8],
+    attractors: &[(usize, f32)],
+    graph: &E8Graph,
+    max_steps: usize,
+) -> Trajectory {
+    let mut path = vec![start];
+    let mut current = start;
+    
+    for step in 0..max_steps {
+        if current == goal {
+            break;
+        }
+        
+        // Score all neighbors
+        let neighbors = &graph.adjacency[current];
+        let next = neighbors.iter()
+                            .map(|&idx| {
+                                let jump_cost = euclidean_distance(
+                                    &graph.roots[current],
+                                    &graph.roots[idx]
+                                );
+                                let momentum_alignment = inner_product(
+                                    &graph.roots[idx],
+                                    momentum
+                                );
+                                let attractor_force: f32 = attractors.iter()
+                                    .map(|&(a_idx, strength)| {
+                                        strength / (1.0 + euclidean_distance(
+                                            &graph.roots[idx],
+                                            &graph.roots[a_idx]
+                                        ))
+                                    })
+                                    .sum();
+                                
+                                let score = -jump_cost 
+                                          + 0.5 * momentum_alignment
+                                          + 0.3 * attractor_force;
+                                (idx, score)
+                            })
+                            .max_by(|(_, s1), (_, s2)| {
+                                s1.partial_cmp(s2).unwrap()
+                            })
+                            .map(|(idx, _)| idx)
+                            .unwrap();
+        
+        path.push(next);
+        current = next;
+    }
+    
+    Trajectory {
+        id: Xuid::generate(),
+        path,
+        timestamps: vec![],
+        metadata: HashMap::new(),
+    }
+}
+```
+
+**Complexity:** O(max_steps × degree × attractors) = O(max_steps × 56 × A)
+
+**Parameters:**
+- `momentum_weight: 0.5` (tunable)
+- `attractor_weight: 0.3` (tunable)
+- `max_steps: 1000` (default)
+
+**Failure Modes:**
+- `MaxStepsExceeded` if goal not reached
+
+---
+
+## 10. Determinism & Canonicalization
+
+### 10.1 Float Determinism
+
+**Rules:**
+- Use `f32` (IEEE 754 single precision)
+- Rounding mode: round-to-nearest-even (hardware default)
+- No FMA (fused multiply-add) unless deterministic across platforms
+- Tolerances: `1e-6` for norm checks, `1e-6` for inner product matching
+
+**Validation:**

@@ -38,7 +38,6 @@ pub fn all_primitives(values: &[Value<'_>]) -> bool {
 mod tests {
     use super::*;
     use crate::decoder::parser::ast::Value;
-    use std::borrow::Cow;
 
     #[test]
     fn test_is_primitive() {

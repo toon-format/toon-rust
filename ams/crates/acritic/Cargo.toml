@@ -1,0 +1,57 @@
+[package]
+name         = "acritic"
+version      = { workspace = true }
+edition      = { workspace = true }
+authors      = { workspace = true }
+license      = { workspace = true }
+rust-version = { workspace = true }
+description  = "Comprehensive benchmark and test suite ecosystem for functionality and performance evaluation"
+repository = "https://github.com/arcmoon/arcmoon-suite"
+readme = "README.md"
+keywords = ["benchmarking", "testing", "acritic", "arcmoon"]
+categories = ["benchmarks", "development-tools"]
+
+[[bin]]
+name         = "acritic"
+path         = "src/main.rs"
+
+[[bin]]
+name         = "final"
+path         = "src/final.rs"
+
+[dependencies]
+# ArcMoon Workspace Crates
+xuid = { path = "../xuid" }
+yoshi = { path = "../yoshi" }
+
+tokio = { workspace = true, features = ["full"] }
+
+# Data and math
+rand = { workspace = true }
+
+# Serialization and utilities
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["fmt"] }
+
+# CLI argument parsing
+clap = { workspace = true, features = ["derive"] }
+
+# Time and statistics
+chrono = { workspace = true, features = ["serde"] }
+
+# Hardware detection and system info
+num_cpus = { workspace = true, default-features = false }
+ed25519-dalek = { workspace = true, features = ["std"] }
+
+# Enable harness for all benchmarks defined in the benches/ directory
+[[bench]]
+name = "benchmarks"
+harness = false
+path = "benches/mod.rs"
+
+[features]
+default = []
+cuda = [] # Feature flag for CUDA-specific benchmarks
+apex = ["cuda"]

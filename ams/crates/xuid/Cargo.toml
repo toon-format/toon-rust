@@ -1,0 +1,40 @@
+[package]
+name         = "xuid"
+version      = { workspace = true }
+edition      = { workspace = true }
+authors      = { workspace = true }
+license      = { workspace = true }
+rust-version = { workspace = true }
+description  = "Xypher Unique Identity Descriptor (XUID) library for generating and managing unique identifiers in Rust"
+repository   = "https://github.com/arcmoon/arcmoon-suite"
+readme       = "README.md"
+keywords     = ["xuid", "uuid", "identifiers", "arcmoon"]
+categories   = ["cryptography", "identity"]
+[dependencies]
+yoshi-derive = { path = "../yoshi-derive" }
+zstd = { workspace = true }
+serde = { workspace = true }
+blake3 = { workspace = true }
+serde_json = { workspace = true }
+rayon = { workspace = true, optional = true }
+qdrant-client = { workspace = true, optional = true }
+ed25519-dalek = { workspace = true, features = ["std"] }
+parity-scale-codec = { workspace = true, features = ["derive"] }
+parking_lot = { workspace = true }
+fory-derive = { workspace = true }
+fory-core = { workspace = true }
+lz4_flex = { workspace = true }
+snap = { workspace = true }
+rand = { workspace = true }
+hex = { workspace = true }
+[features]
+default = ["std", "system-monitoring"]
+std = []
+alloc = []
+qdrant = ["dep:qdrant-client"]
+system-monitoring = []
+file-processing = []
+workers-basic = []
+hot-reload = []
+cli = []
+rayon = ["dep:rayon"]

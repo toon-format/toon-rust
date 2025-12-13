@@ -13,7 +13,6 @@
 
 use crate::decoder::parser::ast::Value;
 use crate::types::{KeyFoldingMode, is_identifier_segment};
-use std::borrow::Cow;
 
 /// Result of chain analysis for folding.
 /// Zero-copy variant: borrows the leaf value and holds joined key.

@@ -143,7 +143,7 @@ pub fn needs_quoting(s: &str, delimiter: char) -> bool {
         return true;
     }
 
-    if s.starts_with("-") {
+    if s.starts_with('-') {
         return true;
     }
 

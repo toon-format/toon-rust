@@ -100,9 +100,10 @@ pub fn is_valid_unquoted_key(key: &str) -> bool {
     }
 
     let mut chars = key.chars();
-    let first = match chars.next() {
-        Some(c) => c,
-        None => return false,
+    let first = if let Some(c) = chars.next() {
+        c
+    } else {
+        return false
     };
 
     if !first.is_alphabetic() && first != '_' {

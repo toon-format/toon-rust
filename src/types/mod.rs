@@ -1,10 +1,10 @@
-mod delimeter;
+mod delimiter;
 mod errors;
 mod folding;
 mod options;
 mod value;
 
-pub use delimeter::Delimiter;
+pub use delimiter::Delimiter;
 pub use errors::{
     ErrorContext,
     ToonError,

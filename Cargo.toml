@@ -25,7 +25,7 @@ path = "src/cli/main.rs"
 required-features = ["cli"]
 
 [features]
-default = []
+default = ["cli"]
 cli = [
     "dep:clap",
     "dep:anyhow",

@@ -103,7 +103,7 @@ pub fn is_valid_unquoted_key(key: &str) -> bool {
     let first = if let Some(c) = chars.next() {
         c
     } else {
-        return false
+        return false;
     };
 
     if !first.is_alphabetic() && first != '_' {

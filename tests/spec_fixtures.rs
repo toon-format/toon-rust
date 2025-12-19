@@ -80,8 +80,7 @@ fn test_decode_fixtures(path: &Utf8Path, contents: String) -> datatest_stable::R
             if let Ok(actual_json) = result {
                 return Err(format!(
                     "Test '{}' should have FAILED, but it succeeded with: {:?}",
-                    test_name,
-                    actual_json
+                    test_name, actual_json
                 )
                 .into());
             }

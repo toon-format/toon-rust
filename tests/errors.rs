@@ -143,7 +143,7 @@ fn test_tabular_array_errors() {
         let err_str = e.to_string();
         assert!(
             err_str.contains("Parse")
-                || err_str.contains("cloumn")
+                || err_str.contains("column")
                 || err_str.contains("expected")
                 || err_str.contains("primitive"),
             "Error should mention missing field or delimiter: {err_str}"

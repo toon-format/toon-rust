@@ -29,13 +29,13 @@ pub fn validate_field_name(name: &str) -> ToonResult<()> {
 pub fn validate_value(value: &Value) -> ToonResult<()> {
     match value {
         Value::Object(obj) => {
-            for (key, val) in obj.iter() {
+            for (key, val) in obj {
                 validate_field_name(key)?;
                 validate_value(val)?;
             }
         }
         Value::Array(arr) => {
-            for val in arr.iter() {
+            for val in arr {
                 validate_value(val)?;
             }
         }

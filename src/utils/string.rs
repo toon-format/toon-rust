@@ -100,9 +100,10 @@ pub fn is_valid_unquoted_key(key: &str) -> bool {
     }
 
     let mut chars = key.chars();
-    let first = match chars.next() {
-        Some(c) => c,
-        None => return false,
+    let first = if let Some(c) = chars.next() {
+        c
+    } else {
+        return false;
     };
 
     if !first.is_alphabetic() && first != '_' {
@@ -142,7 +143,7 @@ pub fn needs_quoting(s: &str, delimiter: char) -> bool {
         return true;
     }
 
-    if s.starts_with("-") {
+    if s.starts_with('-') {
         return true;
     }
 

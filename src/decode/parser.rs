@@ -651,7 +651,7 @@ impl<'a> Parser<'a> {
 
         if let Some(fields) = fields {
             validation::validate_field_list(&fields)?;
-            self.parse_tabular_array(length, fields, depth, context)
+            self.parse_tabular_array(length, &fields, depth, context)
         } else {
             // Non-tabular arrays as first field of list items require depth adjustment
             // (items at depth +2 relative to hyphen, not the usual +1)
@@ -666,7 +666,7 @@ impl<'a> Parser<'a> {
     fn parse_tabular_array(
         &mut self,
         length: usize,
-        fields: Vec<String>,
+        fields: &[String],
         depth: usize,
         context: ArrayParseContext,
     ) -> ToonResult<Value> {

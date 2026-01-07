@@ -2,22 +2,12 @@
 
 use ratatui::{
     layout::Rect,
-    text::{
-        Line,
-        Span,
-    },
-    widgets::{
-        Block,
-        Borders,
-        Paragraph,
-    },
+    text::{Line, Span},
+    widgets::{Block, Borders, Paragraph},
     Frame,
 };
 
-use crate::tui::{
-    state::AppState,
-    theme::Theme,
-};
+use crate::tui::{state::AppState, theme::Theme};
 
 pub struct StatsBar;
 

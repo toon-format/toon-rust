@@ -2,17 +2,11 @@
 
 use ratatui::{
     layout::Rect,
-    widgets::{
-        Block,
-        Borders,
-    },
+    widgets::{Block, Borders},
     Frame,
 };
 
-use crate::tui::{
-    state::AppState,
-    theme::Theme,
-};
+use crate::tui::{state::AppState, theme::Theme};
 
 pub struct EditorComponent;
 

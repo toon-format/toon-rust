@@ -4,25 +4,17 @@ pub mod string;
 pub mod validation;
 
 use indexmap::IndexMap;
-pub use literal::{
-    is_keyword,
-    is_literal_like,
-    is_numeric_like,
-    is_structural_char,
-};
-pub use number::format_canonical_number;
+pub use literal::{is_keyword, is_literal_like, is_numeric_like, is_structural_char};
+pub use number::{format_canonical_number, write_canonical_number_into};
 pub use string::{
-    escape_string,
-    is_valid_unquoted_key,
-    needs_quoting,
-    quote_string,
+    escape_string, escape_string_into, is_valid_unquoted_key, needs_quoting, quote_string,
     unescape_string,
 };
 
-use crate::types::{
-    JsonValue as Value,
-    Number,
-};
+#[cfg(feature = "parallel")]
+use rayon::prelude::*;
+
+use crate::types::{JsonValue as Value, Number};
 
 /// Context for determining when quoting is needed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -30,6 +22,9 @@ pub enum QuotingContext {
     ObjectValue,
     ArrayValue,
 }
+
+#[cfg(feature = "parallel")]
+const PARALLEL_THRESHOLD: usize = 256;
 
 /// Normalize a JSON value (converts NaN/Infinity to null, -0 to 0).
 pub fn normalize(value: Value) -> Value {
@@ -51,11 +46,31 @@ pub fn normalize(value: Value) -> Value {
             }
         }
         Value::Object(obj) => {
+            #[cfg(feature = "parallel")]
+            {
+                if obj.len() >= PARALLEL_THRESHOLD {
+                    let entries: Vec<(String, Value)> = obj.into_iter().collect();
+                    let normalized_entries: Vec<(String, Value)> = entries
+                        .into_par_iter()
+                        .map(|(k, v)| (k, normalize(v)))
+                        .collect();
+                    return Value::Object(IndexMap::from_iter(normalized_entries));
+                }
+            }
+
             let normalized: IndexMap<String, Value> =
                 obj.into_iter().map(|(k, v)| (k, normalize(v))).collect();
             Value::Object(normalized)
         }
         Value::Array(arr) => {
+            #[cfg(feature = "parallel")]
+            {
+                if arr.len() >= PARALLEL_THRESHOLD {
+                    let normalized: Vec<Value> = arr.into_par_iter().map(normalize).collect();
+                    return Value::Array(normalized);
+                }
+            }
+
             let normalized: Vec<Value> = arr.into_iter().map(normalize).collect();
             Value::Array(normalized)
         }

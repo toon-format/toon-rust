@@ -17,34 +17,32 @@ pub fn is_structural_char(ch: char) -> bool {
 
 /// Check if a string looks like a number (starts with digit, no leading zeros).
 pub fn is_numeric_like(s: &str) -> bool {
-    if s.is_empty() {
+    let bytes = s.as_bytes();
+    if bytes.is_empty() {
         return false;
     }
 
-    let chars: Vec<char> = s.chars().collect();
     let mut i = 0;
-
-    if chars[i] == '-' {
-        i += 1;
+    if bytes[0] == b'-' {
+        i = 1;
     }
 
-    if i >= chars.len() {
+    if i >= bytes.len() {
         return false;
     }
 
-    if !chars[i].is_ascii_digit() {
+    let first = bytes[i];
+    if !first.is_ascii_digit() {
         return false;
     }
 
-    if chars[i] == '0' && i + 1 < chars.len() && chars[i + 1].is_ascii_digit() {
+    if first == b'0' && i + 1 < bytes.len() && bytes[i + 1].is_ascii_digit() {
         return false;
     }
 
-    let has_valid_chars = chars[i..].iter().all(|c| {
-        c.is_ascii_digit() || *c == '.' || *c == 'e' || *c == 'E' || *c == '+' || *c == '-'
-    });
-
-    has_valid_chars
+    bytes[i..].iter().all(|b| {
+        b.is_ascii_digit() || *b == b'.' || *b == b'e' || *b == b'E' || *b == b'+' || *b == b'-'
+    })
 }
 
 #[cfg(test)]

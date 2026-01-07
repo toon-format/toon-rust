@@ -1,38 +1,15 @@
 //! Settings panel for configuring encode/decode options.
 
 use ratatui::{
-    layout::{
-        Alignment,
-        Constraint,
-        Direction,
-        Layout,
-        Rect,
-    },
-    text::{
-        Line,
-        Span,
-    },
-    widgets::{
-        Block,
-        Borders,
-        List,
-        ListItem,
-        Paragraph,
-    },
+    layout::{Alignment, Constraint, Direction, Layout, Rect},
+    text::{Line, Span},
+    widgets::{Block, Borders, List, ListItem, Paragraph},
     Frame,
 };
 
 use crate::{
-    tui::{
-        state::AppState,
-        theme::Theme,
-    },
-    types::{
-        Delimiter,
-        Indent,
-        KeyFoldingMode,
-        PathExpansionMode,
-    },
+    tui::{state::AppState, theme::Theme},
+    types::{Delimiter, Indent, KeyFoldingMode, PathExpansionMode},
 };
 
 pub struct SettingsPanel;

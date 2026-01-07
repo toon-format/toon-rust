@@ -1,20 +1,9 @@
 //! Main application state.
 
-use super::{
-    EditorState,
-    FileState,
-    ReplState,
-};
+use super::{EditorState, FileState, ReplState};
 use crate::{
     tui::theme::Theme,
-    types::{
-        DecodeOptions,
-        Delimiter,
-        EncodeOptions,
-        Indent,
-        KeyFoldingMode,
-        PathExpansionMode,
-    },
+    types::{DecodeOptions, Delimiter, EncodeOptions, Indent, KeyFoldingMode, PathExpansionMode},
 };
 
 /// Conversion mode (encode/decode).
@@ -188,96 +177,73 @@ impl<'a> AppState<'a> {
     }
 
     pub fn cycle_delimiter(&mut self) {
-        self.encode_options =
-            self.encode_options
-                .clone()
-                .with_delimiter(match self.encode_options.delimiter {
-                    Delimiter::Comma => Delimiter::Tab,
-                    Delimiter::Tab => Delimiter::Pipe,
-                    Delimiter::Pipe => Delimiter::Comma,
-                });
+        self.encode_options.delimiter = match self.encode_options.delimiter {
+            Delimiter::Comma => Delimiter::Tab,
+            Delimiter::Tab => Delimiter::Pipe,
+            Delimiter::Pipe => Delimiter::Comma,
+        };
     }
 
     pub fn increase_indent(&mut self) {
         let Indent::Spaces(current) = self.encode_options.indent;
         if current < 8 {
-            self.encode_options = self
-                .encode_options
-                .clone()
-                .with_indent(Indent::Spaces(current + 1));
+            self.encode_options.indent = Indent::Spaces(current + 1);
         }
     }
 
     pub fn decrease_indent(&mut self) {
         let Indent::Spaces(current) = self.encode_options.indent;
         if current > 1 {
-            self.encode_options = self
-                .encode_options
-                .clone()
-                .with_indent(Indent::Spaces(current - 1));
+            self.encode_options.indent = Indent::Spaces(current - 1);
         }
     }
 
     pub fn toggle_fold_keys(&mut self) {
-        self.encode_options =
-            self.encode_options
-                .clone()
-                .with_key_folding(match self.encode_options.key_folding {
-                    KeyFoldingMode::Off => KeyFoldingMode::Safe,
-                    KeyFoldingMode::Safe => KeyFoldingMode::Off,
-                });
+        self.encode_options.key_folding = match self.encode_options.key_folding {
+            KeyFoldingMode::Off => KeyFoldingMode::Safe,
+            KeyFoldingMode::Safe => KeyFoldingMode::Off,
+        };
     }
 
     pub fn increase_flatten_depth(&mut self) {
         if self.encode_options.flatten_depth == usize::MAX {
-            self.encode_options = self.encode_options.clone().with_flatten_depth(2);
+            self.encode_options.flatten_depth = 2;
         } else if self.encode_options.flatten_depth < 10 {
-            self.encode_options = self
-                .encode_options
-                .clone()
-                .with_flatten_depth(self.encode_options.flatten_depth + 1);
+            self.encode_options.flatten_depth += 1;
         }
     }
 
     pub fn decrease_flatten_depth(&mut self) {
         if self.encode_options.flatten_depth == 2 {
-            self.encode_options = self.encode_options.clone().with_flatten_depth(usize::MAX);
+            self.encode_options.flatten_depth = usize::MAX;
         } else if self.encode_options.flatten_depth > 2
             && self.encode_options.flatten_depth != usize::MAX
         {
-            self.encode_options = self
-                .encode_options
-                .clone()
-                .with_flatten_depth(self.encode_options.flatten_depth - 1);
+            self.encode_options.flatten_depth -= 1;
         }
     }
 
     pub fn toggle_flatten_depth(&mut self) {
         if self.encode_options.flatten_depth == usize::MAX {
-            self.encode_options = self.encode_options.clone().with_flatten_depth(2);
+            self.encode_options.flatten_depth = 2;
         } else {
-            self.encode_options = self.encode_options.clone().with_flatten_depth(usize::MAX);
+            self.encode_options.flatten_depth = usize::MAX;
         }
     }
 
     pub fn toggle_expand_paths(&mut self) {
-        self.decode_options =
-            self.decode_options
-                .clone()
-                .with_expand_paths(match self.decode_options.expand_paths {
-                    PathExpansionMode::Off => PathExpansionMode::Safe,
-                    PathExpansionMode::Safe => PathExpansionMode::Off,
-                });
+        self.decode_options.expand_paths = match self.decode_options.expand_paths {
+            PathExpansionMode::Off => PathExpansionMode::Safe,
+            PathExpansionMode::Safe => PathExpansionMode::Off,
+        };
     }
 
     pub fn toggle_strict(&mut self) {
-        let strict = !self.decode_options.strict;
-        self.decode_options = self.decode_options.clone().with_strict(strict);
+        self.decode_options.strict = !self.decode_options.strict;
     }
 
     pub fn toggle_coerce_types(&mut self) {
-        let coerce = !self.decode_options.coerce_types;
-        self.decode_options = self.decode_options.clone().with_coerce_types(coerce);
+        self.decode_options.coerce_types = !self.decode_options.coerce_types;
     }
 }
 

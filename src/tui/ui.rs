@@ -1,42 +1,19 @@
 use ratatui::{
-    layout::{
-        Alignment,
-        Constraint,
-        Direction,
-        Layout,
-        Rect,
-    },
-    text::{
-        Line,
-        Span,
-    },
-    widgets::{
-        Block,
-        Borders,
-        Paragraph,
-    },
+    layout::{Alignment, Constraint, Direction, Layout, Rect},
+    text::{Line, Span},
+    widgets::{Block, Borders, Paragraph},
     Frame,
 };
 
 use super::{
     components::{
-        DiffViewer,
-        EditorComponent,
-        FileBrowser,
-        HelpScreen,
-        HistoryPanel,
-        ReplPanel,
-        SettingsPanel,
-        StatsBar,
-        StatusBar,
+        DiffViewer, EditorComponent, FileBrowser, HelpScreen, HistoryPanel, ReplPanel,
+        SettingsPanel, StatsBar, StatusBar,
     },
     state::AppState,
     theme::Theme,
 };
-use crate::types::{
-    KeyFoldingMode,
-    PathExpansionMode,
-};
+use crate::types::{KeyFoldingMode, PathExpansionMode};
 
 /// Main render function - orchestrates all UI components.
 pub fn render(f: &mut Frame, app: &mut AppState, file_browser: &mut FileBrowser) {

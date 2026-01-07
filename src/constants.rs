@@ -24,7 +24,7 @@ pub(crate) const QUOTED_KEY_MARKER: char = '\x00';
 
 #[inline]
 pub fn is_structural_char(ch: char) -> bool {
-    STRUCTURAL_CHARS.contains(&ch)
+    matches!(ch, '[' | ']' | '{' | '}' | ':' | '-')
 }
 
 #[inline]

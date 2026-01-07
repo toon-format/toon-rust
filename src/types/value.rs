@@ -1,9 +1,6 @@
 use std::{
     fmt,
-    ops::{
-        Index,
-        IndexMut,
-    },
+    ops::{Index, IndexMut},
 };
 
 use indexmap::IndexMap;
@@ -327,6 +324,20 @@ impl JsonValue {
         }
     }
 
+    pub fn get(&self, key: &str) -> Option<&JsonValue> {
+        match self {
+            JsonValue::Object(obj) => obj.get(key),
+            _ => None,
+        }
+    }
+
+    pub fn get_index(&self, index: usize) -> Option<&JsonValue> {
+        match self {
+            JsonValue::Array(arr) => arr.get(index),
+            _ => None,
+        }
+    }
+
     /// Takes the value, leaving Null in its place.
     pub fn take(&mut self) -> JsonValue {
         std::mem::replace(self, JsonValue::Null)
@@ -380,8 +391,16 @@ impl Index<usize> for JsonValue {
 
     fn index(&self, index: usize) -> &Self::Output {
         match self {
-            JsonValue::Array(arr) => &arr[index],
-            _ => panic!("cannot index into non-array value with usize"),
+            JsonValue::Array(arr) => arr.get(index).unwrap_or_else(|| {
+                panic!(
+                    "index {index} out of bounds for array of length {}",
+                    arr.len()
+                )
+            }),
+            _ => panic!(
+                "cannot index into non-array value of type {}",
+                self.type_name()
+            ),
         }
     }
 }
@@ -389,8 +408,16 @@ impl Index<usize> for JsonValue {
 impl IndexMut<usize> for JsonValue {
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         match self {
-            JsonValue::Array(arr) => &mut arr[index],
-            _ => panic!("cannot index into non-array value with usize"),
+            JsonValue::Array(arr) => {
+                let len = arr.len();
+                arr.get_mut(index).unwrap_or_else(|| {
+                    panic!("index {index} out of bounds for array of length {len}")
+                })
+            }
+            _ => panic!(
+                "cannot index into non-array value of type {}",
+                self.type_name()
+            ),
         }
     }
 }
@@ -400,10 +427,13 @@ impl Index<&str> for JsonValue {
 
     fn index(&self, key: &str) -> &Self::Output {
         match self {
-            JsonValue::Object(obj) => obj
-                .get(key)
-                .unwrap_or_else(|| panic!("key '{key}' not found in object")),
-            _ => panic!("cannot index into non-object value with &str"),
+            JsonValue::Object(obj) => obj.get(key).unwrap_or_else(|| {
+                panic!("key '{key}' not found in object with {} entries", obj.len())
+            }),
+            _ => panic!(
+                "cannot index into non-object value of type {}",
+                self.type_name()
+            ),
         }
     }
 }
@@ -411,10 +441,15 @@ impl Index<&str> for JsonValue {
 impl IndexMut<&str> for JsonValue {
     fn index_mut(&mut self, key: &str) -> &mut Self::Output {
         match self {
-            JsonValue::Object(obj) => obj
-                .get_mut(key)
-                .unwrap_or_else(|| panic!("key '{key}' not found in object")),
-            _ => panic!("cannot index into non-object value with &str"),
+            JsonValue::Object(obj) => {
+                let len = obj.len();
+                obj.get_mut(key)
+                    .unwrap_or_else(|| panic!("key '{key}' not found in object with {len} entries"))
+            }
+            _ => panic!(
+                "cannot index into non-object value of type {}",
+                self.type_name()
+            ),
         }
     }
 }

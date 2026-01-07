@@ -1,6 +1,6 @@
 //! Tests to verify panic safety of JsonValue operations
 
-use toon_format::JsonValue;
+use toon_format::types::JsonValue;
 
 #[test]
 fn test_get_missing_key_returns_none() {

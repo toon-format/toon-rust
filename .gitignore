@@ -4,6 +4,11 @@ coverage/
 tarpaulin-report.html
 cobertura.xml
 
+# Fuzzing
+fuzz/target/
+fuzz/corpus/
+fuzz/artifacts/
+
 # Rust
 target/
 Cargo.lock

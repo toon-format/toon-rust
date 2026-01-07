@@ -1,18 +1,49 @@
-use crate::types::{
-    ToonError,
-    ToonResult,
-};
+use crate::types::{ToonError, ToonResult};
+use std::collections::HashSet;
 
-/// Validate that array length matches expected value.
+/// Validate that an array length matches the header value.
+///
+/// # Examples
+/// ```
+/// use toon_format::decode::validation::validate_array_length;
+///
+/// assert!(validate_array_length(2, 2).is_ok());
+/// assert!(validate_array_length(2, 3).is_err());
+/// ```
 pub fn validate_array_length(expected: usize, actual: usize) -> ToonResult<()> {
-    // Array length mismatches should always error, regardless of strict mode
     if expected != actual {
         return Err(ToonError::length_mismatch(expected, actual));
     }
     Ok(())
 }
 
-/// Validate field list for tabular arrays (no duplicates, non-empty names).
+/// Validate that an array length is non-negative.
+///
+/// # Examples
+/// ```
+/// use toon_format::decode::validation::validate_array_length_non_negative;
+///
+/// assert!(validate_array_length_non_negative(0).is_ok());
+/// assert!(validate_array_length_non_negative(-1).is_err());
+/// ```
+pub fn validate_array_length_non_negative(length: i64) -> ToonResult<()> {
+    if length < 0 {
+        return Err(ToonError::InvalidInput(
+            "Array length must be non-negative".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+/// Validate that a tabular field list has unique entries.
+///
+/// # Examples
+/// ```
+/// use toon_format::decode::validation::validate_field_list;
+///
+/// let fields = vec!["a".to_string(), "b".to_string()];
+/// assert!(validate_field_list(&fields).is_ok());
+/// ```
 pub fn validate_field_list(fields: &[String]) -> ToonResult<()> {
     if fields.is_empty() {
         return Err(ToonError::InvalidInput(
@@ -20,30 +51,32 @@ pub fn validate_field_list(fields: &[String]) -> ToonResult<()> {
         ));
     }
 
-    // Check for duplicate field names
-    for i in 0..fields.len() {
-        for j in (i + 1)..fields.len() {
-            if fields[i] == fields[j] {
-                return Err(ToonError::InvalidInput(format!(
-                    "Duplicate field name: '{}'",
-                    fields[i]
-                )));
-            }
-        }
-    }
-
+    let mut seen = HashSet::with_capacity(fields.len());
     for field in fields {
         if field.is_empty() {
             return Err(ToonError::InvalidInput(
                 "Field name cannot be empty".to_string(),
             ));
         }
+        if !seen.insert(field.as_str()) {
+            return Err(ToonError::InvalidInput(format!(
+                "Duplicate field name: '{field}'"
+            )));
+        }
     }
 
     Ok(())
 }
 
-/// Validate that a tabular row has the expected number of values.
+/// Validate that a tabular row length matches the header.
+///
+/// # Examples
+/// ```
+/// use toon_format::decode::validation::validate_row_length;
+///
+/// assert!(validate_row_length(1, 2, 2).is_ok());
+/// assert!(validate_row_length(1, 2, 1).is_err());
+/// ```
 pub fn validate_row_length(
     row_index: usize,
     expected_fields: usize,
@@ -57,7 +90,17 @@ pub fn validate_row_length(
     Ok(())
 }
 
-/// Validate that detected and expected delimiters match.
+/// Validate that the row delimiter matches the header.
+///
+/// # Examples
+/// ```
+/// use toon_format::decode::validation::validate_delimiter_consistency;
+/// use toon_format::Delimiter;
+///
+/// assert!(
+///     validate_delimiter_consistency(Some(Delimiter::Comma), Some(Delimiter::Comma)).is_ok()
+/// );
+/// ```
 pub fn validate_delimiter_consistency(
     detected: Option<crate::types::Delimiter>,
     expected: Option<crate::types::Delimiter>,
@@ -81,6 +124,13 @@ mod tests {
         assert!(validate_array_length(5, 3).is_err());
         assert!(validate_array_length(3, 5).is_err());
         assert!(validate_array_length(5, 5).is_ok());
+    }
+
+    #[test]
+    fn test_validate_array_length_non_negative() {
+        assert!(validate_array_length_non_negative(0).is_ok());
+        assert!(validate_array_length_non_negative(5).is_ok());
+        assert!(validate_array_length_non_negative(-1).is_err());
     }
 
     #[test]

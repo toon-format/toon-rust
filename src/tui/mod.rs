@@ -18,21 +18,20 @@ use anyhow::Result;
 pub use app::TuiApp;
 use crossterm::{
     execute,
-    terminal::{
-        disable_raw_mode,
-        enable_raw_mode,
-        EnterAlternateScreen,
-        LeaveAlternateScreen,
-    },
+    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use ratatui::{
-    backend::CrosstermBackend,
-    Terminal,
-};
+use ratatui::{backend::CrosstermBackend, Terminal};
 
 /// Initialize and run the TUI application.
 ///
 /// Sets up terminal in raw mode, runs the app, then restores terminal state.
+///
+/// # Examples
+/// ```no_run
+/// use toon_format::tui::run;
+///
+/// run().unwrap();
+/// ```
 pub fn run() -> Result<()> {
     enable_raw_mode()?;
     let mut stdout = io::stdout();

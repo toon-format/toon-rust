@@ -1,24 +1,42 @@
-use crate::{
-    types::Delimiter,
-    utils::literal,
-};
+use crate::{types::Delimiter, utils::literal};
 
 /// Escape special characters in a string for quoted output.
+///
+/// # Examples
+/// ```
+/// use toon_format::utils::string::escape_string;
+///
+/// assert_eq!(escape_string("hello\nworld"), "hello\\nworld");
+/// ```
 pub fn escape_string(s: &str) -> String {
     let mut result = String::with_capacity(s.len());
 
-    for ch in s.chars() {
-        match ch {
-            '\n' => result.push_str("\\n"),
-            '\r' => result.push_str("\\r"),
-            '\t' => result.push_str("\\t"),
-            '"' => result.push_str("\\\""),
-            '\\' => result.push_str("\\\\"),
-            _ => result.push(ch),
-        }
-    }
+    escape_string_into(&mut result, s);
 
     result
+}
+
+/// Escape special characters in a string and append to the output buffer.
+///
+/// # Examples
+/// ```
+/// use toon_format::utils::string::escape_string_into;
+///
+/// let mut out = String::new();
+/// escape_string_into(&mut out, "a\tb");
+/// assert_eq!(out, "a\\tb");
+/// ```
+pub fn escape_string_into(out: &mut String, s: &str) {
+    for ch in s.chars() {
+        match ch {
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            _ => out.push(ch),
+        }
+    }
 }
 
 /// Unescape special characters in a quoted string.
@@ -36,6 +54,13 @@ pub fn escape_string(s: &str) -> String {
 ///
 /// Returns an error if the string contains an invalid escape sequence
 /// or if a backslash appears at the end of the string.
+///
+/// # Examples
+/// ```
+/// use toon_format::utils::string::unescape_string;
+///
+/// assert_eq!(unescape_string("hello\\nworld").unwrap(), "hello\nworld");
+/// ```
 pub fn unescape_string(s: &str) -> Result<String, String> {
     let mut result = String::with_capacity(s.len());
     let mut chars = s.chars().peekable();
@@ -92,28 +117,44 @@ pub fn unescape_string(s: &str) -> Result<String, String> {
     Ok(result)
 }
 
-/// Check if a key can be written without quotes (alphanumeric, underscore,
-/// dot).
+fn is_valid_unquoted_key_internal(key: &str, allow_hyphen: bool) -> bool {
+    let bytes = key.as_bytes();
+    if bytes.is_empty() {
+        return false;
+    }
+
+    let first = bytes[0];
+    if !first.is_ascii_alphabetic() && first != b'_' {
+        return false;
+    }
+
+    bytes[1..].iter().all(|b| {
+        b.is_ascii_alphanumeric() || *b == b'_' || *b == b'.' || (allow_hyphen && *b == b'-')
+    })
+}
+
+/// Check if a key can be written without quotes (alphanumeric, underscore, dot).
+///
+/// # Examples
+/// ```
+/// use toon_format::utils::string::is_valid_unquoted_key;
+///
+/// assert!(is_valid_unquoted_key("user_name"));
+/// assert!(!is_valid_unquoted_key("1bad"));
+/// ```
 pub fn is_valid_unquoted_key(key: &str) -> bool {
-    if key.is_empty() {
-        return false;
-    }
-
-    let mut chars = key.chars();
-    let first = if let Some(c) = chars.next() {
-        c
-    } else {
-        return false;
-    };
-
-    if !first.is_alphabetic() && first != '_' {
-        return false;
-    }
-
-    chars.all(|c| c.is_alphanumeric() || c == '_' || c == '.')
+    is_valid_unquoted_key_internal(key, false)
 }
 
 /// Determine if a string needs quoting based on content and delimiter.
+///
+/// # Examples
+/// ```
+/// use toon_format::utils::string::needs_quoting;
+///
+/// assert!(needs_quoting("true", ','));
+/// assert!(!needs_quoting("hello", ','));
+/// ```
 pub fn needs_quoting(s: &str, delimiter: char) -> bool {
     if s.is_empty() {
         return true;
@@ -123,33 +164,47 @@ pub fn needs_quoting(s: &str, delimiter: char) -> bool {
         return true;
     }
 
-    if s.chars().any(literal::is_structural_char) {
+    let mut chars = s.chars();
+    let first = match chars.next() {
+        Some(ch) => ch,
+        None => return true,
+    };
+
+    if first.is_whitespace() || first == '-' {
         return true;
     }
 
-    if s.contains('\\') || s.contains('"') {
+    if first == '\\'
+        || first == '"'
+        || first == delimiter
+        || first == '\n'
+        || first == '\r'
+        || first == '\t'
+        || literal::is_structural_char(first)
+    {
         return true;
     }
 
-    if s.contains(delimiter) {
+    if first == '0' && chars.clone().next().is_some_and(|c| c.is_ascii_digit()) {
         return true;
     }
 
-    if s.contains('\n') || s.contains('\r') || s.contains('\t') {
-        return true;
+    let mut last = first;
+    for ch in chars {
+        if literal::is_structural_char(ch)
+            || ch == '\\'
+            || ch == '"'
+            || ch == delimiter
+            || ch == '\n'
+            || ch == '\r'
+            || ch == '\t'
+        {
+            return true;
+        }
+        last = ch;
     }
 
-    if s.starts_with(char::is_whitespace) || s.ends_with(char::is_whitespace) {
-        return true;
-    }
-
-    if s.starts_with('-') {
-        return true;
-    }
-
-    // Check for leading zeros (e.g., "05", "007", "0123")
-    // Numbers with leading zeros must be quoted
-    if s.starts_with('0') && s.len() > 1 && s.chars().nth(1).is_some_and(|c| c.is_ascii_digit()) {
+    if last.is_whitespace() {
         return true;
     }
 
@@ -157,10 +212,31 @@ pub fn needs_quoting(s: &str, delimiter: char) -> bool {
 }
 
 /// Quote and escape a string.
+///
+/// # Examples
+/// ```
+/// use toon_format::utils::string::quote_string;
+///
+/// assert_eq!(quote_string("hello"), "\"hello\"");
+/// ```
 pub fn quote_string(s: &str) -> String {
-    format!("\"{}\"", escape_string(s))
+    let mut result = String::with_capacity(s.len() + 2);
+    result.push('"');
+    escape_string_into(&mut result, s);
+    result.push('"');
+    result
 }
 
+/// Split a string by the active delimiter, honoring quoted segments.
+///
+/// # Examples
+/// ```
+/// use toon_format::types::Delimiter;
+/// use toon_format::utils::string::split_by_delimiter;
+///
+/// let parts = split_by_delimiter("a,\"b,c\",d", Delimiter::Comma);
+/// assert_eq!(parts, vec!["a", "\"b,c\"", "d"]);
+/// ```
 pub fn split_by_delimiter(s: &str, delimiter: Delimiter) -> Vec<String> {
     let mut result = Vec::new();
     let mut current = String::new();

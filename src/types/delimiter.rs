@@ -1,11 +1,16 @@
 use std::fmt;
 
-use serde::{
-    Deserialize,
-    Serialize,
-};
+use serde::{Deserialize, Serialize};
 
 /// Delimiter character used to separate array elements.
+///
+/// # Examples
+/// ```
+/// use toon_format::Delimiter;
+///
+/// let delim = Delimiter::Pipe;
+/// assert_eq!(delim.as_char(), '|');
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum Delimiter {
     #[default]
@@ -16,6 +21,13 @@ pub enum Delimiter {
 
 impl Delimiter {
     /// Get the character representation of this delimiter.
+    ///
+    /// # Examples
+    /// ```
+    /// use toon_format::Delimiter;
+    ///
+    /// assert_eq!(Delimiter::Comma.as_char(), ',');
+    /// ```
     pub fn as_char(&self) -> char {
         match self {
             Delimiter::Comma => ',',
@@ -24,8 +36,15 @@ impl Delimiter {
         }
     }
 
-    /// Get the string representation for metadata (empty for comma, char for
-    /// others).
+    /// Get the string representation for metadata (empty for comma, char for others).
+    ///
+    /// # Examples
+    /// ```
+    /// use toon_format::Delimiter;
+    ///
+    /// assert_eq!(Delimiter::Comma.as_metadata_str(), "");
+    /// assert_eq!(Delimiter::Tab.as_metadata_str(), "\t");
+    /// ```
     pub fn as_metadata_str(&self) -> &'static str {
         match self {
             Delimiter::Comma => "",
@@ -35,6 +54,13 @@ impl Delimiter {
     }
 
     /// Parse a delimiter from a character.
+    ///
+    /// # Examples
+    /// ```
+    /// use toon_format::Delimiter;
+    ///
+    /// assert_eq!(Delimiter::from_char('|'), Some(Delimiter::Pipe));
+    /// ```
     pub fn from_char(c: char) -> Option<Self> {
         match c {
             ',' => Some(Delimiter::Comma),
@@ -45,6 +71,13 @@ impl Delimiter {
     }
 
     /// Check if the delimiter character appears in the string.
+    ///
+    /// # Examples
+    /// ```
+    /// use toon_format::Delimiter;
+    ///
+    /// assert!(Delimiter::Comma.contains_in("a,b"));
+    /// ```
     pub fn contains_in(&self, s: &str) -> bool {
         s.contains(self.as_char())
     }

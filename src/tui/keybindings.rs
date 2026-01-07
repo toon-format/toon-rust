@@ -1,12 +1,16 @@
 //! Keyboard shortcuts and action mapping.
 
-use crossterm::event::{
-    KeyCode,
-    KeyEvent,
-    KeyModifiers,
-};
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 /// Actions that can be triggered by keyboard shortcuts.
+///
+/// # Examples
+/// ```no_run
+/// use toon_format::tui::keybindings::Action;
+///
+/// let action = Action::Quit;
+/// let _ = action;
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Action {
     Quit,
@@ -31,10 +35,29 @@ pub enum Action {
     None,
 }
 
+/// Mapping between key events and actions.
+///
+/// # Examples
+/// ```no_run
+/// use toon_format::tui::keybindings::KeyBindings;
+/// use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+///
+/// let action = KeyBindings::handle(KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL));
+/// let _ = action;
+/// ```
 pub struct KeyBindings;
 
 impl KeyBindings {
     /// Map key event to action.
+    ///
+    /// # Examples
+    /// ```no_run
+    /// use toon_format::tui::keybindings::KeyBindings;
+    /// use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+    ///
+    /// let action = KeyBindings::handle(KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL));
+    /// let _ = action;
+    /// ```
     pub fn handle(key: KeyEvent) -> Action {
         match (key.code, key.modifiers) {
             (KeyCode::Char('c'), KeyModifiers::CONTROL) => Action::Quit,
@@ -63,6 +86,14 @@ impl KeyBindings {
     }
 
     /// Get list of shortcuts for help display.
+    ///
+    /// # Examples
+    /// ```
+    /// use toon_format::tui::keybindings::KeyBindings;
+    ///
+    /// let shortcuts = KeyBindings::shortcuts();
+    /// assert!(!shortcuts.is_empty());
+    /// ```
     pub fn shortcuts() -> Vec<(&'static str, &'static str)> {
         vec![
             ("Ctrl+C/Q", "Quit"),

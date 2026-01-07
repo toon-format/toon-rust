@@ -1,34 +1,47 @@
 //! Side-by-side diff viewer for input/output comparison.
 
 use ratatui::{
-    layout::{
-        Alignment,
-        Constraint,
-        Direction,
-        Layout,
-        Rect,
-    },
-    text::{
-        Line,
-        Span,
-    },
-    widgets::{
-        Block,
-        Borders,
-        Paragraph,
-        Wrap,
-    },
+    layout::{Alignment, Constraint, Direction, Layout, Rect},
+    text::{Line, Span},
+    widgets::{Block, Borders, Paragraph, Wrap},
     Frame,
 };
 
-use crate::tui::{
-    state::AppState,
-    theme::Theme,
-};
+use crate::tui::{state::AppState, theme::Theme};
 
+/// Diff viewer rendering for input/output comparison.
+///
+/// # Examples
+/// ```no_run
+/// use ratatui::{backend::TestBackend, Terminal};
+/// use toon_format::tui::{components::DiffViewer, state::AppState, theme::Theme};
+///
+/// let backend = TestBackend::new(80, 24);
+/// let mut terminal = Terminal::new(backend).unwrap();
+/// let app = AppState::new();
+/// let theme = Theme::default();
+/// terminal
+///     .draw(|f| DiffViewer::render(f, f.area(), &app, &theme))
+///     .unwrap();
+/// ```
 pub struct DiffViewer;
 
 impl DiffViewer {
+    /// Render the diff viewer.
+    ///
+    /// # Examples
+    /// ```no_run
+    /// use ratatui::{backend::TestBackend, Terminal};
+    /// use toon_format::tui::{components::DiffViewer, state::AppState, theme::Theme};
+    ///
+    /// let backend = TestBackend::new(80, 24);
+    /// let mut terminal = Terminal::new(backend).unwrap();
+    /// let app = AppState::new();
+    /// let theme = Theme::default();
+    /// terminal
+    ///     .draw(|f| DiffViewer::render(f, f.area(), &app, &theme))
+    ///     .unwrap();
+    /// ```
     pub fn render(f: &mut Frame, area: Rect, app: &AppState, theme: &Theme) {
         let block = Block::default()
             .borders(Borders::ALL)

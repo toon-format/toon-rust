@@ -1,33 +1,47 @@
 //! Status bar showing mode, file, and key commands.
 
 use ratatui::{
-    layout::{
-        Alignment,
-        Constraint,
-        Direction,
-        Layout,
-        Rect,
-    },
-    text::{
-        Line,
-        Span,
-    },
-    widgets::{
-        Block,
-        Borders,
-        Paragraph,
-    },
+    layout::{Alignment, Constraint, Direction, Layout, Rect},
+    text::{Line, Span},
+    widgets::{Block, Borders, Paragraph},
     Frame,
 };
 
-use crate::tui::{
-    state::AppState,
-    theme::Theme,
-};
+use crate::tui::{state::AppState, theme::Theme};
 
+/// Status bar rendering.
+///
+/// # Examples
+/// ```no_run
+/// use ratatui::{backend::TestBackend, Terminal};
+/// use toon_format::tui::{components::StatusBar, state::AppState, theme::Theme};
+///
+/// let backend = TestBackend::new(80, 24);
+/// let mut terminal = Terminal::new(backend).unwrap();
+/// let app = AppState::new();
+/// let theme = Theme::default();
+/// terminal
+///     .draw(|f| StatusBar::render(f, f.area(), &app, &theme))
+///     .unwrap();
+/// ```
 pub struct StatusBar;
 
 impl StatusBar {
+    /// Render the status bar.
+    ///
+    /// # Examples
+    /// ```no_run
+    /// use ratatui::{backend::TestBackend, Terminal};
+    /// use toon_format::tui::{components::StatusBar, state::AppState, theme::Theme};
+    ///
+    /// let backend = TestBackend::new(80, 24);
+    /// let mut terminal = Terminal::new(backend).unwrap();
+    /// let app = AppState::new();
+    /// let theme = Theme::default();
+    /// terminal
+    ///     .draw(|f| StatusBar::render(f, f.area(), &app, &theme))
+    ///     .unwrap();
+    /// ```
     pub fn render(f: &mut Frame, area: Rect, app: &AppState, theme: &Theme) {
         let chunks = Layout::default()
             .direction(Direction::Horizontal)

@@ -23,11 +23,29 @@ pub const MAX_DEPTH: usize = 256;
 pub(crate) const QUOTED_KEY_MARKER: char = '\x00';
 
 #[inline]
+/// Returns true if the character has structural meaning in TOON.
+///
+/// # Examples
+/// ```
+/// use toon_format::constants::is_structural_char;
+///
+/// assert!(is_structural_char('['));
+/// assert!(!is_structural_char('a'));
+/// ```
 pub fn is_structural_char(ch: char) -> bool {
-    STRUCTURAL_CHARS.contains(&ch)
+    matches!(ch, '[' | ']' | '{' | '}' | ':' | '-')
 }
 
 #[inline]
+/// Returns true if the string is a reserved TOON keyword.
+///
+/// # Examples
+/// ```
+/// use toon_format::constants::is_keyword;
+///
+/// assert!(is_keyword("null"));
+/// assert!(!is_keyword("hello"));
+/// ```
 pub fn is_keyword(s: &str) -> bool {
     KEYWORDS.contains(&s)
 }

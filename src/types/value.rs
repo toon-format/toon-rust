@@ -1,13 +1,19 @@
 use std::{
     fmt,
-    ops::{
-        Index,
-        IndexMut,
-    },
+    ops::{Index, IndexMut},
 };
 
 use indexmap::IndexMap;
 
+/// Numeric representation used by TOON.
+///
+/// # Examples
+/// ```
+/// use toon_format::types::Number;
+///
+/// let n = Number::from(42i64);
+/// assert!(n.is_i64());
+/// ```
 #[derive(Clone, Debug, PartialEq)]
 pub enum Number {
     PosInt(u64),
@@ -16,6 +22,15 @@ pub enum Number {
 }
 
 impl Number {
+    /// Create a floating-point number when the value is finite.
+    ///
+    /// # Examples
+    /// ```
+    /// use toon_format::types::Number;
+    ///
+    /// let n = Number::from_f64(3.14).unwrap();
+    /// assert!(n.is_f64());
+    /// ```
     pub fn from_f64(f: f64) -> Option<Self> {
         if f.is_finite() {
             Some(Number::Float(f))
@@ -24,6 +39,15 @@ impl Number {
         }
     }
 
+    /// Returns true if the number can be represented as `i64`.
+    ///
+    /// # Examples
+    /// ```
+    /// use toon_format::types::Number;
+    ///
+    /// let n = Number::from(-5i64);
+    /// assert!(n.is_i64());
+    /// ```
     pub fn is_i64(&self) -> bool {
         match self {
             Number::NegInt(_) => true,
@@ -35,6 +59,15 @@ impl Number {
         }
     }
 
+    /// Returns true if the number can be represented as `u64`.
+    ///
+    /// # Examples
+    /// ```
+    /// use toon_format::types::Number;
+    ///
+    /// let n = Number::from(5u64);
+    /// assert!(n.is_u64());
+    /// ```
     pub fn is_u64(&self) -> bool {
         match self {
             Number::PosInt(_) => true,
@@ -46,10 +79,28 @@ impl Number {
         }
     }
 
+    /// Returns true if the number is stored as an `f64`.
+    ///
+    /// # Examples
+    /// ```
+    /// use toon_format::types::Number;
+    ///
+    /// let n = Number::from(1.5f64);
+    /// assert!(n.is_f64());
+    /// ```
     pub fn is_f64(&self) -> bool {
         matches!(self, Number::Float(_))
     }
 
+    /// Return the number as `i64` when possible.
+    ///
+    /// # Examples
+    /// ```
+    /// use toon_format::types::Number;
+    ///
+    /// let n = Number::from(5i64);
+    /// assert_eq!(n.as_i64(), Some(5));
+    /// ```
     pub fn as_i64(&self) -> Option<i64> {
         match self {
             Number::PosInt(u) => {
@@ -71,6 +122,15 @@ impl Number {
         }
     }
 
+    /// Return the number as `u64` when possible.
+    ///
+    /// # Examples
+    /// ```
+    /// use toon_format::types::Number;
+    ///
+    /// let n = Number::from(5u64);
+    /// assert_eq!(n.as_u64(), Some(5));
+    /// ```
     pub fn as_u64(&self) -> Option<u64> {
         match self {
             Number::PosInt(u) => Some(*u),
@@ -90,6 +150,15 @@ impl Number {
         }
     }
 
+    /// Return the number as `f64`.
+    ///
+    /// # Examples
+    /// ```
+    /// use toon_format::types::Number;
+    ///
+    /// let n = Number::from(5u64);
+    /// assert_eq!(n.as_f64(), Some(5.0));
+    /// ```
     pub fn as_f64(&self) -> Option<f64> {
         match self {
             Number::PosInt(u) => Some(*u as f64),
@@ -98,6 +167,15 @@ impl Number {
         }
     }
 
+    /// Returns true if the number has no fractional component.
+    ///
+    /// # Examples
+    /// ```
+    /// use toon_format::types::Number;
+    ///
+    /// let n = Number::from(2.0f64);
+    /// assert!(n.is_integer());
+    /// ```
     pub fn is_integer(&self) -> bool {
         match self {
             Number::PosInt(_) | Number::NegInt(_) => true,
@@ -195,8 +273,28 @@ impl From<f64> for Number {
     }
 }
 
+/// Map type used for TOON objects.
+///
+/// # Examples
+/// ```
+/// use indexmap::IndexMap;
+/// use toon_format::types::JsonValue;
+///
+/// let mut obj: IndexMap<String, JsonValue> = IndexMap::new();
+/// obj.insert("key".to_string(), JsonValue::Null);
+/// assert!(obj.contains_key("key"));
+/// ```
 pub type Object = IndexMap<String, JsonValue>;
 
+/// TOON value representation.
+///
+/// # Examples
+/// ```
+/// use toon_format::types::JsonValue;
+///
+/// let value = JsonValue::String("hello".to_string());
+/// assert!(value.is_string());
+/// ```
 #[derive(Clone, Debug, PartialEq, Default)]
 pub enum JsonValue {
     #[default]
@@ -209,31 +307,96 @@ pub enum JsonValue {
 }
 
 impl JsonValue {
+    /// Returns true if the value is `null`.
+    ///
+    /// # Examples
+    /// ```
+    /// use toon_format::types::JsonValue;
+    ///
+    /// let value = JsonValue::Null;
+    /// assert!(value.is_null());
+    /// ```
     pub const fn is_null(&self) -> bool {
         matches!(self, JsonValue::Null)
     }
 
+    /// Returns true if the value is a boolean.
+    ///
+    /// # Examples
+    /// ```
+    /// use toon_format::types::JsonValue;
+    ///
+    /// let value = JsonValue::Bool(true);
+    /// assert!(value.is_bool());
+    /// ```
     pub const fn is_bool(&self) -> bool {
         matches!(self, JsonValue::Bool(_))
     }
 
+    /// Returns true if the value is a number.
+    ///
+    /// # Examples
+    /// ```
+    /// use toon_format::types::{JsonValue, Number};
+    ///
+    /// let value = JsonValue::Number(Number::from(1u64));
+    /// assert!(value.is_number());
+    /// ```
     pub const fn is_number(&self) -> bool {
         matches!(self, JsonValue::Number(_))
     }
 
+    /// Returns true if the value is a string.
+    ///
+    /// # Examples
+    /// ```
+    /// use toon_format::types::JsonValue;
+    ///
+    /// let value = JsonValue::String("hi".to_string());
+    /// assert!(value.is_string());
+    /// ```
     pub const fn is_string(&self) -> bool {
         matches!(self, JsonValue::String(_))
     }
 
+    /// Returns true if the value is an array.
+    ///
+    /// # Examples
+    /// ```
+    /// use toon_format::types::JsonValue;
+    ///
+    /// let value = JsonValue::Array(vec![JsonValue::Null]);
+    /// assert!(value.is_array());
+    /// ```
     pub const fn is_array(&self) -> bool {
         matches!(self, JsonValue::Array(_))
     }
 
+    /// Returns true if the value is an object.
+    ///
+    /// # Examples
+    /// ```
+    /// use indexmap::IndexMap;
+    /// use toon_format::types::JsonValue;
+    ///
+    /// let mut obj: IndexMap<String, JsonValue> = IndexMap::new();
+    /// obj.insert("a".to_string(), JsonValue::Null);
+    /// let value = JsonValue::Object(obj);
+    /// assert!(value.is_object());
+    /// ```
     pub const fn is_object(&self) -> bool {
         matches!(self, JsonValue::Object(_))
     }
 
-    /// Returns true if the value is a number that can be represented as i64
+    /// Returns true if the value is a number that can be represented as i64.
+    ///
+    /// # Examples
+    /// ```
+    /// use toon_format::types::{JsonValue, Number};
+    ///
+    /// let value = JsonValue::Number(Number::from(1i64));
+    /// assert!(value.is_i64());
+    /// ```
     pub fn is_i64(&self) -> bool {
         match self {
             JsonValue::Number(n) => n.is_i64(),
@@ -241,7 +404,15 @@ impl JsonValue {
         }
     }
 
-    /// Returns true if the value is a number that can be represented as u64
+    /// Returns true if the value is a number that can be represented as u64.
+    ///
+    /// # Examples
+    /// ```
+    /// use toon_format::types::{JsonValue, Number};
+    ///
+    /// let value = JsonValue::Number(Number::from(1u64));
+    /// assert!(value.is_u64());
+    /// ```
     pub fn is_u64(&self) -> bool {
         match self {
             JsonValue::Number(n) => n.is_u64(),
@@ -249,6 +420,15 @@ impl JsonValue {
         }
     }
 
+    /// Returns true if the value is stored as a floating point number.
+    ///
+    /// # Examples
+    /// ```
+    /// use toon_format::types::{JsonValue, Number};
+    ///
+    /// let value = JsonValue::Number(Number::from(1.5f64));
+    /// assert!(value.is_f64());
+    /// ```
     pub fn is_f64(&self) -> bool {
         match self {
             JsonValue::Number(n) => n.is_f64(),
@@ -258,6 +438,14 @@ impl JsonValue {
 
     /// If the value is a Bool, returns the associated bool. Returns None
     /// otherwise.
+    ///
+    /// # Examples
+    /// ```
+    /// use toon_format::types::JsonValue;
+    ///
+    /// let value = JsonValue::Bool(true);
+    /// assert_eq!(value.as_bool(), Some(true));
+    /// ```
     pub fn as_bool(&self) -> Option<bool> {
         match self {
             JsonValue::Bool(b) => Some(*b),
@@ -267,6 +455,14 @@ impl JsonValue {
 
     /// If the value is a number, represent it as i64 if possible. Returns None
     /// otherwise.
+    ///
+    /// # Examples
+    /// ```
+    /// use toon_format::types::{JsonValue, Number};
+    ///
+    /// let value = JsonValue::Number(Number::from(5i64));
+    /// assert_eq!(value.as_i64(), Some(5));
+    /// ```
     pub fn as_i64(&self) -> Option<i64> {
         match self {
             JsonValue::Number(n) => n.as_i64(),
@@ -276,6 +472,14 @@ impl JsonValue {
 
     /// If the value is a number, represent it as u64 if possible. Returns None
     /// otherwise.
+    ///
+    /// # Examples
+    /// ```
+    /// use toon_format::types::{JsonValue, Number};
+    ///
+    /// let value = JsonValue::Number(Number::from(5u64));
+    /// assert_eq!(value.as_u64(), Some(5));
+    /// ```
     pub fn as_u64(&self) -> Option<u64> {
         match self {
             JsonValue::Number(n) => n.as_u64(),
@@ -285,6 +489,14 @@ impl JsonValue {
 
     /// If the value is a number, represent it as f64 if possible. Returns None
     /// otherwise.
+    ///
+    /// # Examples
+    /// ```
+    /// use toon_format::types::{JsonValue, Number};
+    ///
+    /// let value = JsonValue::Number(Number::from(5u64));
+    /// assert_eq!(value.as_f64(), Some(5.0));
+    /// ```
     pub fn as_f64(&self) -> Option<f64> {
         match self {
             JsonValue::Number(n) => n.as_f64(),
@@ -292,6 +504,15 @@ impl JsonValue {
         }
     }
 
+    /// If the value is a string, returns its contents.
+    ///
+    /// # Examples
+    /// ```
+    /// use toon_format::types::JsonValue;
+    ///
+    /// let value = JsonValue::String("hi".to_string());
+    /// assert_eq!(value.as_str(), Some("hi"));
+    /// ```
     pub fn as_str(&self) -> Option<&str> {
         match self {
             JsonValue::String(s) => Some(s),
@@ -299,6 +520,15 @@ impl JsonValue {
         }
     }
 
+    /// If the value is an array, returns a shared reference.
+    ///
+    /// # Examples
+    /// ```
+    /// use toon_format::types::JsonValue;
+    ///
+    /// let value = JsonValue::Array(vec![JsonValue::Null]);
+    /// assert!(value.as_array().is_some());
+    /// ```
     pub fn as_array(&self) -> Option<&Vec<JsonValue>> {
         match self {
             JsonValue::Array(arr) => Some(arr),
@@ -306,6 +536,15 @@ impl JsonValue {
         }
     }
 
+    /// If the value is an array, returns a mutable reference.
+    ///
+    /// # Examples
+    /// ```
+    /// use toon_format::types::JsonValue;
+    ///
+    /// let mut value = JsonValue::Array(vec![JsonValue::Null]);
+    /// assert!(value.as_array_mut().is_some());
+    /// ```
     pub fn as_array_mut(&mut self) -> Option<&mut Vec<JsonValue>> {
         match self {
             JsonValue::Array(arr) => Some(arr),
@@ -313,6 +552,18 @@ impl JsonValue {
         }
     }
 
+    /// If the value is an object, returns a shared reference.
+    ///
+    /// # Examples
+    /// ```
+    /// use indexmap::IndexMap;
+    /// use toon_format::types::JsonValue;
+    ///
+    /// let mut obj: IndexMap<String, JsonValue> = IndexMap::new();
+    /// obj.insert("a".to_string(), JsonValue::Null);
+    /// let value = JsonValue::Object(obj);
+    /// assert!(value.as_object().is_some());
+    /// ```
     pub fn as_object(&self) -> Option<&Object> {
         match self {
             JsonValue::Object(obj) => Some(obj),
@@ -320,6 +571,18 @@ impl JsonValue {
         }
     }
 
+    /// If the value is an object, returns a mutable reference.
+    ///
+    /// # Examples
+    /// ```
+    /// use indexmap::IndexMap;
+    /// use toon_format::types::JsonValue;
+    ///
+    /// let mut obj: IndexMap<String, JsonValue> = IndexMap::new();
+    /// obj.insert("a".to_string(), JsonValue::Null);
+    /// let mut value = JsonValue::Object(obj);
+    /// assert!(value.as_object_mut().is_some());
+    /// ```
     pub fn as_object_mut(&mut self) -> Option<&mut Object> {
         match self {
             JsonValue::Object(obj) => Some(obj),
@@ -327,11 +590,65 @@ impl JsonValue {
         }
     }
 
+    /// Return a value by key when the value is an object.
+    ///
+    /// # Examples
+    /// ```
+    /// use indexmap::IndexMap;
+    /// use toon_format::types::JsonValue;
+    ///
+    /// let mut obj: IndexMap<String, JsonValue> = IndexMap::new();
+    /// obj.insert("a".to_string(), JsonValue::Bool(true));
+    /// let value = JsonValue::Object(obj);
+    /// assert!(value.get("a").is_some());
+    /// ```
+    pub fn get(&self, key: &str) -> Option<&JsonValue> {
+        match self {
+            JsonValue::Object(obj) => obj.get(key),
+            _ => None,
+        }
+    }
+
+    /// Return a value by index when the value is an array.
+    ///
+    /// # Examples
+    /// ```
+    /// use toon_format::types::JsonValue;
+    ///
+    /// let value = JsonValue::Array(vec![JsonValue::Bool(true)]);
+    /// assert!(value.get_index(0).is_some());
+    /// ```
+    pub fn get_index(&self, index: usize) -> Option<&JsonValue> {
+        match self {
+            JsonValue::Array(arr) => arr.get(index),
+            _ => None,
+        }
+    }
+
     /// Takes the value, leaving Null in its place.
+    ///
+    /// # Examples
+    /// ```
+    /// use toon_format::types::JsonValue;
+    ///
+    /// let mut value = JsonValue::Bool(true);
+    /// let taken = value.take();
+    /// assert!(value.is_null());
+    /// assert!(matches!(taken, JsonValue::Bool(true)));
+    /// ```
     pub fn take(&mut self) -> JsonValue {
         std::mem::replace(self, JsonValue::Null)
     }
 
+    /// Return the type name used in error messages.
+    ///
+    /// # Examples
+    /// ```
+    /// use toon_format::types::JsonValue;
+    ///
+    /// let value = JsonValue::Array(vec![]);
+    /// assert_eq!(value.type_name(), "array");
+    /// ```
     pub fn type_name(&self) -> &'static str {
         match self {
             JsonValue::Null => "null",
@@ -380,8 +697,16 @@ impl Index<usize> for JsonValue {
 
     fn index(&self, index: usize) -> &Self::Output {
         match self {
-            JsonValue::Array(arr) => &arr[index],
-            _ => panic!("cannot index into non-array value with usize"),
+            JsonValue::Array(arr) => arr.get(index).unwrap_or_else(|| {
+                panic!(
+                    "index {index} out of bounds for array of length {}",
+                    arr.len()
+                )
+            }),
+            _ => panic!(
+                "cannot index into non-array value of type {}",
+                self.type_name()
+            ),
         }
     }
 }
@@ -389,8 +714,16 @@ impl Index<usize> for JsonValue {
 impl IndexMut<usize> for JsonValue {
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         match self {
-            JsonValue::Array(arr) => &mut arr[index],
-            _ => panic!("cannot index into non-array value with usize"),
+            JsonValue::Array(arr) => {
+                let len = arr.len();
+                arr.get_mut(index).unwrap_or_else(|| {
+                    panic!("index {index} out of bounds for array of length {len}")
+                })
+            }
+            _ => panic!(
+                "cannot index into non-array value of type {}",
+                self.type_name()
+            ),
         }
     }
 }
@@ -400,10 +733,13 @@ impl Index<&str> for JsonValue {
 
     fn index(&self, key: &str) -> &Self::Output {
         match self {
-            JsonValue::Object(obj) => obj
-                .get(key)
-                .unwrap_or_else(|| panic!("key '{key}' not found in object")),
-            _ => panic!("cannot index into non-object value with &str"),
+            JsonValue::Object(obj) => obj.get(key).unwrap_or_else(|| {
+                panic!("key '{key}' not found in object with {} entries", obj.len())
+            }),
+            _ => panic!(
+                "cannot index into non-object value of type {}",
+                self.type_name()
+            ),
         }
     }
 }
@@ -411,10 +747,15 @@ impl Index<&str> for JsonValue {
 impl IndexMut<&str> for JsonValue {
     fn index_mut(&mut self, key: &str) -> &mut Self::Output {
         match self {
-            JsonValue::Object(obj) => obj
-                .get_mut(key)
-                .unwrap_or_else(|| panic!("key '{key}' not found in object")),
-            _ => panic!("cannot index into non-object value with &str"),
+            JsonValue::Object(obj) => {
+                let len = obj.len();
+                obj.get_mut(key)
+                    .unwrap_or_else(|| panic!("key '{key}' not found in object with {len} entries"))
+            }
+            _ => panic!(
+                "cannot index into non-object value of type {}",
+                self.type_name()
+            ),
         }
     }
 }
@@ -509,7 +850,25 @@ impl From<&JsonValue> for serde_json::Value {
     }
 }
 
+/// Convert common value types into TOON's `JsonValue`.
+///
+/// # Examples
+/// ```
+/// use toon_format::types::{IntoJsonValue, JsonValue};
+///
+/// let value: JsonValue = serde_json::json!({"a": 1}).into_json_value();
+/// assert!(value.is_object());
+/// ```
 pub trait IntoJsonValue {
+    /// Convert the value into a `JsonValue`.
+    ///
+    /// # Examples
+    /// ```
+    /// use toon_format::types::{IntoJsonValue, JsonValue};
+    ///
+    /// let value: JsonValue = serde_json::json!({"a": 1}).into_json_value();
+    /// assert!(value.is_object());
+    /// ```
     fn into_json_value(self) -> JsonValue;
 }
 

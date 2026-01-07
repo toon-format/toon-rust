@@ -1,41 +1,80 @@
+use itoa::Buffer as ItoaBuffer;
+use ryu::Buffer as RyuBuffer;
+
 use crate::types::Number;
 
 /// Format a number in TOON canonical form (no exponents, no trailing zeros).
+///
+/// # Examples
+/// ```
+/// use toon_format::types::Number;
+/// use toon_format::utils::number::format_canonical_number;
+///
+/// let n = Number::from(42i64);
+/// assert_eq!(format_canonical_number(&n), "42");
+/// ```
 pub fn format_canonical_number(n: &Number) -> String {
-    if let Some(i) = n.as_i64() {
-        return i.to_string();
-    }
-
-    if let Some(u) = n.as_u64() {
-        return u.to_string();
-    }
-
-    if let Some(f) = n.as_f64() {
-        return format_f64_canonical(f);
-    }
-
-    n.to_string()
+    let mut out = String::new();
+    write_canonical_number_into(n, &mut out);
+    out
 }
 
-fn format_f64_canonical(f: f64) -> String {
+/// Write a number in TOON canonical form into a buffer.
+///
+/// # Examples
+/// ```
+/// use toon_format::types::Number;
+/// use toon_format::utils::number::write_canonical_number_into;
+///
+/// let mut out = String::new();
+/// write_canonical_number_into(&Number::from(3.14f64), &mut out);
+/// assert!(out.starts_with("3.14"));
+/// ```
+pub fn write_canonical_number_into(n: &Number, out: &mut String) {
+    match n {
+        Number::PosInt(u) => write_u64(out, *u),
+        Number::NegInt(i) => write_i64(out, *i),
+        Number::Float(f) => write_f64_canonical_into(*f, out),
+    }
+}
+
+fn write_u64(out: &mut String, value: u64) {
+    let mut buf = ItoaBuffer::new();
+    out.push_str(buf.format(value));
+}
+
+fn write_i64(out: &mut String, value: i64) {
+    let mut buf = ItoaBuffer::new();
+    out.push_str(buf.format(value));
+}
+
+fn write_f64_canonical_into(f: f64, out: &mut String) {
     // Normalize integer-valued floats to integers
     if f.is_finite() && f.fract() == 0.0 && f.abs() <= i64::MAX as f64 {
-        return format!("{}", f as i64);
+        write_i64(out, f as i64);
+        return;
     }
 
-    let default_format = format!("{f}");
+    if !f.is_finite() {
+        out.push('0');
+        return;
+    }
+
+    let mut buf = RyuBuffer::new();
+    let formatted = buf.format(f);
 
     // Handle cases where Rust would use exponential notation
-    if default_format.contains('e') || default_format.contains('E') {
-        format_without_exponent(f)
+    if formatted.contains('e') || formatted.contains('E') {
+        write_without_exponent(f, out);
     } else {
-        remove_trailing_zeros(&default_format)
+        push_trimmed_decimal(formatted, out);
     }
 }
 
-fn format_without_exponent(f: f64) -> String {
+fn write_without_exponent(f: f64, out: &mut String) {
     if !f.is_finite() {
-        return "0".to_string();
+        out.push('0');
+        return;
     }
 
     if f.abs() >= 1.0 {
@@ -44,42 +83,60 @@ fn format_without_exponent(f: f64) -> String {
         let frac_part = abs_f.fract();
 
         if frac_part == 0.0 {
-            format!("{}{}", if f < 0.0 { "-" } else { "" }, int_part as i64)
+            if abs_f <= i64::MAX as f64 {
+                if f < 0.0 {
+                    out.push('-');
+                }
+                write_i64(out, int_part as i64);
+            } else {
+                let result = format!("{f:.0}");
+                push_trimmed_decimal(&result, out);
+            }
         } else {
             // High precision to avoid exponent, then trim trailing zeros
             let result = format!("{f:.17}");
-            remove_trailing_zeros(&result)
+            push_trimmed_decimal(&result, out);
         }
     } else if f == 0.0 {
-        "0".to_string()
+        out.push('0');
     } else {
         // Small numbers: use high precision to avoid exponent
-        let result = format!("{f:.17}",);
-        remove_trailing_zeros(&result)
+        let result = format!("{f:.17}");
+        push_trimmed_decimal(&result, out);
     }
 }
 
+#[cfg(test)]
 fn remove_trailing_zeros(s: &str) -> String {
-    if !s.contains('.') {
-        // No decimal point, return as-is
-        return s.to_string();
-    }
-
-    let parts: Vec<&str> = s.split('.').collect();
-    if parts.len() != 2 {
-        return s.to_string();
-    }
-
-    let int_part = parts[0];
-    let mut frac_part = parts[1].to_string();
-
-    frac_part = frac_part.trim_end_matches('0').to_string();
-
-    if frac_part.is_empty() {
-        // All zeros removed, return as integer
-        int_part.to_string()
+    if let Some((int_part, frac_part)) = s.split_once('.') {
+        let trimmed = frac_part.trim_end_matches('0');
+        if trimmed.is_empty() {
+            int_part.to_string()
+        } else {
+            let mut out = String::with_capacity(int_part.len() + 1 + trimmed.len());
+            out.push_str(int_part);
+            out.push('.');
+            out.push_str(trimmed);
+            out
+        }
     } else {
-        format!("{int_part}.{frac_part}")
+        // No decimal point, return as-is
+        s.to_string()
+    }
+}
+
+fn push_trimmed_decimal(s: &str, out: &mut String) {
+    if let Some((int_part, frac_part)) = s.split_once('.') {
+        let trimmed = frac_part.trim_end_matches('0');
+        if trimmed.is_empty() {
+            out.push_str(int_part);
+        } else {
+            out.push_str(int_part);
+            out.push('.');
+            out.push_str(trimmed);
+        }
+    } else {
+        out.push_str(s);
     }
 }
 

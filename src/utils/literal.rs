@@ -1,50 +1,83 @@
 use crate::constants;
 
-/// Check if a string looks like a keyword or number (needs quoting).
+/// Returns true when a string looks like a keyword or number (needs quoting).
+///
+/// # Examples
+/// ```
+/// use toon_format::utils::literal::is_literal_like;
+///
+/// assert!(is_literal_like("null"));
+/// assert!(is_literal_like("123"));
+/// assert!(!is_literal_like("hello"));
+/// ```
 pub fn is_literal_like(s: &str) -> bool {
     is_keyword(s) || is_numeric_like(s)
 }
 
 #[inline]
+/// Returns true when the string matches a reserved TOON keyword.
+///
+/// # Examples
+/// ```
+/// use toon_format::utils::literal::is_keyword;
+///
+/// assert!(is_keyword("true"));
+/// assert!(!is_keyword("TRUE"));
+/// ```
 pub fn is_keyword(s: &str) -> bool {
     constants::is_keyword(s)
 }
 
 #[inline]
+/// Returns true when the character has structural meaning in TOON.
+///
+/// # Examples
+/// ```
+/// use toon_format::utils::literal::is_structural_char;
+///
+/// assert!(is_structural_char('['));
+/// assert!(!is_structural_char('a'));
+/// ```
 pub fn is_structural_char(ch: char) -> bool {
     constants::is_structural_char(ch)
 }
 
-/// Check if a string looks like a number (starts with digit, no leading zeros).
+/// Returns true when the string looks like a number (starts with digit, no leading zeros).
+///
+/// # Examples
+/// ```
+/// use toon_format::utils::literal::is_numeric_like;
+///
+/// assert!(is_numeric_like("3.14"));
+/// assert!(!is_numeric_like("01"));
+/// ```
 pub fn is_numeric_like(s: &str) -> bool {
-    if s.is_empty() {
+    let bytes = s.as_bytes();
+    if bytes.is_empty() {
         return false;
     }
 
-    let chars: Vec<char> = s.chars().collect();
     let mut i = 0;
-
-    if chars[i] == '-' {
-        i += 1;
+    if bytes[0] == b'-' {
+        i = 1;
     }
 
-    if i >= chars.len() {
+    if i >= bytes.len() {
         return false;
     }
 
-    if !chars[i].is_ascii_digit() {
+    let first = bytes[i];
+    if !first.is_ascii_digit() {
         return false;
     }
 
-    if chars[i] == '0' && i + 1 < chars.len() && chars[i + 1].is_ascii_digit() {
+    if first == b'0' && i + 1 < bytes.len() && bytes[i + 1].is_ascii_digit() {
         return false;
     }
 
-    let has_valid_chars = chars[i..].iter().all(|c| {
-        c.is_ascii_digit() || *c == '.' || *c == 'e' || *c == 'E' || *c == '+' || *c == '-'
-    });
-
-    has_valid_chars
+    bytes[i..].iter().all(|b| {
+        b.is_ascii_digit() || *b == b'.' || *b == b'e' || *b == b'E' || *b == b'+' || *b == b'-'
+    })
 }
 
 #[cfg(test)]

@@ -455,7 +455,11 @@ impl Scanner {
             _ => {}
         }
 
-        if trimmed.starts_with('-') || trimmed.chars().next().map_or(false, |c| c.is_ascii_digit())
+        if trimmed.starts_with('-')
+            || trimmed
+                .chars()
+                .next()
+                .is_some_and(|c| c.is_ascii_digit())
         {
             // Leading zeros like "05" are strings
             if trimmed.starts_with('0') && trimmed.len() > 1 {

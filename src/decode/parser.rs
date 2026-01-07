@@ -6,8 +6,8 @@ use crate::{
         scanner::{Scanner, Token},
         validation,
     },
-    types::{DecodeOptions, Delimiter, ErrorContext, ToonError, ToonResult},
-    utils::{is_valid_unquoted_key_decode, validation::validate_depth},
+    types::{DecodeOptions, Delimiter, ErrorContext, PathExpansionMode, ToonError, ToonResult},
+    utils::{is_valid_unquoted_key, validation::validate_depth},
 };
 
 /// Context for parsing arrays to determine correct indentation depth.
@@ -43,6 +43,7 @@ impl<'a> Parser<'a> {
         let chosen_delim = options.delimiter;
         scanner.set_active_delimiter(chosen_delim);
         scanner.set_coerce_types(options.coerce_types);
+        scanner.configure_indentation(options.strict, options.indent.get_spaces());
         let current_token = scanner.scan_token()?;
 
         Ok(Self {
@@ -117,10 +118,16 @@ impl<'a> Parser<'a> {
     }
 
     fn validate_unquoted_key(&self, key: &str, was_quoted: bool) -> ToonResult<()> {
-        if self.options.strict && !was_quoted && !is_valid_unquoted_key_decode(key) {
-            return Err(self
-                .parse_error_with_context(format!("Invalid unquoted key: '{key}'"))
-                .with_suggestion("Quote the key to use special characters"));
+        if self.options.strict && !was_quoted {
+            if self.options.expand_paths != PathExpansionMode::Off && key.contains('.') {
+                return Ok(());
+            }
+
+            if !is_valid_unquoted_key(key) {
+                return Err(self
+                    .parse_error_with_context(format!("Invalid unquoted key: '{key}'"))
+                    .with_suggestion("Quote the key to use special characters"));
+            }
         }
         Ok(())
     }
@@ -302,7 +309,7 @@ impl<'a> Parser<'a> {
                 break;
             }
 
-            let current_indent = self.scanner.get_last_line_indent();
+            let current_indent = self.normalize_indent(self.scanner.get_last_line_indent());
 
             if self.options.strict {
                 self.validate_indentation(current_indent)?;
@@ -365,7 +372,7 @@ impl<'a> Parser<'a> {
 
         // Validate indentation for the initial key if in strict mode
         if self.options.strict {
-            let current_indent = self.scanner.get_last_line_indent();
+            let current_indent = self.normalize_indent(self.scanner.get_last_line_indent());
             self.validate_indentation(current_indent)?;
         }
 
@@ -402,7 +409,7 @@ impl<'a> Parser<'a> {
                     continue;
                 }
 
-                let next_indent = self.scanner.get_last_line_indent();
+                let next_indent = self.normalize_indent(self.scanner.get_last_line_indent());
 
                 // Check if the next line is at the right indentation level
                 let should_continue = if let Some(expected) = base_indent {
@@ -430,7 +437,7 @@ impl<'a> Parser<'a> {
                 break;
             }
 
-            let current_indent = self.scanner.get_last_line_indent();
+            let current_indent = self.normalize_indent(self.scanner.get_last_line_indent());
 
             if let Some(expected) = base_indent {
                 if current_indent != expected {
@@ -481,7 +488,7 @@ impl<'a> Parser<'a> {
         if matches!(self.current_token, Token::Newline | Token::Eof) {
             let has_children = if matches!(self.current_token, Token::Newline) {
                 let current_depth_indent = self.options.indent.get_spaces() * (depth + 1);
-                let next_indent = self.scanner.count_leading_spaces();
+                let next_indent = self.normalize_indent(self.scanner.count_leading_spaces());
                 next_indent >= current_depth_indent
             } else {
                 false
@@ -524,7 +531,17 @@ impl<'a> Parser<'a> {
                 }
             } else {
                 // Multi-token value - reconstruct and re-parse as complete string
-                let mut value_str = String::new();
+                let token_len = match &self.current_token {
+                    Token::String(s, was_quoted) => s.len() + if *was_quoted { 2 } else { 0 },
+                    Token::Integer(_) => 20,
+                    Token::Number(_) => 32,
+                    Token::Bool(true) => 4,
+                    Token::Bool(false) => 5,
+                    Token::Null => 4,
+                    _ => 0,
+                };
+                let mut value_str =
+                    String::with_capacity(token_len + leading_space.len() + rest.len());
 
                 match &self.current_token {
                     Token::String(s, true) => {
@@ -601,27 +618,40 @@ impl<'a> Parser<'a> {
 
         // Parse array length (plain integer only)
         // Supports formats: [N], [N|], [N\t] (no # marker)
-        let length = if let Token::Integer(n) = &self.current_token {
-            *n as usize
-        } else if let Token::String(s, _) = &self.current_token {
-            // Check if string starts with # - this marker is not supported
-            if s.starts_with('#') {
-                return Err(self
-                    .parse_error_with_context(
-                        "Length marker '#' is not supported. Use [N] format instead of [#N]",
-                    )
-                    .with_suggestion("Remove the '#' prefix from the array length"));
+        let length = match &self.current_token {
+            Token::Integer(n) => {
+                validation::validate_array_length_non_negative(*n)?;
+                *n as usize
             }
+            Token::Number(_) => {
+                return Err(self.parse_error_with_context("Array length must be an integer"));
+            }
+            Token::String(s, _) => {
+                // Check if string starts with # - this marker is not supported
+                if s.starts_with('#') {
+                    return Err(self
+                        .parse_error_with_context(
+                            "Length marker '#' is not supported. Use [N] format instead of [#N]",
+                        )
+                        .with_suggestion("Remove the '#' prefix from the array length"));
+                }
 
-            // Plain string that's a number: "3"
-            s.parse::<usize>().map_err(|_| {
-                self.parse_error_with_context(format!("Expected array length, found: {s}"))
-            })?
-        } else {
-            return Err(self.parse_error_with_context(format!(
-                "Expected array length, found {:?}",
-                self.current_token
-            )));
+                if s.contains('.') || s.contains('e') || s.contains('E') {
+                    return Err(self.parse_error_with_context("Array length must be an integer"));
+                }
+
+                let parsed = s.parse::<i64>().map_err(|_| {
+                    self.parse_error_with_context(format!("Expected array length, found: {s}"))
+                })?;
+                validation::validate_array_length_non_negative(parsed)?;
+                parsed as usize
+            }
+            _ => {
+                return Err(self.parse_error_with_context(format!(
+                    "Expected array length, found {:?}",
+                    self.current_token
+                )));
+            }
         };
 
         self.advance()?;
@@ -834,7 +864,7 @@ impl<'a> Parser<'a> {
         depth: usize,
         context: ArrayParseContext,
     ) -> ToonResult<Value> {
-        let mut rows = Vec::new();
+        let mut rows = Vec::with_capacity(length);
 
         if !matches!(self.current_token, Token::Newline) {
             return Err(self
@@ -843,7 +873,17 @@ impl<'a> Parser<'a> {
         }
         self.skip_newlines()?;
 
-        for row_index in 0..length {
+        // Tabular arrays as first field of list-item objects require rows at depth +2
+        // (relative to hyphen), while normal tabular arrays use depth +1
+        let row_depth_offset = match context {
+            ArrayParseContext::Normal => 1,
+            ArrayParseContext::ListItemFirstField => 2,
+        };
+        let indent_size = self.options.indent.get_spaces();
+        let expected_indent = indent_size * (depth + row_depth_offset);
+
+        let mut row_index = 0;
+        loop {
             if matches!(self.current_token, Token::Eof) {
                 if self.options.strict {
                     return Err(self.parse_error_with_context(format!(
@@ -855,15 +895,7 @@ impl<'a> Parser<'a> {
                 break;
             }
 
-            let current_indent = self.scanner.get_last_line_indent();
-
-            // Tabular arrays as first field of list-item objects require rows at depth +2
-            // (relative to hyphen), while normal tabular arrays use depth +1
-            let row_depth_offset = match context {
-                ArrayParseContext::Normal => 1,
-                ArrayParseContext::ListItemFirstField => 2,
-            };
-            let expected_indent = self.options.indent.get_spaces() * (depth + row_depth_offset);
+            let current_indent = self.normalize_indent(self.scanner.get_last_line_indent());
 
             if self.options.strict {
                 self.validate_indentation(current_indent)?;
@@ -874,9 +906,14 @@ impl<'a> Parser<'a> {
                          found {current_indent}"
                     )));
                 }
+            } else {
+                let is_key_value = self.is_key_token() && matches!(self.scanner.peek(), Some(':'));
+                if current_indent != expected_indent || is_key_value {
+                    break;
+                }
             }
 
-            let mut row = Map::new();
+            let mut row = Map::with_capacity(fields.len());
 
             for (field_index, field) in fields.iter().enumerate() {
                 // Skip delimiter before each field except the first
@@ -958,6 +995,7 @@ impl<'a> Parser<'a> {
             }
 
             rows.push(Value::Object(row));
+            row_index += 1;
 
             if matches!(self.current_token, Token::Eof) {
                 break;
@@ -974,60 +1012,73 @@ impl<'a> Parser<'a> {
                 } else {
                     return Err(self.parse_error_with_context(format!(
                         "Expected newline after tabular row {}",
-                        row_index + 1
+                        row_index
                     )));
                 }
             }
 
-            if row_index + 1 < length {
-                self.advance()?;
-                if self.options.strict && matches!(self.current_token, Token::Newline) {
-                    return Err(self.parse_error_with_context(
-                        "Blank lines are not allowed inside tabular arrays in strict mode",
-                    ));
-                }
+            if self.options.strict {
+                if row_index < length {
+                    self.advance()?;
+                    if matches!(self.current_token, Token::Newline) {
+                        return Err(self.parse_error_with_context(
+                            "Blank lines are not allowed inside tabular arrays in strict mode",
+                        ));
+                    }
 
-                self.skip_newlines()?;
-            } else if matches!(self.current_token, Token::Newline) {
-                // After the last row, check if there are extra rows
-                self.advance()?;
-                self.skip_newlines()?;
+                    self.skip_newlines()?;
+                } else if matches!(self.current_token, Token::Newline) {
+                    // After the last row, check if there are extra rows
+                    self.advance()?;
+                    self.skip_newlines()?;
 
-                let expected_indent = self.options.indent.get_spaces() * (depth + 1);
-                let actual_indent = self.scanner.get_last_line_indent();
+                    let actual_indent = self.normalize_indent(self.scanner.get_last_line_indent());
 
-                // If something at the same indent level, it might be a new row (error)
-                // unless it's a key-value pair (which belongs to parent)
-                if actual_indent == expected_indent && !matches!(self.current_token, Token::Eof) {
-                    let is_key_value =
-                        self.is_key_token() && matches!(self.scanner.peek(), Some(':'));
+                    // If something at the same indent level, it might be a new row (error)
+                    // unless it's a key-value pair (which belongs to parent)
+                    if actual_indent == expected_indent && !matches!(self.current_token, Token::Eof)
+                    {
+                        let is_key_value =
+                            self.is_key_token() && matches!(self.scanner.peek(), Some(':'));
 
-                    if !is_key_value {
-                        return Err(self.parse_error_with_context(format!(
-                            "Array length mismatch: expected {length} rows, but more rows found",
-                        )));
+                        if !is_key_value {
+                            return Err(self.parse_error_with_context(format!(
+                                "Array length mismatch: expected {length} rows, but more rows found",
+                            )));
+                        }
                     }
                 }
+
+                if row_index >= length {
+                    break;
+                }
+            } else if matches!(self.current_token, Token::Newline) {
+                self.advance()?;
+                self.skip_newlines()?;
             }
         }
 
-        validation::validate_array_length(length, rows.len())?;
+        if self.options.strict {
+            validation::validate_array_length(length, rows.len())?;
+        }
 
         Ok(Value::Array(rows))
     }
 
     fn parse_regular_array(&mut self, length: usize, depth: usize) -> ToonResult<Value> {
-        let mut items = Vec::new();
+        let mut items = Vec::with_capacity(length);
+        let indent_size = self.options.indent.get_spaces();
 
         match &self.current_token {
             Token::Newline => {
                 self.skip_newlines()?;
 
-                let expected_indent = self.options.indent.get_spaces() * (depth + 1);
+                let expected_indent = indent_size * (depth + 1);
 
-                for i in 0..length {
-                    let current_indent = self.scanner.get_last_line_indent();
-                    if self.options.strict {
+                if self.options.strict {
+                    for i in 0..length {
+                        let current_indent =
+                            self.normalize_indent(self.scanner.get_last_line_indent());
                         self.validate_indentation(current_indent)?;
 
                         if current_indent != expected_indent {
@@ -1036,238 +1087,445 @@ impl<'a> Parser<'a> {
                                  spaces, found {current_indent}"
                             )));
                         }
-                    }
-                    if !matches!(self.current_token, Token::Dash) {
-                        return Err(self
-                            .parse_error_with_context(format!(
-                                "Expected '-' for list item, found {:?}",
-                                self.current_token
-                            ))
-                            .with_suggestion(format!(
-                                "List arrays need '-' prefix for each item (item {} of {})",
-                                i + 1,
-                                length
-                            )));
-                    }
-                    self.advance()?;
-
-                    let value = if matches!(self.current_token, Token::Newline | Token::Eof) {
-                        Value::Object(Map::new())
-                    } else if matches!(self.current_token, Token::LeftBracket) {
-                        self.parse_array(depth + 1)?
-                    } else if self.is_key_token() {
-                        let (key, key_was_quoted) = match self.key_from_token() {
-                            Some(key) => key,
-                            None => {
-                                return Err(self.parse_error_with_context(format!(
-                                    "Expected key, found {:?}",
+                        if !matches!(self.current_token, Token::Dash) {
+                            return Err(self
+                                .parse_error_with_context(format!(
+                                    "Expected '-' for list item, found {:?}",
                                     self.current_token
+                                ))
+                                .with_suggestion(format!(
+                                    "List arrays need '-' prefix for each item (item {} of {})",
+                                    i + 1,
+                                    length
                                 )));
-                            }
-                        };
-                        self.validate_unquoted_key(&key, key_was_quoted)?;
+                        }
                         self.advance()?;
 
-                        if matches!(self.current_token, Token::Colon | Token::LeftBracket) {
-                            // This is an object: key followed by colon or array bracket
-                            // First field of list-item object may be an array requiring special
-                            // indentation
-                            let first_value = if matches!(self.current_token, Token::LeftBracket) {
-                                // Array directly after key (e.g., "- key[N]:")
-                                // Use ListItemFirstField context to apply correct indentation
-                                self.parse_array_with_context(
-                                    depth + 1,
-                                    ArrayParseContext::ListItemFirstField,
-                                )?
-                            } else {
-                                self.advance()?;
-                                // Handle nested arrays: "key: [2]: ..."
-                                if matches!(self.current_token, Token::LeftBracket) {
-                                    // Array after colon - not directly on hyphen line, use normal
-                                    // context
-                                    self.parse_array(depth + 2)?
-                                } else {
-                                    self.parse_field_value(depth + 2)?
+                        let value = if matches!(self.current_token, Token::Newline | Token::Eof) {
+                            Value::Object(Map::new())
+                        } else if matches!(self.current_token, Token::LeftBracket) {
+                            self.parse_array(depth + 1)?
+                        } else if self.is_key_token() {
+                            let (key, key_was_quoted) = match self.key_from_token() {
+                                Some(key) => key,
+                                None => {
+                                    return Err(self.parse_error_with_context(format!(
+                                        "Expected key, found {:?}",
+                                        self.current_token
+                                    )));
                                 }
                             };
+                            self.validate_unquoted_key(&key, key_was_quoted)?;
+                            self.advance()?;
 
-                            let mut obj = Map::new();
-                            obj.insert(key, first_value);
-
-                            let field_indent = self.options.indent.get_spaces() * (depth + 2);
-
-                            // Check if there are more fields at the same indentation level
-                            let should_parse_more_fields =
-                                if matches!(self.current_token, Token::Newline) {
-                                    let next_indent = self.scanner.count_leading_spaces();
-
-                                    if next_indent < field_indent {
-                                        false
+                            if matches!(self.current_token, Token::Colon | Token::LeftBracket) {
+                                // This is an object: key followed by colon or array bracket
+                                // First field of list-item object may be an array requiring special
+                                // indentation
+                                let first_value =
+                                    if matches!(self.current_token, Token::LeftBracket) {
+                                        // Array directly after key (e.g., "- key[N]:")
+                                        // Use ListItemFirstField context to apply correct indentation
+                                        self.parse_array_with_context(
+                                            depth + 1,
+                                            ArrayParseContext::ListItemFirstField,
+                                        )?
                                     } else {
                                         self.advance()?;
-
-                                        if !self.options.strict {
-                                            self.skip_newlines()?;
-                                        }
-                                        true
-                                    }
-                                } else if self.is_key_token() {
-                                    // When already positioned at a field key, check its indent
-                                    let current_indent = self.scanner.get_last_line_indent();
-                                    current_indent == field_indent
-                                } else {
-                                    false
-                                };
-
-                            // Parse additional fields if they're at the right indentation
-                            if should_parse_more_fields {
-                                while !matches!(self.current_token, Token::Eof) {
-                                    let current_indent = self.scanner.get_last_line_indent();
-
-                                    if current_indent < field_indent {
-                                        break;
-                                    }
-
-                                    if current_indent != field_indent && self.options.strict {
-                                        break;
-                                    }
-
-                                    // Stop if we hit the next list item
-                                    if matches!(self.current_token, Token::Dash) {
-                                        break;
-                                    }
-
-                                    let (field_key, field_key_was_quoted) =
-                                        match self.key_from_token() {
-                                            Some(key) => key,
-                                            None => break,
-                                        };
-                                    self.validate_unquoted_key(&field_key, field_key_was_quoted)?;
-                                    self.advance()?;
-
-                                    let field_value =
+                                        // Handle nested arrays: "key: [2]: ..."
                                         if matches!(self.current_token, Token::LeftBracket) {
+                                            // Array after colon - not directly on hyphen line, use normal
+                                            // context
                                             self.parse_array(depth + 2)?
-                                        } else if matches!(self.current_token, Token::Colon) {
+                                        } else {
+                                            self.parse_field_value(depth + 2)?
+                                        }
+                                    };
+
+                                let mut obj = Map::new();
+                                obj.insert(key, first_value);
+
+                                let field_indent = indent_size * (depth + 2);
+
+                                // Check if there are more fields at the same indentation level
+                                let should_parse_more_fields =
+                                    if matches!(self.current_token, Token::Newline) {
+                                        let next_indent = self
+                                            .normalize_indent(self.scanner.count_leading_spaces());
+
+                                        if next_indent < field_indent {
+                                            false
+                                        } else {
                                             self.advance()?;
+
+                                            if !self.options.strict {
+                                                self.skip_newlines()?;
+                                            }
+                                            true
+                                        }
+                                    } else if self.is_key_token() {
+                                        // When already positioned at a field key, check its indent
+                                        let current_indent = self
+                                            .normalize_indent(self.scanner.get_last_line_indent());
+                                        current_indent == field_indent
+                                    } else {
+                                        false
+                                    };
+
+                                // Parse additional fields if they're at the right indentation
+                                if should_parse_more_fields {
+                                    while !matches!(self.current_token, Token::Eof) {
+                                        let current_indent = self
+                                            .normalize_indent(self.scanner.get_last_line_indent());
+
+                                        if current_indent != field_indent {
+                                            break;
+                                        }
+
+                                        // Stop if we hit the next list item
+                                        if matches!(self.current_token, Token::Dash) {
+                                            break;
+                                        }
+
+                                        let (field_key, field_key_was_quoted) =
+                                            match self.key_from_token() {
+                                                Some(key) => key,
+                                                None => break,
+                                            };
+                                        self.validate_unquoted_key(
+                                            &field_key,
+                                            field_key_was_quoted,
+                                        )?;
+                                        self.advance()?;
+
+                                        let field_value =
                                             if matches!(self.current_token, Token::LeftBracket) {
                                                 self.parse_array(depth + 2)?
+                                            } else if matches!(self.current_token, Token::Colon) {
+                                                self.advance()?;
+                                                if matches!(self.current_token, Token::LeftBracket)
+                                                {
+                                                    self.parse_array(depth + 2)?
+                                                } else {
+                                                    self.parse_field_value(depth + 2)?
+                                                }
                                             } else {
-                                                self.parse_field_value(depth + 2)?
+                                                break;
+                                            };
+
+                                        obj.insert(field_key, field_value);
+
+                                        if matches!(self.current_token, Token::Newline) {
+                                            let next_indent = self.normalize_indent(
+                                                self.scanner.count_leading_spaces(),
+                                            );
+                                            if next_indent < field_indent {
+                                                break;
+                                            }
+                                            self.advance()?;
+                                            if !self.options.strict {
+                                                self.skip_newlines()?;
                                             }
                                         } else {
                                             break;
-                                        };
-
-                                    obj.insert(field_key, field_value);
-
-                                    if matches!(self.current_token, Token::Newline) {
-                                        let next_indent = self.scanner.count_leading_spaces();
-                                        if next_indent < field_indent {
-                                            break;
                                         }
-                                        self.advance()?;
-                                        if !self.options.strict {
-                                            self.skip_newlines()?;
-                                        }
-                                    } else {
-                                        break;
                                     }
                                 }
+
+                                Value::Object(obj)
+                            } else if matches!(self.current_token, Token::LeftBracket) {
+                                // Array as object value: "key[2]: ..."
+                                let array_value = self.parse_array(depth + 1)?;
+                                let mut obj = Map::new();
+                                obj.insert(key, array_value);
+                                Value::Object(obj)
+                            } else {
+                                // Plain string value
+                                Value::String(key)
                             }
-
-                            Value::Object(obj)
-                        } else if matches!(self.current_token, Token::LeftBracket) {
-                            // Array as object value: "key[2]: ..."
-                            let array_value = self.parse_array(depth + 1)?;
-                            let mut obj = Map::new();
-                            obj.insert(key, array_value);
-                            Value::Object(obj)
                         } else {
-                            // Plain string value
-                            Value::String(key)
+                            self.parse_primitive()?
+                        };
+
+                        items.push(value);
+
+                        if items.len() < length {
+                            if matches!(self.current_token, Token::Newline) {
+                                self.advance()?;
+
+                                if self.options.strict
+                                    && matches!(self.current_token, Token::Newline)
+                                {
+                                    return Err(self.parse_error_with_context(
+                                        "Blank lines are not allowed inside list arrays in strict mode",
+                                    ));
+                                }
+
+                                self.skip_newlines()?;
+                            } else if !matches!(self.current_token, Token::Dash) {
+                                return Err(self.parse_error_with_context(format!(
+                                    "Expected newline or next list item after list item {}",
+                                    i + 1
+                                )));
+                            }
+                        } else if matches!(self.current_token, Token::Newline) {
+                            // After the last item, check for extra items
+                            self.advance()?;
+                            self.skip_newlines()?;
+
+                            let list_indent = indent_size * (depth + 1);
+                            let actual_indent =
+                                self.normalize_indent(self.scanner.get_last_line_indent());
+                            // If we see another dash at the same indent, there are too many items
+                            if actual_indent == list_indent
+                                && matches!(self.current_token, Token::Dash)
+                            {
+                                return Err(self.parse_error_with_context(format!(
+                                    "Array length mismatch: expected {length} items, but more items \
+                                     found",
+                                )));
+                            }
                         }
-                    } else {
-                        self.parse_primitive()?
-                    };
+                    }
+                } else {
+                    loop {
+                        if matches!(self.current_token, Token::Eof) {
+                            break;
+                        }
 
-                    items.push(value);
+                        let current_indent =
+                            self.normalize_indent(self.scanner.get_last_line_indent());
+                        if current_indent != expected_indent {
+                            break;
+                        }
 
-                    if items.len() < length {
-                        if matches!(self.current_token, Token::Newline) {
+                        if !matches!(self.current_token, Token::Dash) {
+                            break;
+                        }
+                        self.advance()?;
+
+                        let value = if matches!(self.current_token, Token::Newline | Token::Eof) {
+                            Value::Object(Map::new())
+                        } else if matches!(self.current_token, Token::LeftBracket) {
+                            self.parse_array(depth + 1)?
+                        } else if self.is_key_token() {
+                            let (key, key_was_quoted) = match self.key_from_token() {
+                                Some(key) => key,
+                                None => {
+                                    return Err(self.parse_error_with_context(format!(
+                                        "Expected key, found {:?}",
+                                        self.current_token
+                                    )));
+                                }
+                            };
+                            self.validate_unquoted_key(&key, key_was_quoted)?;
                             self.advance()?;
 
-                            if self.options.strict && matches!(self.current_token, Token::Newline) {
-                                return Err(self.parse_error_with_context(
-                                    "Blank lines are not allowed inside list arrays in strict mode",
-                                ));
-                            }
+                            if matches!(self.current_token, Token::Colon | Token::LeftBracket) {
+                                let first_value =
+                                    if matches!(self.current_token, Token::LeftBracket) {
+                                        self.parse_array_with_context(
+                                            depth + 1,
+                                            ArrayParseContext::ListItemFirstField,
+                                        )?
+                                    } else {
+                                        self.advance()?;
+                                        if matches!(self.current_token, Token::LeftBracket) {
+                                            self.parse_array(depth + 2)?
+                                        } else {
+                                            self.parse_field_value(depth + 2)?
+                                        }
+                                    };
 
+                                let mut obj = Map::new();
+                                obj.insert(key, first_value);
+
+                                let field_indent = indent_size * (depth + 2);
+
+                                let should_parse_more_fields =
+                                    if matches!(self.current_token, Token::Newline) {
+                                        let next_indent = self
+                                            .normalize_indent(self.scanner.count_leading_spaces());
+
+                                        if next_indent < field_indent {
+                                            false
+                                        } else {
+                                            self.advance()?;
+                                            self.skip_newlines()?;
+                                            true
+                                        }
+                                    } else if self.is_key_token() {
+                                        let current_indent = self
+                                            .normalize_indent(self.scanner.get_last_line_indent());
+                                        current_indent == field_indent
+                                    } else {
+                                        false
+                                    };
+
+                                if should_parse_more_fields {
+                                    while !matches!(self.current_token, Token::Eof) {
+                                        let current_indent = self
+                                            .normalize_indent(self.scanner.get_last_line_indent());
+                                        if current_indent != field_indent {
+                                            break;
+                                        }
+
+                                        if matches!(self.current_token, Token::Dash) {
+                                            break;
+                                        }
+
+                                        let (field_key, field_key_was_quoted) =
+                                            match self.key_from_token() {
+                                                Some(key) => key,
+                                                None => break,
+                                            };
+                                        self.validate_unquoted_key(
+                                            &field_key,
+                                            field_key_was_quoted,
+                                        )?;
+                                        self.advance()?;
+
+                                        let field_value =
+                                            if matches!(self.current_token, Token::LeftBracket) {
+                                                self.parse_array(depth + 2)?
+                                            } else if matches!(self.current_token, Token::Colon) {
+                                                self.advance()?;
+                                                if matches!(self.current_token, Token::LeftBracket)
+                                                {
+                                                    self.parse_array(depth + 2)?
+                                                } else {
+                                                    self.parse_field_value(depth + 2)?
+                                                }
+                                            } else {
+                                                break;
+                                            };
+
+                                        obj.insert(field_key, field_value);
+
+                                        if matches!(self.current_token, Token::Newline) {
+                                            let next_indent = self.normalize_indent(
+                                                self.scanner.count_leading_spaces(),
+                                            );
+                                            if next_indent < field_indent {
+                                                break;
+                                            }
+                                            self.advance()?;
+                                            self.skip_newlines()?;
+                                        } else {
+                                            break;
+                                        }
+                                    }
+                                }
+
+                                Value::Object(obj)
+                            } else if matches!(self.current_token, Token::LeftBracket) {
+                                let array_value = self.parse_array(depth + 1)?;
+                                let mut obj = Map::new();
+                                obj.insert(key, array_value);
+                                Value::Object(obj)
+                            } else {
+                                Value::String(key)
+                            }
+                        } else {
+                            self.parse_primitive()?
+                        };
+
+                        items.push(value);
+
+                        if matches!(self.current_token, Token::Newline) {
+                            self.advance()?;
                             self.skip_newlines()?;
+                        } else if matches!(self.current_token, Token::Eof) {
+                            break;
                         } else if !matches!(self.current_token, Token::Dash) {
                             return Err(self.parse_error_with_context(format!(
                                 "Expected newline or next list item after list item {}",
-                                i + 1
-                            )));
-                        }
-                    } else if matches!(self.current_token, Token::Newline) {
-                        // After the last item, check for extra items
-                        self.advance()?;
-                        self.skip_newlines()?;
-
-                        let list_indent = self.options.indent.get_spaces() * (depth + 1);
-                        let actual_indent = self.scanner.get_last_line_indent();
-                        // If we see another dash at the same indent, there are too many items
-                        if actual_indent == list_indent && matches!(self.current_token, Token::Dash)
-                        {
-                            return Err(self.parse_error_with_context(format!(
-                                "Array length mismatch: expected {length} items, but more items \
-                                 found",
+                                items.len()
                             )));
                         }
                     }
                 }
             }
             _ => {
-                for i in 0..length {
-                    if i > 0 {
-                        if matches!(self.current_token, Token::Delimiter(_)) {
-                            self.advance()?;
+                if self.options.strict {
+                    for i in 0..length {
+                        if i > 0 {
+                            if matches!(self.current_token, Token::Delimiter(_)) {
+                                self.advance()?;
+                            } else {
+                                return Err(self
+                                    .parse_error_with_context(format!(
+                                        "Expected delimiter, found {:?}",
+                                        self.current_token
+                                    ))
+                                    .with_suggestion(format!(
+                                        "Expected delimiter between items (item {} of {})",
+                                        i + 1,
+                                        length
+                                    )));
+                            }
+                        }
+
+                        let value = if matches!(self.current_token, Token::Delimiter(_))
+                            || (matches!(self.current_token, Token::Eof | Token::Newline)
+                                && i < length)
+                        {
+                            Value::String(String::new())
+                        } else if matches!(self.current_token, Token::LeftBracket) {
+                            self.parse_array(depth + 1)?
                         } else {
-                            return Err(self
-                                .parse_error_with_context(format!(
+                            self.parse_primitive()?
+                        };
+
+                        items.push(value);
+                    }
+                } else {
+                    let mut i = 0;
+                    loop {
+                        if i == 0 && matches!(self.current_token, Token::Newline | Token::Eof) {
+                            break;
+                        }
+
+                        if i > 0 {
+                            if matches!(self.current_token, Token::Delimiter(_)) {
+                                self.advance()?;
+                            } else {
+                                return Err(self.parse_error_with_context(format!(
                                     "Expected delimiter, found {:?}",
                                     self.current_token
-                                ))
-                                .with_suggestion(format!(
-                                    "Expected delimiter between items (item {} of {})",
-                                    i + 1,
-                                    length
                                 )));
+                            }
+                        }
+
+                        let value = if matches!(self.current_token, Token::Delimiter(_))
+                            || matches!(self.current_token, Token::Eof | Token::Newline)
+                        {
+                            Value::String(String::new())
+                        } else if matches!(self.current_token, Token::LeftBracket) {
+                            self.parse_array(depth + 1)?
+                        } else {
+                            self.parse_primitive()?
+                        };
+
+                        items.push(value);
+                        i += 1;
+
+                        if matches!(self.current_token, Token::Newline | Token::Eof) {
+                            break;
                         }
                     }
-
-                    let value = if matches!(self.current_token, Token::Delimiter(_))
-                        || (matches!(self.current_token, Token::Eof | Token::Newline) && i < length)
-                    {
-                        Value::String(String::new())
-                    } else if matches!(self.current_token, Token::LeftBracket) {
-                        self.parse_array(depth + 1)?
-                    } else {
-                        self.parse_primitive()?
-                    };
-
-                    items.push(value);
                 }
             }
         }
 
-        validation::validate_array_length(length, items.len())?;
+        if self.options.strict {
+            validation::validate_array_length(length, items.len())?;
 
-        if self.options.strict && matches!(self.current_token, Token::Delimiter(_)) {
-            return Err(self.parse_error_with_context(format!(
-                "Array length mismatch: expected {length} items, but more items found",
-            )));
+            if matches!(self.current_token, Token::Delimiter(_)) {
+                return Err(self.parse_error_with_context(format!(
+                    "Array length mismatch: expected {length} items, but more items found",
+                )));
+            }
         }
 
         Ok(Value::Array(items))
@@ -1436,6 +1694,19 @@ impl<'a> Parser<'a> {
             )))
         } else {
             Ok(())
+        }
+    }
+
+    fn normalize_indent(&self, indent_amount: usize) -> usize {
+        if self.options.strict {
+            return indent_amount;
+        }
+
+        let indent_size = self.options.indent.get_spaces();
+        if indent_size == 0 {
+            indent_amount
+        } else {
+            (indent_amount / indent_size) * indent_size
         }
     }
 }

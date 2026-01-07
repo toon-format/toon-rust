@@ -114,10 +114,6 @@ pub fn is_valid_unquoted_key(key: &str) -> bool {
     is_valid_unquoted_key_internal(key, false)
 }
 
-pub(crate) fn is_valid_unquoted_key_decode(key: &str) -> bool {
-    is_valid_unquoted_key_internal(key, true)
-}
-
 /// Determine if a string needs quoting based on content and delimiter.
 pub fn needs_quoting(s: &str, delimiter: char) -> bool {
     if s.is_empty() {
@@ -303,6 +299,5 @@ mod tests {
         assert!(is_valid_unquoted_key("key."));
         assert!(!is_valid_unquoted_key("key[value]"));
         assert!(!is_valid_unquoted_key("key{value}"));
-        assert!(is_valid_unquoted_key_decode("key-value"));
     }
 }

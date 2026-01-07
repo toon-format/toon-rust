@@ -1,4 +1,7 @@
-use crate::types::{Delimiter, ToonError, ToonResult};
+use crate::{
+    constants::DEFAULT_INDENT,
+    types::{Delimiter, ToonError, ToonResult},
+};
 
 /// Tokens produced by the scanner during lexical analysis.
 #[derive(Debug, Clone, PartialEq)]
@@ -28,6 +31,8 @@ pub struct Scanner {
     active_delimiter: Option<Delimiter>,
     last_line_indent: usize,
     coerce_types: bool,
+    indent_width: usize,
+    allow_tab_indent: bool,
 }
 
 impl Scanner {
@@ -41,6 +46,8 @@ impl Scanner {
             active_delimiter: None,
             last_line_indent: 0,
             coerce_types: true,
+            indent_width: DEFAULT_INDENT,
+            allow_tab_indent: false,
         }
     }
 
@@ -51,6 +58,11 @@ impl Scanner {
 
     pub fn set_coerce_types(&mut self, coerce_types: bool) {
         self.coerce_types = coerce_types;
+    }
+
+    pub fn configure_indentation(&mut self, strict: bool, indent_width: usize) {
+        self.allow_tab_indent = !strict;
+        self.indent_width = indent_width.max(1);
     }
 
     /// Get the current position (line, column).
@@ -71,17 +83,7 @@ impl Scanner {
     }
 
     pub fn count_leading_spaces(&self) -> usize {
-        let mut idx = self.position;
-        let mut count = 0;
-        while let Some(&ch) = self.input.get(idx) {
-            if ch == ' ' {
-                count += 1;
-                idx += 1;
-            } else {
-                break;
-            }
-        }
-        count
+        self.count_indent_from(self.position)
     }
 
     pub fn count_spaces_after_newline(&self) -> usize {
@@ -90,16 +92,7 @@ impl Scanner {
             return 0;
         }
         idx += 1;
-        let mut count = 0;
-        while let Some(&ch) = self.input.get(idx) {
-            if ch == ' ' {
-                count += 1;
-                idx += 1;
-            } else {
-                break;
-            }
-        }
-        count
+        self.count_indent_from(idx)
     }
 
     pub fn peek_ahead(&self, offset: usize) -> Option<char> {
@@ -131,26 +124,47 @@ impl Scanner {
         }
     }
 
+    fn count_indent_from(&self, mut idx: usize) -> usize {
+        let mut count = 0;
+        while let Some(&ch) = self.input.get(idx) {
+            match ch {
+                ' ' => {
+                    count += 1;
+                    idx += 1;
+                }
+                '\t' if self.allow_tab_indent => {
+                    count += self.indent_width;
+                    idx += 1;
+                }
+                _ => break,
+            }
+        }
+        count
+    }
+
     /// Scan the next token from the input.
     pub fn scan_token(&mut self) -> ToonResult<Token> {
         if self.column == 1 {
             let mut count = 0;
-            let mut idx = self.position;
-
-            while let Some(&ch) = self.input.get(idx) {
-                if ch == ' ' {
-                    count += 1;
-                    idx += 1;
-                } else {
-                    if ch == '\t' {
-                        let (line, col) = self.current_position();
-                        return Err(ToonError::parse_error(
-                            line,
-                            col + count,
-                            "Tabs are not allowed in indentation",
-                        ));
+            while let Some(ch) = self.peek() {
+                match ch {
+                    ' ' => {
+                        count += 1;
+                        self.advance();
                     }
-                    break;
+                    '\t' => {
+                        if !self.allow_tab_indent {
+                            let (line, col) = self.current_position();
+                            return Err(ToonError::parse_error(
+                                line,
+                                col + count,
+                                "Tabs are not allowed in indentation",
+                            ));
+                        }
+                        count += self.indent_width;
+                        self.advance();
+                    }
+                    _ => break,
                 }
             }
             self.last_line_indent = count;

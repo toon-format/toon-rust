@@ -167,10 +167,6 @@ fn run_encode(cli: &Cli, input: &str) -> Result<()> {
 
     write_output(cli.output.clone(), &toon_str)?;
 
-    if cli.output.is_none() && !toon_str.ends_with('\n') {
-        io::stdout().write_all(b"\n")?;
-    }
-
     if cli.stats {
         let json_bytes = input.len();
         let toon_bytes = toon_str.len();

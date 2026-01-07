@@ -443,9 +443,8 @@ impl IndexMut<&str> for JsonValue {
         match self {
             JsonValue::Object(obj) => {
                 let len = obj.len();
-                obj.get_mut(key).unwrap_or_else(|| {
-                    panic!("key '{key}' not found in object with {len} entries")
-                })
+                obj.get_mut(key)
+                    .unwrap_or_else(|| panic!("key '{key}' not found in object with {len} entries"))
             }
             _ => panic!(
                 "cannot index into non-object value of type {}",

@@ -28,6 +28,7 @@
 pub mod constants;
 pub mod decode;
 pub mod encode;
+pub mod serde;
 #[cfg(feature = "tui")]
 pub mod tui;
 pub mod types;
@@ -38,6 +39,11 @@ pub use decode::{
     decode_strict_with_options,
 };
 pub use encode::{encode, encode_array, encode_default, encode_object};
+pub use serde::{
+    from_reader, from_reader_with_options, from_slice, from_slice_with_options, from_str,
+    from_str_with_options, to_string, to_string_with_options, to_vec, to_writer,
+    to_writer_with_options,
+};
 pub use types::{DecodeOptions, Delimiter, EncodeOptions, Indent, ToonError};
 pub use utils::{
     literal::{is_keyword, is_literal_like},

@@ -161,6 +161,38 @@ fn main() -> Result<(), toon_format::ToonError> {
     Ok(())
 }
 ```
+
+### Serde-Style API
+
+Prefer serde_json-like helpers? Use `to_string`/`from_str` and friends:
+
+```rust
+use serde::{Deserialize, Serialize};
+use toon_format::{from_reader, from_str, to_string, to_writer};
+
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
+struct User {
+    name: String,
+    age: u32,
+}
+
+let user = User {
+    name: "Ada".to_string(),
+    age: 37,
+};
+
+let toon = to_string(&user)?;
+let round_trip: User = from_str(&toon)?;
+
+let mut buffer = Vec::new();
+to_writer(&mut buffer, &user)?;
+let round_trip: User = from_reader(buffer.as_slice())?;
+# Ok::<(), toon_format::ToonError>(())
+```
+
+Option-aware variants: `to_string_with_options`, `to_writer_with_options`,
+`from_str_with_options`, `from_slice_with_options`, `from_reader_with_options`.
+
 ---
 
 ## API Reference

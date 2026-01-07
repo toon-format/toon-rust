@@ -490,7 +490,8 @@ impl Parser {
         if matches!(self.current_token, Token::Newline | Token::Eof) {
             let has_children = if matches!(self.current_token, Token::Newline) {
                 let current_depth_indent = self.options.indent.get_spaces() * (depth + 1);
-                let next_indent = self.normalize_indent(self.scanner.count_leading_spaces());
+                let next_indent = self.scanner.count_leading_spaces();
+                let next_indent = self.normalize_indent(next_indent);
                 next_indent >= current_depth_indent
             } else {
                 false
@@ -505,7 +506,7 @@ impl Parser {
             self.parse_value_with_depth(depth + 1)
         } else {
             // Check if there's more content after the current token
-            let (rest, leading_space) = self.scanner.read_rest_of_line_with_space_info();
+            let (rest, leading_space) = self.scanner.read_rest_of_line_with_space_count();
 
             let result = if rest.is_empty() {
                 // Single token - convert directly to avoid redundant parsing
@@ -542,14 +543,13 @@ impl Parser {
                     Token::Null => 4,
                     _ => 0,
                 };
-                let mut value_str =
-                    String::with_capacity(token_len + leading_space.len() + rest.len());
+                let mut value_str = String::with_capacity(token_len + leading_space + rest.len());
 
                 match &self.current_token {
                     Token::String(s, true) => {
                         // Quoted strings need quotes preserved for re-parsing
                         value_str.push('"');
-                        value_str.push_str(&crate::utils::escape_string(s));
+                        crate::utils::escape_string_into(&mut value_str, s);
                         value_str.push('"');
                     }
                     Token::String(s, false) => value_str.push_str(s),
@@ -563,8 +563,8 @@ impl Parser {
                 }
 
                 // Only add space if there was whitespace in the original input
-                if !rest.is_empty() {
-                    value_str.push_str(&leading_space);
+                if !rest.is_empty() && leading_space > 0 {
+                    value_str.extend(std::iter::repeat_n(' ', leading_space));
                 }
                 value_str.push_str(&rest);
 
@@ -1152,8 +1152,8 @@ impl Parser {
                                 // Check if there are more fields at the same indentation level
                                 let should_parse_more_fields =
                                     if matches!(self.current_token, Token::Newline) {
-                                        let next_indent = self
-                                            .normalize_indent(self.scanner.count_leading_spaces());
+                                        let next_indent = self.scanner.count_leading_spaces();
+                                        let next_indent = self.normalize_indent(next_indent);
 
                                         if next_indent < field_indent {
                                             false
@@ -1218,9 +1218,8 @@ impl Parser {
                                         obj.insert(field_key, field_value);
 
                                         if matches!(self.current_token, Token::Newline) {
-                                            let next_indent = self.normalize_indent(
-                                                self.scanner.count_leading_spaces(),
-                                            );
+                                            let next_indent = self.scanner.count_leading_spaces();
+                                            let next_indent = self.normalize_indent(next_indent);
                                             if next_indent < field_indent {
                                                 break;
                                             }
@@ -1346,8 +1345,8 @@ impl Parser {
 
                                 let should_parse_more_fields =
                                     if matches!(self.current_token, Token::Newline) {
-                                        let next_indent = self
-                                            .normalize_indent(self.scanner.count_leading_spaces());
+                                        let next_indent = self.scanner.count_leading_spaces();
+                                        let next_indent = self.normalize_indent(next_indent);
 
                                         if next_indent < field_indent {
                                             false
@@ -1405,9 +1404,8 @@ impl Parser {
                                         obj.insert(field_key, field_value);
 
                                         if matches!(self.current_token, Token::Newline) {
-                                            let next_indent = self.normalize_indent(
-                                                self.scanner.count_leading_spaces(),
-                                            );
+                                            let next_indent = self.scanner.count_leading_spaces();
+                                            let next_indent = self.normalize_indent(next_indent);
                                             if next_indent < field_indent {
                                                 break;
                                             }

@@ -10,7 +10,7 @@ use crate::{
     types::{
         EncodeOptions, IntoJsonValue, JsonValue as Value, KeyFoldingMode, ToonError, ToonResult,
     },
-    utils::{format_canonical_number, normalize, validation::validate_depth, QuotingContext},
+    utils::{normalize, validation::validate_depth, QuotingContext},
 };
 
 /// Encode any serializable value to TOON format.
@@ -209,42 +209,45 @@ fn write_object_impl(
 ) -> ToonResult<()> {
     validate_depth(depth, MAX_DEPTH)?;
 
-    let keys: Vec<&String> = obj.keys().collect();
-    let mut key_set: HashSet<&str> = HashSet::with_capacity(keys.len());
-    let mut prefix_conflicts: HashSet<&str> = HashSet::new();
+    let allow_folding = !disable_folding && writer.options.key_folding == KeyFoldingMode::Safe;
+    let (key_set, prefix_conflicts) = if allow_folding {
+        let mut key_set: HashSet<&str> = HashSet::with_capacity(obj.len());
+        let mut prefix_conflicts: HashSet<&str> = HashSet::new();
 
-    for key in &keys {
-        key_set.insert(key.as_str());
-        if key.contains('.') {
-            let mut start = 0;
-            while let Some(pos) = key[start..].find('.') {
-                let end = start + pos;
-                if end > 0 {
-                    prefix_conflicts.insert(&key[..end]);
+        for key in obj.keys() {
+            let key_str = key.as_str();
+            key_set.insert(key_str);
+            if key_str.contains('.') {
+                let mut start = 0;
+                while let Some(pos) = key_str[start..].find('.') {
+                    let end = start + pos;
+                    if end > 0 {
+                        prefix_conflicts.insert(&key_str[..end]);
+                    }
+                    start = end + 1;
                 }
-                start = end + 1;
             }
         }
-    }
 
-    for (i, key) in keys.iter().enumerate() {
+        (key_set, prefix_conflicts)
+    } else {
+        (HashSet::new(), HashSet::new())
+    };
+
+    for (i, (key, value)) in obj.iter().enumerate() {
         if i > 0 {
             writer.write_newline()?;
         }
 
-        let key = *key;
         let key_str = key.as_str();
-        let value = obj.get(key).expect("key exists in field list");
 
         // Check if this key-value pair can be folded (v1.5 feature)
         // Don't fold if any sibling key is a dotted path starting with this key
         // (e.g., don't fold inside "data" if "data.meta.items" exists as a sibling)
-        let has_conflicting_sibling = key_str.contains('.') || prefix_conflicts.contains(key_str);
+        let has_conflicting_sibling =
+            allow_folding && (key_str.contains('.') || prefix_conflicts.contains(key_str));
 
-        let folded = if !disable_folding
-            && writer.options.key_folding == KeyFoldingMode::Safe
-            && !has_conflicting_sibling
-        {
+        let folded = if allow_folding && !has_conflicting_sibling {
             folding::analyze_foldable_chain(key_str, value, writer.options.flatten_depth, &key_set)
         } else {
             None
@@ -333,63 +336,64 @@ fn write_array(
 
     // Select format based on array content: tabular (uniform objects) > inline
     // primitives > nested list
-    if let Some(keys) = is_tabular_array(arr) {
-        encode_tabular_array(writer, key, arr, &keys, depth)?;
-    } else if is_primitive_array(arr) {
-        encode_primitive_array(writer, key, arr, depth)?;
-    } else {
-        encode_nested_array(writer, key, arr, depth)?;
+    match classify_array(arr) {
+        ArrayKind::Tabular(keys) => encode_tabular_array(writer, key, arr, &keys, depth)?,
+        ArrayKind::Primitive => encode_primitive_array(writer, key, arr, depth)?,
+        ArrayKind::Nested => encode_nested_array(writer, key, arr, depth)?,
     }
 
     Ok(())
 }
 
-/// Check if an array can be encoded as tabular format (uniform objects with
-/// primitive values).
-fn is_tabular_array(arr: &[Value]) -> Option<Vec<String>> {
-    if arr.is_empty() {
-        return None;
-    }
+enum ArrayKind<'a> {
+    Tabular(Vec<&'a str>),
+    Primitive,
+    Nested,
+}
 
-    let first = arr.first()?;
-    if !first.is_object() {
-        return None;
-    }
+/// Classify array shape for encoding (tabular, primitive, nested).
+fn classify_array<'a>(arr: &'a [Value]) -> ArrayKind<'a> {
+    let first = match arr.first() {
+        Some(value) => value,
+        None => return ArrayKind::Primitive,
+    };
 
-    let first_obj = first.as_object()?;
-    let keys: Vec<String> = first_obj.keys().cloned().collect();
-
-    // First object must have only primitive values
-    for value in first_obj.values() {
-        if !is_primitive(value) {
-            return None;
+    if let Value::Object(first_obj) = first {
+        if !first_obj.values().all(is_primitive) {
+            return ArrayKind::Nested;
         }
-    }
 
-    // All remaining objects must match: same keys and all primitive values
-    for val in arr.iter().skip(1) {
-        if let Some(obj) = val.as_object() {
+        let keys: Vec<&str> = first_obj.keys().map(|key| key.as_str()).collect();
+
+        for val in arr.iter().skip(1) {
+            let obj = match val.as_object() {
+                Some(obj) => obj,
+                None => return ArrayKind::Nested,
+            };
+
             if obj.len() != keys.len() {
-                return None;
+                return ArrayKind::Nested;
             }
-            // Verify all keys from first object exist (order doesn't matter)
+
             for key in &keys {
-                if !obj.contains_key(key) {
-                    return None;
+                if !obj.contains_key(*key) {
+                    return ArrayKind::Nested;
                 }
             }
-            // All values must be primitives
-            for value in obj.values() {
-                if !is_primitive(value) {
-                    return None;
-                }
+
+            if !obj.values().all(is_primitive) {
+                return ArrayKind::Nested;
             }
-        } else {
-            return None;
         }
+
+        return ArrayKind::Tabular(keys);
     }
 
-    Some(keys)
+    if arr.iter().all(is_primitive) {
+        ArrayKind::Primitive
+    } else {
+        ArrayKind::Nested
+    }
 }
 
 /// Check if a value is a primitive (not array or object).
@@ -401,10 +405,6 @@ fn is_primitive(value: &Value) -> bool {
 }
 
 /// Check if all array elements are primitives.
-fn is_primitive_array(arr: &[Value]) -> bool {
-    arr.iter().all(is_primitive)
-}
-
 fn encode_primitive_array(
     writer: &mut writer::Writer,
     key: Option<&str>,
@@ -434,11 +434,10 @@ fn write_primitive_value(
 ) -> ToonResult<()> {
     match value {
         Value::Null => writer.write_str("null"),
-        Value::Bool(b) => writer.write_str(&b.to_string()),
+        Value::Bool(b) => writer.write_str(if *b { "true" } else { "false" }),
         Value::Number(n) => {
             // Format in canonical TOON form (no exponents, no trailing zeros)
-            let num_str = format_canonical_number(n);
-            writer.write_str(&num_str)
+            writer.write_canonical_number(n)
         }
         Value::String(s) => {
             if writer.needs_quoting(s, context) {
@@ -457,7 +456,7 @@ fn encode_tabular_array(
     writer: &mut writer::Writer,
     key: Option<&str>,
     arr: &[Value],
-    keys: &[String],
+    keys: &[&str],
     depth: usize,
 ) -> ToonResult<()> {
     writer.write_array_header(key, arr.len(), Some(keys), depth)?;
@@ -476,7 +475,7 @@ fn encode_tabular_array(
                 }
 
                 // Missing fields become null
-                if let Some(val) = obj.get(key) {
+                if let Some(val) = obj.get(*key) {
                     write_primitive_value(writer, val, QuotingContext::ArrayValue)?;
                 } else {
                     writer.write_str("null")?;
@@ -502,12 +501,12 @@ fn encode_tabular_array(
 fn encode_list_item_tabular_array(
     writer: &mut writer::Writer,
     arr: &[Value],
-    keys: &[String],
+    keys: &[&str],
     depth: usize,
 ) -> ToonResult<()> {
     // Write array header without key (key already written on hyphen line)
     writer.write_char('[')?;
-    writer.write_str(&arr.len().to_string())?;
+    writer.write_usize(arr.len())?;
 
     if writer.options.delimiter != crate::types::Delimiter::Comma {
         writer.write_char(writer.options.delimiter.as_char())?;
@@ -541,7 +540,7 @@ fn encode_list_item_tabular_array(
                 }
 
                 // Missing fields become null
-                if let Some(val) = obj.get(key) {
+                if let Some(val) = obj.get(*key) {
                     write_primitive_value(writer, val, QuotingContext::ArrayValue)?;
                 } else {
                     writer.write_str("null")?;
@@ -592,14 +591,30 @@ fn encode_nested_array(
                             // (depth +2 relative to hyphen) for their nested content
                             // (rows for tabular, items for non-uniform)
                             writer.write_key(first_key)?;
-
-                            if let Some(keys) = is_tabular_array(arr) {
-                                // Tabular array: write inline with correct indentation
-                                encode_list_item_tabular_array(writer, arr, &keys, depth + 1)?;
+                            if arr.is_empty() {
+                                writer.write_empty_array_with_key(None, depth + 2)?;
                             } else {
-                                // Non-tabular array: write with depth offset
-                                // (items at depth +2 instead of depth +1)
-                                write_array(writer, None, arr, depth + 2)?;
+                                match classify_array(arr) {
+                                    ArrayKind::Tabular(keys) => {
+                                        // Tabular array: write inline with correct indentation
+                                        encode_list_item_tabular_array(
+                                            writer,
+                                            arr,
+                                            &keys,
+                                            depth + 1,
+                                        )?;
+                                    }
+                                    ArrayKind::Primitive => {
+                                        // Non-tabular array: write with depth offset
+                                        // (items at depth +2 instead of depth +1)
+                                        encode_primitive_array(writer, None, arr, depth + 2)?;
+                                    }
+                                    ArrayKind::Nested => {
+                                        // Non-tabular array: write with depth offset
+                                        // (items at depth +2 instead of depth +1)
+                                        encode_nested_array(writer, None, arr, depth + 2)?;
+                                    }
+                                }
                             }
                         }
                         Value::Object(nested_obj) => {

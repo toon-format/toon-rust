@@ -4,18 +4,23 @@ use crate::{types::Delimiter, utils::literal};
 pub fn escape_string(s: &str) -> String {
     let mut result = String::with_capacity(s.len());
 
-    for ch in s.chars() {
-        match ch {
-            '\n' => result.push_str("\\n"),
-            '\r' => result.push_str("\\r"),
-            '\t' => result.push_str("\\t"),
-            '"' => result.push_str("\\\""),
-            '\\' => result.push_str("\\\\"),
-            _ => result.push(ch),
-        }
-    }
+    escape_string_into(&mut result, s);
 
     result
+}
+
+/// Escape special characters in a string and append to the output buffer.
+pub fn escape_string_into(out: &mut String, s: &str) {
+    for ch in s.chars() {
+        match ch {
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            _ => out.push(ch),
+        }
+    }
 }
 
 /// Unescape special characters in a quoted string.
@@ -90,22 +95,19 @@ pub fn unescape_string(s: &str) -> Result<String, String> {
 }
 
 fn is_valid_unquoted_key_internal(key: &str, allow_hyphen: bool) -> bool {
-    if key.is_empty() {
+    let bytes = key.as_bytes();
+    if bytes.is_empty() {
         return false;
     }
 
-    let mut chars = key.chars();
-    let first = if let Some(c) = chars.next() {
-        c
-    } else {
-        return false;
-    };
-
-    if !first.is_ascii_alphabetic() && first != '_' {
+    let first = bytes[0];
+    if !first.is_ascii_alphabetic() && first != b'_' {
         return false;
     }
 
-    chars.all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '.' || (allow_hyphen && c == '-'))
+    bytes[1..].iter().all(|b| {
+        b.is_ascii_alphanumeric() || *b == b'_' || *b == b'.' || (allow_hyphen && *b == b'-')
+    })
 }
 
 /// Check if a key can be written without quotes (alphanumeric, underscore,
@@ -124,33 +126,47 @@ pub fn needs_quoting(s: &str, delimiter: char) -> bool {
         return true;
     }
 
-    if s.chars().any(literal::is_structural_char) {
+    let mut chars = s.chars();
+    let first = match chars.next() {
+        Some(ch) => ch,
+        None => return true,
+    };
+
+    if first.is_whitespace() || first == '-' {
         return true;
     }
 
-    if s.contains('\\') || s.contains('"') {
+    if first == '\\'
+        || first == '"'
+        || first == delimiter
+        || first == '\n'
+        || first == '\r'
+        || first == '\t'
+        || literal::is_structural_char(first)
+    {
         return true;
     }
 
-    if s.contains(delimiter) {
+    if first == '0' && chars.clone().next().is_some_and(|c| c.is_ascii_digit()) {
         return true;
     }
 
-    if s.contains('\n') || s.contains('\r') || s.contains('\t') {
-        return true;
+    let mut last = first;
+    for ch in chars {
+        if literal::is_structural_char(ch)
+            || ch == '\\'
+            || ch == '"'
+            || ch == delimiter
+            || ch == '\n'
+            || ch == '\r'
+            || ch == '\t'
+        {
+            return true;
+        }
+        last = ch;
     }
 
-    if s.starts_with(char::is_whitespace) || s.ends_with(char::is_whitespace) {
-        return true;
-    }
-
-    if s.starts_with('-') {
-        return true;
-    }
-
-    // Check for leading zeros (e.g., "05", "007", "0123")
-    // Numbers with leading zeros must be quoted
-    if s.starts_with('0') && s.len() > 1 && s.chars().nth(1).is_some_and(|c| c.is_ascii_digit()) {
+    if last.is_whitespace() {
         return true;
     }
 
@@ -159,7 +175,11 @@ pub fn needs_quoting(s: &str, delimiter: char) -> bool {
 
 /// Quote and escape a string.
 pub fn quote_string(s: &str) -> String {
-    format!("\"{}\"", escape_string(s))
+    let mut result = String::with_capacity(s.len() + 2);
+    result.push('"');
+    escape_string_into(&mut result, s);
+    result.push('"');
+    result
 }
 
 pub fn split_by_delimiter(s: &str, delimiter: Delimiter) -> Vec<String> {

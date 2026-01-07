@@ -19,24 +19,21 @@ pub enum PathExpansionMode {
 /// Check if a key segment is a valid IdentifierSegment (stricter than unquoted
 /// keys).
 pub fn is_identifier_segment(s: &str) -> bool {
-    if s.is_empty() {
+    let bytes = s.as_bytes();
+    if bytes.is_empty() {
         return false;
     }
 
-    let mut chars = s.chars();
-
     // First character must be letter or underscore
-    let first = match chars.next() {
-        Some(c) => c,
-        None => return false,
-    };
-
-    if !first.is_ascii_alphabetic() && first != '_' {
+    let first = bytes[0];
+    if !first.is_ascii_alphabetic() && first != b'_' {
         return false;
     }
 
     // Remaining characters: letters, digits, or underscore (NO dots)
-    chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
+    bytes[1..]
+        .iter()
+        .all(|b| b.is_ascii_alphanumeric() || *b == b'_')
 }
 
 #[cfg(test)]

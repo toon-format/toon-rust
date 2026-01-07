@@ -18,18 +18,24 @@ pub fn should_expand_key(key: &str, mode: PathExpansionMode) -> Option<Vec<&str>
                 return None;
             }
 
-            let segments: Vec<&str> = key.split('.').collect();
+            let mut segment_count = 0;
+            for segment in key.split('.') {
+                if segment.is_empty() || !is_identifier_segment(segment) {
+                    return None;
+                }
+                segment_count += 1;
+            }
 
-            if segments.len() < 2 {
+            if segment_count < 2 {
                 return None;
             }
 
-            // Only expand if all segments are valid identifiers (safety requirement)
-            if segments.iter().all(|s| is_identifier_segment(s)) {
-                Some(segments)
-            } else {
-                None
+            let mut segments = Vec::with_capacity(segment_count);
+            for segment in key.split('.') {
+                segments.push(segment);
             }
+
+            Some(segments)
         }
     }
 }
@@ -111,7 +117,9 @@ pub fn expand_paths_in_object(
             None => {
                 // Strip marker from quoted keys
                 let clean_key = if key.starts_with(QUOTED_KEY_MARKER) {
-                    key.strip_prefix(QUOTED_KEY_MARKER).unwrap().to_string()
+                    let mut cleaned = key;
+                    cleaned.remove(0);
+                    cleaned
                 } else {
                     key
                 };

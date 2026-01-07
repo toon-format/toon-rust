@@ -1,7 +1,8 @@
 use crate::{
-    types::{Delimiter, EncodeOptions, ToonResult},
+    types::{Delimiter, EncodeOptions, Number, ToonResult},
     utils::{
-        string::{is_valid_unquoted_key, needs_quoting, quote_string},
+        number::write_canonical_number_into,
+        string::{escape_string_into, is_valid_unquoted_key, needs_quoting},
         QuotingContext,
     },
 };
@@ -11,15 +12,20 @@ pub struct Writer {
     buffer: String,
     pub(crate) options: EncodeOptions,
     active_delimiters: Vec<Delimiter>,
+    indent_unit: String,
+    indent_cache: Vec<String>,
 }
 
 impl Writer {
     /// Create a new writer with the given options.
     pub fn new(options: EncodeOptions) -> Self {
+        let indent_unit = " ".repeat(options.indent.get_spaces());
         Self {
             buffer: String::new(),
             active_delimiters: vec![options.delimiter],
             options,
+            indent_unit,
+            indent_cache: vec![String::new()],
         }
     }
 
@@ -44,10 +50,13 @@ impl Writer {
     }
 
     pub fn write_indent(&mut self, depth: usize) -> ToonResult<()> {
-        let indent_string = self.options.indent.get_string(depth);
-        if !indent_string.is_empty() {
-            self.buffer.push_str(&indent_string);
+        if depth == 0 || self.indent_unit.is_empty() {
+            return Ok(());
         }
+        if depth >= self.indent_cache.len() {
+            self.extend_indent_cache(depth);
+        }
+        self.buffer.push_str(&self.indent_cache[depth]);
         Ok(())
     }
 
@@ -69,7 +78,7 @@ impl Writer {
         &mut self,
         key: Option<&str>,
         length: usize,
-        fields: Option<&[String]>,
+        fields: Option<&[&str]>,
         depth: usize,
     ) -> ToonResult<()> {
         if let Some(k) = key {
@@ -80,7 +89,7 @@ impl Writer {
         }
 
         self.write_char('[')?;
-        self.write_str(&length.to_string())?;
+        self.write_usize(length)?;
 
         // Only write delimiter in header if it's not comma (comma is default/implied)
         if self.options.delimiter != Delimiter::Comma {
@@ -117,7 +126,7 @@ impl Writer {
             self.write_key(k)?;
         }
         self.write_char('[')?;
-        self.write_str("0")?;
+        self.write_usize(0)?;
 
         if self.options.delimiter != Delimiter::Comma {
             self.write_delimiter()?;
@@ -137,7 +146,10 @@ impl Writer {
     }
 
     pub fn write_quoted_string(&mut self, s: &str) -> ToonResult<()> {
-        self.write_str(&quote_string(s))
+        self.buffer.push('"');
+        escape_string_into(&mut self.buffer, s);
+        self.buffer.push('"');
+        Ok(())
     }
 
     pub fn write_value(&mut self, s: &str, context: QuotingContext) -> ToonResult<()> {
@@ -146,6 +158,17 @@ impl Writer {
         } else {
             self.write_str(s)
         }
+    }
+
+    pub fn write_canonical_number(&mut self, n: &Number) -> ToonResult<()> {
+        write_canonical_number_into(n, &mut self.buffer);
+        Ok(())
+    }
+
+    pub fn write_usize(&mut self, value: usize) -> ToonResult<()> {
+        let mut buf = itoa::Buffer::new();
+        self.buffer.push_str(buf.format(value as u64));
+        Ok(())
     }
 
     /// Push a new delimiter onto the stack (for nested arrays with different
@@ -168,6 +191,21 @@ impl Writer {
 
     fn get_document_delimiter_char(&self) -> char {
         self.options.delimiter.as_char()
+    }
+
+    fn extend_indent_cache(&mut self, depth: usize) {
+        while self.indent_cache.len() <= depth {
+            let next = match self.indent_cache.last() {
+                Some(prev) => {
+                    let mut s = String::with_capacity(prev.len() + self.indent_unit.len());
+                    s.push_str(prev);
+                    s.push_str(&self.indent_unit);
+                    s
+                }
+                None => String::new(),
+            };
+            self.indent_cache.push(next);
+        }
     }
 }
 
@@ -239,7 +277,7 @@ mod tests {
 
         let opts = EncodeOptions::default();
         let mut writer = Writer::new(opts);
-        let fields = vec!["id".to_string(), "name".to_string()];
+        let fields = vec!["id", "name"];
 
         writer
             .write_array_header(Some("users"), 2, Some(&fields), 0)
@@ -259,7 +297,7 @@ mod tests {
 
         let opts = EncodeOptions::new().with_delimiter(Delimiter::Pipe);
         let mut writer = Writer::new(opts);
-        let fields = vec!["id".to_string(), "name".to_string()];
+        let fields = vec!["id", "name"];
 
         writer
             .write_array_header(Some("users"), 2, Some(&fields), 0)

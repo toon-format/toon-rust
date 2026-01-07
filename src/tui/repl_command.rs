@@ -1,9 +1,6 @@
 //! REPL command parser with inline data support
 
-use anyhow::{
-    bail,
-    Result,
-};
+use anyhow::{bail, Result};
 
 /// Parsed REPL command with inline data
 #[derive(Debug, Clone)]

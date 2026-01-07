@@ -1,39 +1,18 @@
-use std::{
-    fs,
-    path::PathBuf,
-    time::Duration,
-};
+use std::{fs, path::PathBuf, time::Duration};
 
-use anyhow::{
-    Context,
-    Result,
-};
+use anyhow::{Context, Result};
 use chrono::Local;
-use crossterm::event::{
-    KeyCode,
-    KeyEvent,
-};
+use crossterm::event::{KeyCode, KeyEvent};
 use tiktoken_rs::cl100k_base;
 
 use crate::{
-    decode,
-    encode,
+    decode, encode,
     tui::{
         components::FileBrowser,
-        events::{
-            Event,
-            EventHandler,
-        },
-        keybindings::{
-            Action,
-            KeyBindings,
-        },
+        events::{Event, EventHandler},
+        keybindings::{Action, KeyBindings},
         repl_command::ReplCommand,
-        state::{
-            app_state::ConversionStats,
-            AppState,
-            ConversionHistory,
-        },
+        state::{app_state::ConversionStats, AppState, ConversionHistory},
         ui,
     },
 };

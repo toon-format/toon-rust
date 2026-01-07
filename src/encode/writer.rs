@@ -1,15 +1,7 @@
 use crate::{
-    types::{
-        Delimiter,
-        EncodeOptions,
-        ToonResult,
-    },
+    types::{Delimiter, EncodeOptions, ToonResult},
     utils::{
-        string::{
-            is_valid_unquoted_key,
-            needs_quoting,
-            quote_string,
-        },
+        string::{is_valid_unquoted_key, needs_quoting, quote_string},
         QuotingContext,
     },
 };

@@ -1,31 +1,13 @@
 //! Conversion history panel.
 
 use ratatui::{
-    layout::{
-        Alignment,
-        Constraint,
-        Direction,
-        Layout,
-        Rect,
-    },
-    text::{
-        Line,
-        Span,
-    },
-    widgets::{
-        Block,
-        Borders,
-        List,
-        ListItem,
-        Paragraph,
-    },
+    layout::{Alignment, Constraint, Direction, Layout, Rect},
+    text::{Line, Span},
+    widgets::{Block, Borders, List, ListItem, Paragraph},
     Frame,
 };
 
-use crate::tui::{
-    state::AppState,
-    theme::Theme,
-};
+use crate::tui::{state::AppState, theme::Theme};
 
 pub struct HistoryPanel;
 

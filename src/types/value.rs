@@ -408,12 +408,12 @@ impl Index<usize> for JsonValue {
 impl IndexMut<usize> for JsonValue {
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         match self {
-            JsonValue::Array(arr) => arr.get_mut(index).unwrap_or_else(|| {
-                panic!(
-                    "index {index} out of bounds for array of length {}",
-                    arr.len()
-                )
-            }),
+            JsonValue::Array(arr) => {
+                let len = arr.len();
+                arr.get_mut(index).unwrap_or_else(|| {
+                    panic!("index {index} out of bounds for array of length {len}")
+                })
+            }
             _ => panic!(
                 "cannot index into non-array value of type {}",
                 self.type_name()
@@ -441,9 +441,12 @@ impl Index<&str> for JsonValue {
 impl IndexMut<&str> for JsonValue {
     fn index_mut(&mut self, key: &str) -> &mut Self::Output {
         match self {
-            JsonValue::Object(obj) => obj.get_mut(key).unwrap_or_else(|| {
-                panic!("key '{key}' not found in object with {} entries", obj.len())
-            }),
+            JsonValue::Object(obj) => {
+                let len = obj.len();
+                obj.get_mut(key).unwrap_or_else(|| {
+                    panic!("key '{key}' not found in object with {len} entries")
+                })
+            }
             _ => panic!(
                 "cannot index into non-object value of type {}",
                 self.type_name()

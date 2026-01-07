@@ -7,7 +7,10 @@ use ratatui::{
     Frame,
 };
 
-use crate::tui::{state::AppState, theme::Theme};
+use crate::tui::{
+    state::{format_timestamp, AppState},
+    theme::Theme,
+};
 
 pub struct HistoryPanel;
 
@@ -48,7 +51,7 @@ impl HistoryPanel {
                 .iter()
                 .rev()
                 .map(|entry| {
-                    let time_str = entry.timestamp.format("%H:%M:%S").to_string();
+                    let time_str = format_timestamp(&entry.timestamp);
                     let file_str = entry
                         .input_file
                         .as_ref()
@@ -56,18 +59,33 @@ impl HistoryPanel {
                         .and_then(|n| n.to_str())
                         .unwrap_or("stdin");
 
-                    ListItem::new(Line::from(vec![
-                        Span::styled(format!("  {time_str} "), theme.line_number_style()),
-                        Span::styled(format!("[{}] ", entry.mode), theme.info_style()),
-                        Span::styled(file_str, theme.normal_style()),
-                        Span::styled(
-                            format!(" → {:.1}% saved", entry.token_savings),
-                            if entry.token_savings > 0.0 {
+                    let (savings_text, savings_style) = match entry.token_savings {
+                        Some(token_savings) => (
+                            format!(" → {:.1}% saved", token_savings),
+                            if token_savings > 0.0 {
                                 theme.success_style()
                             } else {
                                 theme.warning_style()
                             },
                         ),
+                        None => match entry.byte_savings {
+                            Some(byte_savings) => (
+                                format!(" → {:.1}% bytes", byte_savings),
+                                if byte_savings > 0.0 {
+                                    theme.success_style()
+                                } else {
+                                    theme.warning_style()
+                                },
+                            ),
+                            None => (" → n/a".to_string(), theme.line_number_style()),
+                        },
+                    };
+
+                    ListItem::new(Line::from(vec![
+                        Span::styled(format!("  {time_str} "), theme.line_number_style()),
+                        Span::styled(format!("[{}] ", entry.mode), theme.info_style()),
+                        Span::styled(file_str, theme.normal_style()),
+                        Span::styled(savings_text, savings_style),
                     ]))
                 })
                 .collect();

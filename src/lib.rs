@@ -28,7 +28,7 @@
 pub mod constants;
 pub mod decode;
 pub mod encode;
-#[cfg(feature = "cli")]
+#[cfg(feature = "tui")]
 pub mod tui;
 pub mod types;
 pub mod utils;

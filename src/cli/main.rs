@@ -6,8 +6,10 @@ use std::{
 
 use anyhow::{bail, Context, Result};
 use clap::Parser;
+#[cfg(feature = "cli-stats")]
 use comfy_table::Table;
 use serde::Serialize;
+#[cfg(feature = "cli-stats")]
 use tiktoken_rs::cl100k_base;
 use toon_format::{
     decode, encode,
@@ -168,34 +170,7 @@ fn run_encode(cli: &Cli, input: &str) -> Result<()> {
     write_output(cli.output.clone(), &toon_str)?;
 
     if cli.stats {
-        let json_bytes = input.len();
-        let toon_bytes = toon_str.len();
-        let size_savings = 100.0 * (1.0 - (toon_bytes as f64 / json_bytes as f64));
-
-        let bpe = cl100k_base().context("Failed to load tokenizer")?;
-        let json_tokens = bpe.encode_with_special_tokens(input).len();
-        let toon_tokens = bpe.encode_with_special_tokens(&toon_str).len();
-        let token_savings = 100.0 * (1.0 - (toon_tokens as f64 / json_tokens as f64));
-
-        eprintln!("\nStats:");
-        let mut table = Table::new();
-        table.set_header(vec!["Metric", "JSON", "TOON", "Savings"]);
-
-        table.add_row(vec![
-            "Tokens",
-            &json_tokens.to_string(),
-            &toon_tokens.to_string(),
-            &format!("{token_savings:.2}%"),
-        ]);
-
-        table.add_row(vec![
-            "Size (bytes)",
-            &json_bytes.to_string(),
-            &toon_bytes.to_string(),
-            &format!("{size_savings:.2}%"),
-        ]);
-
-        eprintln!("\n{table}\n");
+        render_stats(input, &toon_str)?;
     }
 
     Ok(())
@@ -290,6 +265,11 @@ fn determine_operation(cli: &Cli) -> Result<(Operation, bool)> {
 }
 
 fn validate_flags(cli: &Cli, operation: &Operation) -> Result<()> {
+    #[cfg(not(feature = "cli-stats"))]
+    if cli.stats {
+        bail!("--stats requires the 'cli-stats' feature");
+    }
+
     match operation {
         Operation::Encode => {
             if cli.no_strict {
@@ -359,6 +339,50 @@ fn main() -> Result<()> {
     Ok(())
 }
 
+#[cfg(feature = "cli-stats")]
+fn render_stats(input: &str, toon_str: &str) -> Result<()> {
+    let json_bytes = input.len();
+    let toon_bytes = toon_str.len();
+    let size_savings = 100.0 * (1.0 - (toon_bytes as f64 / json_bytes as f64));
+
+    let bpe = cl100k_base().context("Failed to load tokenizer")?;
+    let json_tokens = bpe.encode_with_special_tokens(input).len();
+    let toon_tokens = bpe.encode_with_special_tokens(toon_str).len();
+    let token_savings = 100.0 * (1.0 - (toon_tokens as f64 / json_tokens as f64));
+
+    eprintln!("\nStats:");
+    let mut table = Table::new();
+    table.set_header(vec!["Metric", "JSON", "TOON", "Savings"]);
+
+    table.add_row(vec![
+        "Tokens",
+        &json_tokens.to_string(),
+        &toon_tokens.to_string(),
+        &format!("{token_savings:.2}%"),
+    ]);
+
+    table.add_row(vec![
+        "Size (bytes)",
+        &json_bytes.to_string(),
+        &toon_bytes.to_string(),
+        &format!("{size_savings:.2}%"),
+    ]);
+
+    eprintln!("\n{table}\n");
+    Ok(())
+}
+
+#[cfg(not(feature = "cli-stats"))]
+fn render_stats(_input: &str, _toon_str: &str) -> Result<()> {
+    bail!("--stats requires the 'cli-stats' feature");
+}
+
+#[cfg(not(feature = "tui"))]
+fn run_interactive() -> Result<()> {
+    bail!("Interactive mode requires the 'tui' feature");
+}
+
+#[cfg(feature = "tui")]
 fn run_interactive() -> Result<()> {
     toon_format::tui::run().context("Failed to run interactive TUI")?;
     Ok(())

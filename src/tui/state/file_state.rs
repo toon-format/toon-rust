@@ -2,7 +2,42 @@
 
 use std::path::PathBuf;
 
+#[cfg(feature = "tui-time")]
 use chrono::{DateTime, Local};
+
+#[cfg(feature = "tui-time")]
+pub type Timestamp = DateTime<Local>;
+
+#[cfg(not(feature = "tui-time"))]
+pub type Timestamp = ();
+
+pub fn now_timestamp() -> Option<Timestamp> {
+    #[cfg(feature = "tui-time")]
+    {
+        Some(Local::now())
+    }
+
+    #[cfg(not(feature = "tui-time"))]
+    {
+        None
+    }
+}
+
+pub fn format_timestamp(timestamp: &Option<Timestamp>) -> String {
+    #[cfg(feature = "tui-time")]
+    {
+        timestamp
+            .as_ref()
+            .map(|ts| ts.format("%H:%M:%S").to_string())
+            .unwrap_or_else(|| "--:--:--".to_string())
+    }
+
+    #[cfg(not(feature = "tui-time"))]
+    {
+        let _ = timestamp;
+        "--:--:--".to_string()
+    }
+}
 
 /// A file or directory entry.
 #[derive(Debug, Clone)]
@@ -10,7 +45,7 @@ pub struct FileEntry {
     pub path: PathBuf,
     pub is_dir: bool,
     pub size: u64,
-    pub modified: Option<DateTime<Local>>,
+    pub modified: Option<Timestamp>,
 }
 
 impl FileEntry {
@@ -34,12 +69,12 @@ impl FileEntry {
 /// Record of a conversion operation.
 #[derive(Debug, Clone)]
 pub struct ConversionHistory {
-    pub timestamp: DateTime<Local>,
+    pub timestamp: Option<Timestamp>,
     pub mode: String,
     pub input_file: Option<PathBuf>,
     pub output_file: Option<PathBuf>,
-    pub token_savings: f64,
-    pub byte_savings: f64,
+    pub token_savings: Option<f64>,
+    pub byte_savings: Option<f64>,
 }
 
 /// File browser and conversion history state.

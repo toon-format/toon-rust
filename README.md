@@ -53,6 +53,22 @@ cargo add toon-format
 cargo install toon-format
 ```
 
+### Feature Flags
+
+By default, all CLI/TUI features are enabled. You can opt in to only what you need:
+
+```toml
+toon-format = { version = "0.4", default-features = false }
+```
+
+```bash
+cargo install toon-format --no-default-features --features cli
+cargo install toon-format --no-default-features --features cli,cli-stats
+cargo install toon-format --no-default-features --features cli,tui,tui-clipboard,tui-time
+```
+
+Feature summary: `cli`, `cli-stats`, `tui`, `tui-clipboard`, `tui-time`, `parallel`.
+
 ---
 
 ## Library Usage

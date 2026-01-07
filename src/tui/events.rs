@@ -2,11 +2,7 @@
 
 use std::time::Duration;
 
-use crossterm::event::{
-    self,
-    Event as CrosstermEvent,
-    KeyEvent,
-};
+use crossterm::event::{self, Event as CrosstermEvent, KeyEvent};
 
 /// TUI events.
 pub enum Event {

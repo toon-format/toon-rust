@@ -1,20 +1,9 @@
 //! Main application state.
 
-use super::{
-    EditorState,
-    FileState,
-    ReplState,
-};
+use super::{EditorState, FileState, ReplState};
 use crate::{
     tui::theme::Theme,
-    types::{
-        DecodeOptions,
-        Delimiter,
-        EncodeOptions,
-        Indent,
-        KeyFoldingMode,
-        PathExpansionMode,
-    },
+    types::{DecodeOptions, Delimiter, EncodeOptions, Indent, KeyFoldingMode, PathExpansionMode},
 };
 
 /// Conversion mode (encode/decode).

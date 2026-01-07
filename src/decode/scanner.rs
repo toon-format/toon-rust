@@ -1,8 +1,4 @@
-use crate::types::{
-    Delimiter,
-    ToonError,
-    ToonResult,
-};
+use crate::types::{Delimiter, ToonError, ToonResult};
 
 /// Tokens produced by the scanner during lexical analysis.
 #[derive(Debug, Clone, PartialEq)]
@@ -352,9 +348,10 @@ impl Scanner {
 
         // Leading zeros like "05" are strings, but "0", "0.5", "-0" are numbers
         if s.starts_with('0') && s.len() > 1 {
-            let second_char = s.chars().nth(1).unwrap();
-            if second_char.is_ascii_digit() {
-                return Ok(Token::String(s.to_string(), false));
+            if let Some(second_char) = s.chars().nth(1) {
+                if second_char.is_ascii_digit() {
+                    return Ok(Token::String(s.to_string(), false));
+                }
             }
         }
 
@@ -458,12 +455,18 @@ impl Scanner {
             _ => {}
         }
 
-        if trimmed.starts_with('-') || trimmed.chars().next().unwrap().is_ascii_digit() {
+        if trimmed.starts_with('-')
+            || trimmed
+                .chars()
+                .next()
+                .is_some_and(|c| c.is_ascii_digit())
+        {
             // Leading zeros like "05" are strings
             if trimmed.starts_with('0') && trimmed.len() > 1 {
-                let second_char = trimmed.chars().nth(1).unwrap();
-                if second_char.is_ascii_digit() {
-                    return Ok(Token::String(trimmed.to_string(), false));
+                if let Some(second_char) = trimmed.chars().nth(1) {
+                    if second_char.is_ascii_digit() {
+                        return Ok(Token::String(trimmed.to_string(), false));
+                    }
                 }
             }
 

@@ -2,13 +2,7 @@ use indexmap::IndexMap;
 
 use crate::{
     constants::QUOTED_KEY_MARKER,
-    types::{
-        is_identifier_segment,
-        JsonValue as Value,
-        PathExpansionMode,
-        ToonError,
-        ToonResult,
-    },
+    types::{is_identifier_segment, JsonValue as Value, PathExpansionMode, ToonError, ToonResult},
 };
 
 pub fn should_expand_key(key: &str, mode: PathExpansionMode) -> Option<Vec<String>> {
@@ -90,7 +84,7 @@ pub fn deep_merge_value(
         }
     } else {
         target.insert(first_key.clone(), Value::Object(IndexMap::new()));
-        match target.get_mut(first_key).unwrap() {
+        match target.get_mut(first_key).expect("key was just inserted") {
             Value::Object(obj) => obj,
             _ => unreachable!(),
         }

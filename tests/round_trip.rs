@@ -1,13 +1,7 @@
 use std::f64;
 
-use serde_json::{
-    json,
-    Value,
-};
-use toon_format::{
-    decode_default,
-    encode_default,
-};
+use serde_json::{json, Value};
+use toon_format::{decode_default, encode_default};
 
 #[test]
 fn test_comprehensive_round_trips() {

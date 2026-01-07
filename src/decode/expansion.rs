@@ -84,7 +84,7 @@ pub fn deep_merge_value(
         }
     } else {
         target.insert(first_key.clone(), Value::Object(IndexMap::new()));
-        match target.get_mut(first_key).unwrap() {
+        match target.get_mut(first_key).expect("key was just inserted") {
             Value::Object(obj) => obj,
             _ => unreachable!(),
         }

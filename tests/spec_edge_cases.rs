@@ -34,6 +34,13 @@ fn test_negative_leading_zero_string() {
 }
 
 #[test]
+fn test_field_list_delimiter_mismatch_strict() {
+    let input = "items[1|]{a,b}:\n  1,2";
+    let opts = DecodeOptions::new().with_strict(true);
+    assert!(decode::<serde_json::Value>(input, &opts).is_err());
+}
+
+#[test]
 fn test_unquoted_tab_rejected_in_strict() {
     let input = "val: a\tb";
     let result: Result<serde_json::Value, _> = decode_default(input);

@@ -4,12 +4,32 @@ use ryu::Buffer as RyuBuffer;
 use crate::types::Number;
 
 /// Format a number in TOON canonical form (no exponents, no trailing zeros).
+///
+/// # Examples
+/// ```
+/// use toon_format::types::Number;
+/// use toon_format::utils::number::format_canonical_number;
+///
+/// let n = Number::from(42i64);
+/// assert_eq!(format_canonical_number(&n), "42");
+/// ```
 pub fn format_canonical_number(n: &Number) -> String {
     let mut out = String::new();
     write_canonical_number_into(n, &mut out);
     out
 }
 
+/// Write a number in TOON canonical form into a buffer.
+///
+/// # Examples
+/// ```
+/// use toon_format::types::Number;
+/// use toon_format::utils::number::write_canonical_number_into;
+///
+/// let mut out = String::new();
+/// write_canonical_number_into(&Number::from(3.14f64), &mut out);
+/// assert!(out.starts_with("3.14"));
+/// ```
 pub fn write_canonical_number_into(n: &Number, out: &mut String) {
     match n {
         Number::PosInt(u) => write_u64(out, *u),

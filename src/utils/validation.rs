@@ -3,6 +3,14 @@ use serde_json::Value;
 use crate::types::{ToonError, ToonResult};
 
 /// Validate that nesting depth doesn't exceed the maximum.
+///
+/// # Examples
+/// ```
+/// use toon_format::utils::validation::validate_depth;
+///
+/// assert!(validate_depth(1, 2).is_ok());
+/// assert!(validate_depth(3, 2).is_err());
+/// ```
 pub fn validate_depth(depth: usize, max_depth: usize) -> ToonResult<()> {
     if depth > max_depth {
         return Err(ToonError::InvalidStructure(format!(
@@ -13,6 +21,14 @@ pub fn validate_depth(depth: usize, max_depth: usize) -> ToonResult<()> {
 }
 
 /// Validate that a field name is not empty.
+///
+/// # Examples
+/// ```
+/// use toon_format::utils::validation::validate_field_name;
+///
+/// assert!(validate_field_name("name").is_ok());
+/// assert!(validate_field_name("").is_err());
+/// ```
 pub fn validate_field_name(name: &str) -> ToonResult<()> {
     if name.is_empty() {
         return Err(ToonError::InvalidInput(
@@ -23,6 +39,15 @@ pub fn validate_field_name(name: &str) -> ToonResult<()> {
 }
 
 /// Recursively validate a JSON value and all nested fields.
+///
+/// # Examples
+/// ```
+/// use serde_json::json;
+/// use toon_format::utils::validation::validate_value;
+///
+/// assert!(validate_value(&json!({"name": "Ada"})).is_ok());
+/// assert!(validate_value(&json!({"": "bad"})).is_err());
+/// ```
 pub fn validate_value(value: &Value) -> ToonResult<()> {
     match value {
         Value::Object(obj) => {

@@ -1,7 +1,15 @@
 use crate::types::{ToonError, ToonResult};
 use std::collections::HashSet;
 
-/// Validate that array length matches expected value.
+/// Validate that an array length matches the header value.
+///
+/// # Examples
+/// ```
+/// use toon_format::decode::validation::validate_array_length;
+///
+/// assert!(validate_array_length(2, 2).is_ok());
+/// assert!(validate_array_length(2, 3).is_err());
+/// ```
 pub fn validate_array_length(expected: usize, actual: usize) -> ToonResult<()> {
     if expected != actual {
         return Err(ToonError::length_mismatch(expected, actual));
@@ -9,7 +17,15 @@ pub fn validate_array_length(expected: usize, actual: usize) -> ToonResult<()> {
     Ok(())
 }
 
-/// Validate that array length is non-negative.
+/// Validate that an array length is non-negative.
+///
+/// # Examples
+/// ```
+/// use toon_format::decode::validation::validate_array_length_non_negative;
+///
+/// assert!(validate_array_length_non_negative(0).is_ok());
+/// assert!(validate_array_length_non_negative(-1).is_err());
+/// ```
 pub fn validate_array_length_non_negative(length: i64) -> ToonResult<()> {
     if length < 0 {
         return Err(ToonError::InvalidInput(
@@ -19,7 +35,15 @@ pub fn validate_array_length_non_negative(length: i64) -> ToonResult<()> {
     Ok(())
 }
 
-/// Validate field list for tabular arrays (no duplicates, non-empty names).
+/// Validate that a tabular field list has unique entries.
+///
+/// # Examples
+/// ```
+/// use toon_format::decode::validation::validate_field_list;
+///
+/// let fields = vec!["a".to_string(), "b".to_string()];
+/// assert!(validate_field_list(&fields).is_ok());
+/// ```
 pub fn validate_field_list(fields: &[String]) -> ToonResult<()> {
     if fields.is_empty() {
         return Err(ToonError::InvalidInput(
@@ -44,7 +68,15 @@ pub fn validate_field_list(fields: &[String]) -> ToonResult<()> {
     Ok(())
 }
 
-/// Validate that a tabular row has the expected number of values.
+/// Validate that a tabular row length matches the header.
+///
+/// # Examples
+/// ```
+/// use toon_format::decode::validation::validate_row_length;
+///
+/// assert!(validate_row_length(1, 2, 2).is_ok());
+/// assert!(validate_row_length(1, 2, 1).is_err());
+/// ```
 pub fn validate_row_length(
     row_index: usize,
     expected_fields: usize,
@@ -58,7 +90,17 @@ pub fn validate_row_length(
     Ok(())
 }
 
-/// Validate that detected and expected delimiters match.
+/// Validate that the row delimiter matches the header.
+///
+/// # Examples
+/// ```
+/// use toon_format::decode::validation::validate_delimiter_consistency;
+/// use toon_format::Delimiter;
+///
+/// assert!(
+///     validate_delimiter_consistency(Some(Delimiter::Comma), Some(Delimiter::Comma)).is_ok()
+/// );
+/// ```
 pub fn validate_delimiter_consistency(
     detected: Option<crate::types::Delimiter>,
     expected: Option<crate::types::Delimiter>,

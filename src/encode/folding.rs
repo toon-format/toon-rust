@@ -3,6 +3,19 @@ use std::collections::HashSet;
 use crate::types::{is_identifier_segment, JsonValue as Value, KeyFoldingMode};
 
 /// Result of chain analysis for folding.
+///
+/// # Examples
+/// ```
+/// use std::collections::HashSet;
+/// use serde_json::json;
+/// use toon_format::encode::folding::analyze_foldable_chain;
+/// use toon_format::types::JsonValue;
+///
+/// let value: JsonValue = json!({"b": {"c": 1}}).into();
+/// let existing: HashSet<&str> = HashSet::new();
+/// let chain = analyze_foldable_chain("a", &value, usize::MAX, &existing).unwrap();
+/// assert_eq!(chain.folded_key, "a.b.c");
+/// ```
 pub struct FoldableChain<'a> {
     /// The folded key path (e.g., "a.b.c")
     pub folded_key: String,
@@ -23,6 +36,19 @@ fn is_single_key_object(value: &Value) -> Option<(&str, &Value)> {
 }
 
 /// Analyze if a key-value pair can be folded into dotted notation.
+///
+/// # Examples
+/// ```
+/// use std::collections::HashSet;
+/// use serde_json::json;
+/// use toon_format::encode::folding::analyze_foldable_chain;
+/// use toon_format::types::JsonValue;
+///
+/// let value: JsonValue = json!({"b": {"c": 1}}).into();
+/// let existing: HashSet<&str> = HashSet::new();
+/// let chain = analyze_foldable_chain("a", &value, usize::MAX, &existing).unwrap();
+/// assert_eq!(chain.depth_folded, 3);
+/// ```
 pub fn analyze_foldable_chain<'a>(
     key: &'a str,
     value: &'a Value,
@@ -78,6 +104,15 @@ pub fn analyze_foldable_chain<'a>(
     })
 }
 
+/// Return true when folding should be applied for the current mode.
+///
+/// # Examples
+/// ```
+/// use toon_format::encode::folding::should_fold;
+/// use toon_format::types::KeyFoldingMode;
+///
+/// assert!(!should_fold(KeyFoldingMode::Off, &None));
+/// ```
 pub fn should_fold(mode: KeyFoldingMode, chain: &Option<FoldableChain>) -> bool {
     match mode {
         KeyFoldingMode::Off => false,

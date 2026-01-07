@@ -25,6 +25,13 @@ use ratatui::{backend::CrosstermBackend, Terminal};
 /// Initialize and run the TUI application.
 ///
 /// Sets up terminal in raw mode, runs the app, then restores terminal state.
+///
+/// # Examples
+/// ```no_run
+/// use toon_format::tui::run;
+///
+/// run().unwrap();
+/// ```
 pub fn run() -> Result<()> {
     enable_raw_mode()?;
     let mut stdout = io::stdout();

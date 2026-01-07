@@ -12,9 +12,39 @@ use crate::tui::{
     theme::Theme,
 };
 
+/// Conversion history panel rendering.
+///
+/// # Examples
+/// ```no_run
+/// use ratatui::{backend::TestBackend, Terminal};
+/// use toon_format::tui::{components::HistoryPanel, state::AppState, theme::Theme};
+///
+/// let backend = TestBackend::new(80, 24);
+/// let mut terminal = Terminal::new(backend).unwrap();
+/// let app = AppState::new();
+/// let theme = Theme::default();
+/// terminal
+///     .draw(|f| HistoryPanel::render(f, f.area(), &app, &theme))
+///     .unwrap();
+/// ```
 pub struct HistoryPanel;
 
 impl HistoryPanel {
+    /// Render the conversion history panel.
+    ///
+    /// # Examples
+    /// ```no_run
+    /// use ratatui::{backend::TestBackend, Terminal};
+    /// use toon_format::tui::{components::HistoryPanel, state::AppState, theme::Theme};
+    ///
+    /// let backend = TestBackend::new(80, 24);
+    /// let mut terminal = Terminal::new(backend).unwrap();
+    /// let app = AppState::new();
+    /// let theme = Theme::default();
+    /// terminal
+    ///     .draw(|f| HistoryPanel::render(f, f.area(), &app, &theme))
+    ///     .unwrap();
+    /// ```
     pub fn render(f: &mut Frame, area: Rect, app: &AppState, theme: &Theme) {
         let block = Block::default()
             .borders(Borders::ALL)

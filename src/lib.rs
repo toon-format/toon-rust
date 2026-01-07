@@ -4,25 +4,33 @@
 //! designed for passing structured data to Large Language Models with
 //! significantly reduced token usage.
 //!
-//! This crate reserves the `toon-format` namespace for the official Rust
-//! implementation. Full implementation coming soon!
+//! This crate provides the official, spec-compliant Rust implementation of
+//! TOON v3.0, including library APIs plus the CLI/TUI (enabled by default).
+//!
+//! ## Numeric Precision
+//!
+//! - Integers within `i64` range are preserved exactly
+//! - Numbers outside `i64` range or with decimal points use `f64` (IEEE 754)
+//! - `NaN`, `Infinity`, and `-Infinity` are converted to `null`
+//!
+//! ## Example Usage
+//!
+//! ```rust
+//! use serde_json::json;
+//! use toon_format::{decode_default, encode_default};
+//!
+//! let data = json!({"name": "Alice", "age": 30});
+//! let toon = encode_default(&data)?;
+//! let decoded: serde_json::Value = decode_default(&toon)?;
+//! assert_eq!(decoded, data);
+//! # Ok::<(), toon_format::ToonError>(())
+//! ```
 //!
 //! ## Resources
 //!
-//! - [TOON Specification](https://github.com/johannschopplich/toon/blob/main/SPEC.md)
-//! - [Main Repository](https://github.com/johannschopplich/toon)
-//! - [Other Implementations](https://github.com/johannschopplich/toon#other-implementations)
-//!
-//! ## Example Usage (Future)
-//!
-//! ```ignore
-//! use toon_format::{encode, decode};
-//!
-//! let data = json!({"name": "Alice", "age": 30});
-//! let toon_string = encode(&data)?;
-//! let decoded = decode(&toon_string)?;
-//! # Ok::<(), toon_format::ToonError>(())
-//! ```
+//! - [TOON Specification](https://github.com/toon-format/spec/blob/main/SPEC.md)
+//! - [Main Repository](https://github.com/toon-format/toon)
+//! - [Other Implementations](https://github.com/toon-format/toon#other-implementations)
 #![warn(rustdoc::missing_crate_level_docs)]
 
 pub mod constants;

@@ -2,7 +2,15 @@
 
 use anyhow::{bail, Result};
 
-/// Parsed REPL command with inline data
+/// Parsed REPL command with inline data.
+///
+/// # Examples
+/// ```
+/// use toon_format::tui::repl_command::ReplCommand;
+///
+/// let cmd = ReplCommand::parse("encode {\"a\": 1}").unwrap();
+/// assert_eq!(cmd.name, "encode");
+/// ```
 #[derive(Debug, Clone)]
 pub struct ReplCommand {
     pub name: String,
@@ -17,6 +25,14 @@ impl ReplCommand {
     /// - `encode {"data": true}` - JSON inline
     /// - `decode name: Alice` - TOON inline
     /// - `encode $var` - Variable reference
+    ///
+    /// # Examples
+    /// ```
+    /// use toon_format::tui::repl_command::ReplCommand;
+    ///
+    /// let cmd = ReplCommand::parse("decode name: Alice").unwrap();
+    /// assert_eq!(cmd.inline_data, Some("name: Alice".to_string()));
+    /// ```
     pub fn parse(input: &str) -> Result<Self> {
         let input = input.trim();
         if input.is_empty() {
@@ -74,10 +90,28 @@ impl ReplCommand {
         })
     }
 
+    /// Return true if the command includes the given flag.
+    ///
+    /// # Examples
+    /// ```
+    /// use toon_format::tui::repl_command::ReplCommand;
+    ///
+    /// let cmd = ReplCommand::parse("encode {\"a\": 1} --fold-keys").unwrap();
+    /// assert!(cmd.has_flag("--fold-keys"));
+    /// ```
     pub fn has_flag(&self, flag: &str) -> bool {
         self.args.iter().any(|a| a == flag)
     }
 
+    /// Return the value for an option when present.
+    ///
+    /// # Examples
+    /// ```
+    /// use toon_format::tui::repl_command::ReplCommand;
+    ///
+    /// let cmd = ReplCommand::parse("encode {\"a\": 1} --indent 2").unwrap();
+    /// assert_eq!(cmd.get_option("--indent"), Some("2"));
+    /// ```
     pub fn get_option(&self, option: &str) -> Option<&str> {
         self.args
             .iter()

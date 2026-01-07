@@ -12,12 +12,29 @@ use ratatui::{
 use crate::tui::{state::AppState, theme::Theme};
 
 /// File browser state and rendering.
+///
+/// # Examples
+/// ```
+/// use toon_format::tui::components::FileBrowser;
+///
+/// let browser = FileBrowser::new();
+/// let _ = browser;
+/// ```
 pub struct FileBrowser {
     pub selected_index: usize,
     pub scroll_offset: usize,
 }
 
 impl FileBrowser {
+    /// Create a new file browser instance.
+    ///
+    /// # Examples
+    /// ```
+    /// use toon_format::tui::components::FileBrowser;
+    ///
+    /// let browser = FileBrowser::new();
+    /// let _ = browser;
+    /// ```
     pub fn new() -> Self {
         Self {
             selected_index: 0,
@@ -25,6 +42,15 @@ impl FileBrowser {
         }
     }
 
+    /// Move the selection up by one row.
+    ///
+    /// # Examples
+    /// ```
+    /// use toon_format::tui::components::FileBrowser;
+    ///
+    /// let mut browser = FileBrowser::new();
+    /// browser.move_up();
+    /// ```
     pub fn move_up(&mut self) {
         if self.selected_index > 0 {
             self.selected_index -= 1;
@@ -34,12 +60,31 @@ impl FileBrowser {
         }
     }
 
+    /// Move the selection down by one row.
+    ///
+    /// # Examples
+    /// ```
+    /// use toon_format::tui::components::FileBrowser;
+    ///
+    /// let mut browser = FileBrowser::new();
+    /// browser.move_down(10);
+    /// ```
     pub fn move_down(&mut self, max: usize) {
         if self.selected_index < max.saturating_sub(1) {
             self.selected_index += 1;
         }
     }
 
+    /// Return the selected entry for a directory.
+    ///
+    /// # Examples
+    /// ```
+    /// use std::path::Path;
+    /// use toon_format::tui::components::FileBrowser;
+    ///
+    /// let browser = FileBrowser::new();
+    /// let _ = browser.get_selected_entry(Path::new("."));
+    /// ```
     pub fn get_selected_entry(&self, dir: &std::path::Path) -> Option<std::path::PathBuf> {
         let entries = self.get_directory_entries(dir);
         if self.selected_index < entries.len() {
@@ -54,10 +99,36 @@ impl FileBrowser {
         }
     }
 
+    /// Return the number of entries for a directory.
+    ///
+    /// # Examples
+    /// ```
+    /// use std::path::Path;
+    /// use toon_format::tui::components::FileBrowser;
+    ///
+    /// let browser = FileBrowser::new();
+    /// let _ = browser.get_entry_count(Path::new("."));
+    /// ```
     pub fn get_entry_count(&self, dir: &std::path::Path) -> usize {
         self.get_directory_entries(dir).len()
     }
 
+    /// Render the file browser panel.
+    ///
+    /// # Examples
+    /// ```no_run
+    /// use ratatui::{backend::TestBackend, Terminal};
+    /// use toon_format::tui::{components::FileBrowser, state::AppState, theme::Theme};
+    ///
+    /// let backend = TestBackend::new(80, 24);
+    /// let mut terminal = Terminal::new(backend).unwrap();
+    /// let mut app = AppState::new();
+    /// let mut browser = FileBrowser::new();
+    /// let theme = Theme::default();
+    /// terminal
+    ///     .draw(|f| browser.render(f, f.area(), &app, &theme))
+    ///     .unwrap();
+    /// ```
     pub fn render(&mut self, f: &mut Frame, area: Rect, app: &AppState, theme: &Theme) {
         let block = Block::default()
             .borders(Borders::ALL)

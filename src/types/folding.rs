@@ -1,3 +1,12 @@
+/// Controls whether key folding is applied during encoding.
+///
+/// # Examples
+/// ```
+/// use toon_format::types::KeyFoldingMode;
+///
+/// let mode = KeyFoldingMode::Safe;
+/// let _ = mode;
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum KeyFoldingMode {
     /// No folding performed. All objects use standard nesting.
@@ -7,6 +16,15 @@ pub enum KeyFoldingMode {
     Safe,
 }
 
+/// Controls whether dotted keys are expanded during decoding.
+///
+/// # Examples
+/// ```
+/// use toon_format::types::PathExpansionMode;
+///
+/// let mode = PathExpansionMode::Off;
+/// let _ = mode;
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum PathExpansionMode {
     /// Dotted keys are treated as literal keys. No expansion.
@@ -16,8 +34,15 @@ pub enum PathExpansionMode {
     Safe,
 }
 
-/// Check if a key segment is a valid IdentifierSegment (stricter than unquoted
-/// keys).
+/// Check if a key segment is a valid IdentifierSegment (stricter than unquoted keys).
+///
+/// # Examples
+/// ```
+/// use toon_format::types::is_identifier_segment;
+///
+/// assert!(is_identifier_segment("user_name"));
+/// assert!(!is_identifier_segment("user.name"));
+/// ```
 pub fn is_identifier_segment(s: &str) -> bool {
     let bytes = s.as_bytes();
     if bytes.is_empty() {

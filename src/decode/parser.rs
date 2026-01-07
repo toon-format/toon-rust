@@ -27,6 +27,16 @@ enum ArrayParseContext {
 }
 
 /// Parser that builds JSON values from a sequence of tokens.
+///
+/// # Examples
+/// ```
+/// use toon_format::decode::parser::Parser;
+/// use toon_format::DecodeOptions;
+///
+/// let mut parser = Parser::new("a: 1", DecodeOptions::default()).unwrap();
+/// let value = parser.parse().unwrap();
+/// assert!(value.is_object());
+/// ```
 #[allow(unused)]
 pub struct Parser {
     scanner: Scanner,
@@ -39,6 +49,15 @@ pub struct Parser {
 
 impl Parser {
     /// Create a new parser with the given input and options.
+    ///
+    /// # Examples
+    /// ```
+    /// use toon_format::decode::parser::Parser;
+    /// use toon_format::DecodeOptions;
+    ///
+    /// let parser = Parser::new("a: 1", DecodeOptions::default()).unwrap();
+    /// let _ = parser;
+    /// ```
     pub fn new(input: &str, options: DecodeOptions) -> ToonResult<Self> {
         let input: Arc<str> = Arc::from(input);
         let mut scanner = Scanner::from_shared_input(input.clone());
@@ -59,6 +78,16 @@ impl Parser {
     }
 
     /// Parse the input into a JSON value.
+    ///
+    /// # Examples
+    /// ```
+    /// use toon_format::decode::parser::Parser;
+    /// use toon_format::DecodeOptions;
+    ///
+    /// let mut parser = Parser::new("a: 1", DecodeOptions::default()).unwrap();
+    /// let value = parser.parse().unwrap();
+    /// assert!(value.is_object());
+    /// ```
     pub fn parse(&mut self) -> ToonResult<Value> {
         if self.options.strict {
             self.validate_indentation(self.scanner.get_last_line_indent())?;

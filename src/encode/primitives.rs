@@ -1,3 +1,13 @@
+/// Returns true when a JSON value is a primitive.
+///
+/// # Examples
+/// ```
+/// use serde_json::json;
+/// use toon_format::encode::primitives::is_primitive;
+///
+/// assert!(is_primitive(&json!(42)));
+/// assert!(!is_primitive(&json!([1, 2])));
+/// ```
 pub fn is_primitive(value: &serde_json::Value) -> bool {
     matches!(
         value,
@@ -8,11 +18,30 @@ pub fn is_primitive(value: &serde_json::Value) -> bool {
     )
 }
 
+/// Returns true when every JSON value in the slice is a primitive.
+///
+/// # Examples
+/// ```
+/// use serde_json::json;
+/// use toon_format::encode::primitives::all_primitives;
+///
+/// assert!(all_primitives(&[json!(1), json!(2)]));
+/// assert!(!all_primitives(&[json!(1), json!({})]));
+/// ```
 pub fn all_primitives(values: &[serde_json::Value]) -> bool {
     values.iter().all(is_primitive)
 }
 
 /// Recursively normalize JSON values.
+///
+/// # Examples
+/// ```
+/// use serde_json::json;
+/// use toon_format::encode::primitives::normalize_value;
+///
+/// let value = json!({"a": [1, 2]});
+/// assert_eq!(normalize_value(value), json!({"a": [1, 2]}));
+/// ```
 pub fn normalize_value(value: serde_json::Value) -> serde_json::Value {
     match value {
         serde_json::Value::Null => serde_json::Value::Null,

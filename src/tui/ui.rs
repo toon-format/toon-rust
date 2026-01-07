@@ -16,6 +16,20 @@ use super::{
 use crate::types::{KeyFoldingMode, PathExpansionMode};
 
 /// Main render function - orchestrates all UI components.
+///
+/// # Examples
+/// ```no_run
+/// use ratatui::{backend::TestBackend, Terminal};
+/// use toon_format::tui::{ui, components::FileBrowser, state::AppState};
+///
+/// let backend = TestBackend::new(80, 24);
+/// let mut terminal = Terminal::new(backend).unwrap();
+/// let mut app = AppState::new();
+/// let mut file_browser = FileBrowser::new();
+/// terminal
+///     .draw(|f| ui::render(f, &mut app, &mut file_browser))
+///     .unwrap();
+/// ```
 pub fn render(f: &mut Frame, app: &mut AppState, file_browser: &mut FileBrowser) {
     let theme = app.theme;
 

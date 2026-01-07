@@ -2,9 +2,28 @@ use std::sync::Arc;
 use thiserror::Error;
 
 /// Result type alias for TOON operations.
+///
+/// # Examples
+/// ```
+/// use toon_format::types::ToonResult;
+///
+/// fn run() -> ToonResult<()> {
+///     Ok(())
+/// }
+///
+/// let _ = run();
+/// ```
 pub type ToonResult<T> = std::result::Result<T, ToonError>;
 
 /// Errors that can occur during TOON encoding or decoding.
+///
+/// # Examples
+/// ```
+/// use toon_format::ToonError;
+///
+/// let err = ToonError::InvalidInput("bad input".to_string());
+/// let _ = err;
+/// ```
 #[derive(Error, Debug, Clone, PartialEq)]
 pub enum ToonError {
     #[error("Invalid input: {0}")]
@@ -51,6 +70,14 @@ pub enum ToonError {
 
 /// Contextual information for error reporting, including source location
 /// and suggestions.
+///
+/// # Examples
+/// ```
+/// use toon_format::types::ErrorContext;
+///
+/// let ctx = ErrorContext::new("line: value");
+/// let _ = ctx;
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum ErrorContextSource {
     Inline {
@@ -172,6 +199,14 @@ fn extract_lines_to_strings(
 
 impl ErrorContext {
     /// Create a new error context with a source line.
+    ///
+    /// # Examples
+    /// ```
+    /// use toon_format::types::ErrorContext;
+    ///
+    /// let ctx = ErrorContext::new("line: value");
+    /// let _ = ctx;
+    /// ```
     pub fn new(source_line: impl Into<String>) -> Self {
         Self {
             source: ErrorContextSource::Inline {
@@ -185,6 +220,15 @@ impl ErrorContext {
     }
 
     /// Add preceding context lines.
+    ///
+    /// # Examples
+    /// ```
+    /// use toon_format::types::ErrorContext;
+    ///
+    /// let ctx = ErrorContext::new("line: value")
+    ///     .with_preceding_lines(vec!["prev".to_string()]);
+    /// let _ = ctx;
+    /// ```
     pub fn with_preceding_lines(mut self, lines: Vec<String>) -> Self {
         self.ensure_inline();
         if let ErrorContextSource::Inline {
@@ -197,6 +241,15 @@ impl ErrorContext {
     }
 
     /// Add following context lines.
+    ///
+    /// # Examples
+    /// ```
+    /// use toon_format::types::ErrorContext;
+    ///
+    /// let ctx = ErrorContext::new("line: value")
+    ///     .with_following_lines(vec!["next".to_string()]);
+    /// let _ = ctx;
+    /// ```
     pub fn with_following_lines(mut self, lines: Vec<String>) -> Self {
         self.ensure_inline();
         if let ErrorContextSource::Inline {
@@ -209,12 +262,30 @@ impl ErrorContext {
     }
 
     /// Add a suggestion message to help fix the error.
+    ///
+    /// # Examples
+    /// ```
+    /// use toon_format::types::ErrorContext;
+    ///
+    /// let ctx = ErrorContext::new("line: value")
+    ///     .with_suggestion("check spacing");
+    /// let _ = ctx;
+    /// ```
     pub fn with_suggestion(mut self, suggestion: impl Into<String>) -> Self {
         self.suggestion = Some(suggestion.into());
         self
     }
 
     /// Add a column indicator (caret) pointing to the error position.
+    ///
+    /// # Examples
+    /// ```
+    /// use toon_format::types::ErrorContext;
+    ///
+    /// let ctx = ErrorContext::new("line: value")
+    ///     .with_indicator(3);
+    /// let _ = ctx;
+    /// ```
     pub fn with_indicator(mut self, column: usize) -> Self {
         self.ensure_inline();
         if let ErrorContextSource::Inline { indicator, .. } = &mut self.source {
@@ -250,6 +321,16 @@ impl ErrorContext {
     }
 
     /// Create error context from a shared input buffer with lazy extraction.
+    ///
+    /// # Examples
+    /// ```
+    /// use std::sync::Arc;
+    /// use toon_format::types::ErrorContext;
+    ///
+    /// let input: Arc<str> = Arc::from("a: 1");
+    /// let ctx = ErrorContext::from_shared_input(input, 1, 1, 0).unwrap();
+    /// let _ = ctx;
+    /// ```
     pub fn from_shared_input(
         input: Arc<str>,
         line: usize,
@@ -274,6 +355,14 @@ impl ErrorContext {
 
     /// Create error context from input string with automatic context
     /// extraction.
+    ///
+    /// # Examples
+    /// ```
+    /// use toon_format::types::ErrorContext;
+    ///
+    /// let ctx = ErrorContext::from_input("a: 1", 1, 1, 0).unwrap();
+    /// let _ = ctx;
+    /// ```
     pub fn from_input(
         input: &str,
         line: usize,
@@ -286,6 +375,14 @@ impl ErrorContext {
 
 impl ToonError {
     /// Create a parse error at the given position.
+    ///
+    /// # Examples
+    /// ```
+    /// use toon_format::ToonError;
+    ///
+    /// let err = ToonError::parse_error(1, 2, "bad syntax");
+    /// let _ = err;
+    /// ```
     pub fn parse_error(line: usize, column: usize, message: impl Into<String>) -> Self {
         ToonError::ParseError {
             line,
@@ -296,6 +393,16 @@ impl ToonError {
     }
 
     /// Create a parse error with additional context information.
+    ///
+    /// # Examples
+    /// ```
+    /// use toon_format::ToonError;
+    /// use toon_format::types::ErrorContext;
+    ///
+    /// let ctx = ErrorContext::new("line: value");
+    /// let err = ToonError::parse_error_with_context(1, 1, "bad", ctx);
+    /// let _ = err;
+    /// ```
     pub fn parse_error_with_context(
         line: usize,
         column: usize,
@@ -311,11 +418,27 @@ impl ToonError {
     }
 
     /// Create an error for an invalid character.
+    ///
+    /// # Examples
+    /// ```
+    /// use toon_format::ToonError;
+    ///
+    /// let err = ToonError::invalid_char('?', 3);
+    /// let _ = err;
+    /// ```
     pub fn invalid_char(char: char, position: usize) -> Self {
         ToonError::InvalidCharacter { char, position }
     }
 
     /// Create an error for a type mismatch.
+    ///
+    /// # Examples
+    /// ```
+    /// use toon_format::ToonError;
+    ///
+    /// let err = ToonError::type_mismatch("object", "string");
+    /// let _ = err;
+    /// ```
     pub fn type_mismatch(expected: impl Into<String>, found: impl Into<String>) -> Self {
         ToonError::TypeMismatch {
             expected: expected.into(),
@@ -324,6 +447,14 @@ impl ToonError {
     }
 
     /// Create an error for array length mismatch.
+    ///
+    /// # Examples
+    /// ```
+    /// use toon_format::ToonError;
+    ///
+    /// let err = ToonError::length_mismatch(2, 3);
+    /// let _ = err;
+    /// ```
     pub fn length_mismatch(expected: usize, found: usize) -> Self {
         ToonError::LengthMismatch {
             expected,
@@ -333,6 +464,16 @@ impl ToonError {
     }
 
     /// Create an array length mismatch error with context.
+    ///
+    /// # Examples
+    /// ```
+    /// use toon_format::ToonError;
+    /// use toon_format::types::ErrorContext;
+    ///
+    /// let ctx = ErrorContext::new("items[2]: a,b");
+    /// let err = ToonError::length_mismatch_with_context(2, 3, ctx);
+    /// let _ = err;
+    /// ```
     pub fn length_mismatch_with_context(
         expected: usize,
         found: usize,
@@ -346,6 +487,16 @@ impl ToonError {
     }
 
     /// Add context to an error if it supports it.
+    ///
+    /// # Examples
+    /// ```
+    /// use toon_format::ToonError;
+    /// use toon_format::types::ErrorContext;
+    ///
+    /// let ctx = ErrorContext::new("line: value");
+    /// let err = ToonError::parse_error(1, 1, "bad").with_context(ctx);
+    /// let _ = err;
+    /// ```
     pub fn with_context(self, context: ErrorContext) -> Self {
         match self {
             ToonError::ParseError {
@@ -371,6 +522,15 @@ impl ToonError {
     }
 
     /// Add a suggestion to help fix the error.
+    ///
+    /// # Examples
+    /// ```
+    /// use toon_format::ToonError;
+    ///
+    /// let err = ToonError::parse_error(1, 1, "bad")
+    ///     .with_suggestion("check spacing");
+    /// let _ = err;
+    /// ```
     pub fn with_suggestion(self, suggestion: impl Into<String>) -> Self {
         let suggestion = suggestion.into();
         match self {

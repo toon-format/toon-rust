@@ -9,9 +9,39 @@ use ratatui::{
 
 use crate::tui::{state::AppState, theme::Theme};
 
+/// Statistics bar rendering.
+///
+/// # Examples
+/// ```no_run
+/// use ratatui::{backend::TestBackend, Terminal};
+/// use toon_format::tui::{components::StatsBar, state::AppState, theme::Theme};
+///
+/// let backend = TestBackend::new(80, 24);
+/// let mut terminal = Terminal::new(backend).unwrap();
+/// let app = AppState::new();
+/// let theme = Theme::default();
+/// terminal
+///     .draw(|f| StatsBar::render(f, f.area(), &app, &theme))
+///     .unwrap();
+/// ```
 pub struct StatsBar;
 
 impl StatsBar {
+    /// Render the statistics bar.
+    ///
+    /// # Examples
+    /// ```no_run
+    /// use ratatui::{backend::TestBackend, Terminal};
+    /// use toon_format::tui::{components::StatsBar, state::AppState, theme::Theme};
+    ///
+    /// let backend = TestBackend::new(80, 24);
+    /// let mut terminal = Terminal::new(backend).unwrap();
+    /// let app = AppState::new();
+    /// let theme = Theme::default();
+    /// terminal
+    ///     .draw(|f| StatsBar::render(f, f.area(), &app, &theme))
+    ///     .unwrap();
+    /// ```
     pub fn render(f: &mut Frame, area: Rect, app: &AppState, theme: &Theme) {
         if let Some(ref stats) = app.stats {
             let spans = vec![

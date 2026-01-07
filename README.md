@@ -2,13 +2,13 @@
 
 [![Crates.io](https://img.shields.io/crates/v/toon-format.svg)](https://crates.io/crates/toon-format)
 [![Documentation](https://docs.rs/toon-format/badge.svg)](https://docs.rs/toon-format)
-[![Spec v2.0](https://img.shields.io/badge/spec-v2.0-brightgreen.svg)](https://github.com/toon-format/spec/blob/main/SPEC.md)
+[![Spec v3.0](https://img.shields.io/badge/spec-v3.0-brightgreen.svg)](https://github.com/toon-format/spec/blob/main/SPEC.md)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 [![Tests](https://img.shields.io/badge/tests-%20passing-success.svg)]()
 
 **Token-Oriented Object Notation (TOON)** is a compact, human-readable format designed for passing structured data to Large Language Models with significantly reduced token usage.
 
-This crate provides the official, **spec-compliant Rust implementation** of TOON v2.0 with v1.5 optional features, offering both a library (`toon-format`) and a full-featured command-line tool (`toon`).
+This crate provides the official, **spec-compliant Rust implementation** of TOON v3.0 with v1.5 optional features, offering both a library (`toon-format`) and a full-featured command-line tool (`toon`).
 
 ## Quick Example
 
@@ -32,7 +32,7 @@ users[2]{id,name}:
 ## Features
 
 - **Generic API**: Works with any `Serialize`/`Deserialize` type - custom structs, enums, JSON values, and more
-- **Spec-Compliant**: Fully compliant with [TOON Specification v2.0](https://github.com/toon-format/spec/blob/main/SPEC.md)
+- **Spec-Compliant**: Fully compliant with [TOON Specification v3.0](https://github.com/toon-format/spec/blob/main/SPEC.md)
 - **v1.5 Optional Features**: Key folding and path expansion
 - **Safe & Performant**: Built with safe, fast Rust
 - **Powerful CLI**: Full-featured command-line tool
@@ -484,6 +484,8 @@ See [docs/TUI.md](docs/TUI.md) for complete documentation and keyboard shortcuts
 
 ## CLI Usage
 
+See [docs/CLI.md](docs/CLI.md) for the full option reference and behavior details.
+
 ### Basic Commands
 
 ```bash
@@ -494,6 +496,9 @@ toon data.toon        # Decode
 # Force mode
 toon -e data.txt      # Force encode
 toon -d output.txt    # Force decode
+
+# Write to a file
+toon input.json -o output.toon
 
 # Pipe from stdin
 cat data.json | toon
@@ -514,7 +519,7 @@ toon data.json --indent 4
 toon data.json --fold-keys
 toon data.json --fold-keys --flatten-depth 2
 
-# Show statistics
+# Show statistics (requires cli-stats feature)
 toon data.json --stats
 ```
 
@@ -596,25 +601,49 @@ match decode_strict::<Value>("items[3]: a,b") {
 
 ---
 
+## Numeric Precision
+
+This implementation handles numbers as follows:
+
+- **Integers**: Values within `i64` range (`-9,223,372,036,854,775,808` to
+  `9,223,372,036,854,775,807`) are preserved exactly
+- **Floating-point**: Numbers outside `i64` range or with decimal points use `f64`,
+  which provides ~15-17 significant digits of precision
+- **Safe integers**: For JavaScript interoperability, integers up to `2^53 - 1`
+  (9,007,199,254,740,991) are safe
+
+### Special Values
+
+| Input | TOON Output |
+|-------|-------------|
+| `NaN` | `null` |
+| `Infinity` | `null` |
+| `-Infinity` | `null` |
+
+These conversions follow the TOON specification requirement that all values must be
+JSON-compatible.
+
+---
+
 
 ## Examples
-Run with `cargo run --example examples` to see all examples:
-- `structs.rs` - Custom struct serialization
-- `tabular.rs` - Tabular array formatting
-- `arrays.rs` - Various array formats
-- `arrays_of_arrays.rs` - Nested arrays
-- `objects.rs` - Object encoding
-- `mixed_arrays.rs` - Mixed-type arrays
-- `delimiters.rs` - Custom delimiters
-- `round_trip.rs` - Encode/decode round-trips
-- `decode_strict.rs` - Strict validation
-- `empty_and_root.rs` - Edge cases
+Run a specific example with `cargo run --example <name>`:
+- `structs` - Custom struct serialization
+- `tabular` - Tabular array formatting
+- `arrays` - Various array formats
+- `arrays_of_arrays` - Nested arrays
+- `objects` - Object encoding
+- `mixed_arrays` - Mixed-type arrays
+- `delimiters` - Custom delimiters
+- `round_trip` - Encode/decode round-trips
+- `decode_strict` - Strict validation
+- `empty_and_root` - Edge cases
 
 ---
 
 ## Resources
 
-- 📖 [TOON Specification v2.0](https://github.com/toon-format/spec/blob/main/SPEC.md)
+- 📖 [TOON Specification v3.0](https://github.com/toon-format/spec/blob/main/SPEC.md)
 - 📦 [Crates.io Package](https://crates.io/crates/toon-format)
 - 📚 [API Documentation](https://docs.rs/toon-format)
 - 🔧 [Main Repository (JS/TS)](https://github.com/toon-format/toon)

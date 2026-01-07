@@ -1,21 +1,56 @@
 use crate::constants;
 
-/// Check if a string looks like a keyword or number (needs quoting).
+/// Returns true when a string looks like a keyword or number (needs quoting).
+///
+/// # Examples
+/// ```
+/// use toon_format::utils::literal::is_literal_like;
+///
+/// assert!(is_literal_like("null"));
+/// assert!(is_literal_like("123"));
+/// assert!(!is_literal_like("hello"));
+/// ```
 pub fn is_literal_like(s: &str) -> bool {
     is_keyword(s) || is_numeric_like(s)
 }
 
 #[inline]
+/// Returns true when the string matches a reserved TOON keyword.
+///
+/// # Examples
+/// ```
+/// use toon_format::utils::literal::is_keyword;
+///
+/// assert!(is_keyword("true"));
+/// assert!(!is_keyword("TRUE"));
+/// ```
 pub fn is_keyword(s: &str) -> bool {
     constants::is_keyword(s)
 }
 
 #[inline]
+/// Returns true when the character has structural meaning in TOON.
+///
+/// # Examples
+/// ```
+/// use toon_format::utils::literal::is_structural_char;
+///
+/// assert!(is_structural_char('['));
+/// assert!(!is_structural_char('a'));
+/// ```
 pub fn is_structural_char(ch: char) -> bool {
     constants::is_structural_char(ch)
 }
 
-/// Check if a string looks like a number (starts with digit, no leading zeros).
+/// Returns true when the string looks like a number (starts with digit, no leading zeros).
+///
+/// # Examples
+/// ```
+/// use toon_format::utils::literal::is_numeric_like;
+///
+/// assert!(is_numeric_like("3.14"));
+/// assert!(!is_numeric_like("01"));
+/// ```
 pub fn is_numeric_like(s: &str) -> bool {
     let bytes = s.as_bytes();
     if bytes.is_empty() {

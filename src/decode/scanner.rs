@@ -6,6 +6,14 @@ use crate::{
 };
 
 /// Tokens produced by the scanner during lexical analysis.
+///
+/// # Examples
+/// ```
+/// use toon_format::decode::scanner::Token;
+///
+/// let token = Token::Colon;
+/// let _ = token;
+/// ```
 #[derive(Debug, Clone, PartialEq)]
 pub enum Token {
     LeftBracket,
@@ -25,6 +33,14 @@ pub enum Token {
 }
 
 /// Scanner that tokenizes TOON input into a sequence of tokens.
+///
+/// # Examples
+/// ```
+/// use toon_format::decode::scanner::Scanner;
+///
+/// let scanner = Scanner::new("a: 1");
+/// let _ = scanner;
+/// ```
 pub struct Scanner {
     input: Arc<str>,
     position: usize,
@@ -47,10 +63,28 @@ struct CachedIndent {
 
 impl Scanner {
     /// Create a new scanner for the given input string.
+    ///
+    /// # Examples
+    /// ```
+    /// use toon_format::decode::scanner::Scanner;
+    ///
+    /// let scanner = Scanner::new("a: 1");
+    /// let _ = scanner;
+    /// ```
     pub fn new(input: &str) -> Self {
         Self::from_shared_input(Arc::from(input))
     }
 
+    /// Create a scanner from a shared input buffer.
+    ///
+    /// # Examples
+    /// ```
+    /// use std::sync::Arc;
+    /// use toon_format::decode::scanner::Scanner;
+    ///
+    /// let scanner = Scanner::from_shared_input(Arc::from("a: 1"));
+    /// let _ = scanner;
+    /// ```
     pub fn from_shared_input(input: Arc<str>) -> Self {
         Self {
             input,
@@ -67,32 +101,94 @@ impl Scanner {
     }
 
     /// Set the active delimiter for tokenizing array elements.
+    ///
+    /// # Examples
+    /// ```
+    /// use toon_format::decode::scanner::Scanner;
+    /// use toon_format::Delimiter;
+    ///
+    /// let mut scanner = Scanner::new("a: 1");
+    /// scanner.set_active_delimiter(Some(Delimiter::Pipe));
+    /// ```
     pub fn set_active_delimiter(&mut self, delimiter: Option<Delimiter>) {
         self.active_delimiter = delimiter;
     }
 
+    /// Enable or disable type coercion when scanning values.
+    ///
+    /// # Examples
+    /// ```
+    /// use toon_format::decode::scanner::Scanner;
+    ///
+    /// let mut scanner = Scanner::new("a: 1");
+    /// scanner.set_coerce_types(false);
+    /// ```
     pub fn set_coerce_types(&mut self, coerce_types: bool) {
         self.coerce_types = coerce_types;
     }
 
+    /// Configure indentation handling based on strictness and width.
+    ///
+    /// # Examples
+    /// ```
+    /// use toon_format::decode::scanner::Scanner;
+    ///
+    /// let mut scanner = Scanner::new("a: 1");
+    /// scanner.configure_indentation(true, 2);
+    /// ```
     pub fn configure_indentation(&mut self, strict: bool, indent_width: usize) {
         self.allow_tab_indent = !strict;
         self.indent_width = indent_width.max(1);
     }
 
     /// Get the current position (line, column).
+    ///
+    /// # Examples
+    /// ```
+    /// use toon_format::decode::scanner::Scanner;
+    ///
+    /// let scanner = Scanner::new("a: 1");
+    /// assert_eq!(scanner.current_position(), (1, 1));
+    /// ```
     pub fn current_position(&self) -> (usize, usize) {
         (self.line, self.column)
     }
 
+    /// Return the current line number.
+    ///
+    /// # Examples
+    /// ```
+    /// use toon_format::decode::scanner::Scanner;
+    ///
+    /// let scanner = Scanner::new("a: 1");
+    /// assert_eq!(scanner.get_line(), 1);
+    /// ```
     pub fn get_line(&self) -> usize {
         self.line
     }
 
+    /// Return the current column number.
+    ///
+    /// # Examples
+    /// ```
+    /// use toon_format::decode::scanner::Scanner;
+    ///
+    /// let scanner = Scanner::new("a: 1");
+    /// assert_eq!(scanner.get_column(), 1);
+    /// ```
     pub fn get_column(&self) -> usize {
         self.column
     }
 
+    /// Peek at the next character without advancing.
+    ///
+    /// # Examples
+    /// ```
+    /// use toon_format::decode::scanner::Scanner;
+    ///
+    /// let scanner = Scanner::new("a: 1");
+    /// assert_eq!(scanner.peek(), Some('a'));
+    /// ```
     pub fn peek(&self) -> Option<char> {
         let bytes = self.input.as_bytes();
         match bytes.get(self.position) {
@@ -102,10 +198,28 @@ impl Scanner {
         }
     }
 
+    /// Count leading spaces from the current position.
+    ///
+    /// # Examples
+    /// ```
+    /// use toon_format::decode::scanner::Scanner;
+    ///
+    /// let mut scanner = Scanner::new("  a: 1");
+    /// assert_eq!(scanner.count_leading_spaces(), 2);
+    /// ```
     pub fn count_leading_spaces(&mut self) -> usize {
         self.peek_indent()
     }
 
+    /// Count spaces immediately following a newline.
+    ///
+    /// # Examples
+    /// ```
+    /// use toon_format::decode::scanner::Scanner;
+    ///
+    /// let scanner = Scanner::new("\n  a: 1");
+    /// assert_eq!(scanner.count_spaces_after_newline(), 2);
+    /// ```
     pub fn count_spaces_after_newline(&self) -> usize {
         let mut idx = self.position;
         if self.input.as_bytes().get(idx) != Some(&b'\n') {
@@ -115,6 +229,15 @@ impl Scanner {
         self.count_indent_from(idx)
     }
 
+    /// Peek ahead by an offset without advancing.
+    ///
+    /// # Examples
+    /// ```
+    /// use toon_format::decode::scanner::Scanner;
+    ///
+    /// let scanner = Scanner::new("abc");
+    /// assert_eq!(scanner.peek_ahead(2), Some('c'));
+    /// ```
     pub fn peek_ahead(&self, offset: usize) -> Option<char> {
         let bytes = self.input.as_bytes();
         let mut idx = self.position;
@@ -136,6 +259,16 @@ impl Scanner {
         None
     }
 
+    /// Advance one character and return it.
+    ///
+    /// # Examples
+    /// ```
+    /// use toon_format::decode::scanner::Scanner;
+    ///
+    /// let mut scanner = Scanner::new("ab");
+    /// assert_eq!(scanner.advance(), Some('a'));
+    /// assert_eq!(scanner.advance(), Some('b'));
+    /// ```
     pub fn advance(&mut self) -> Option<char> {
         let bytes = self.input.as_bytes();
         match bytes.get(self.position) {
@@ -164,6 +297,16 @@ impl Scanner {
         }
     }
 
+    /// Skip contiguous space characters.
+    ///
+    /// # Examples
+    /// ```
+    /// use toon_format::decode::scanner::Scanner;
+    ///
+    /// let mut scanner = Scanner::new("  a");
+    /// scanner.skip_whitespace();
+    /// assert_eq!(scanner.peek(), Some('a'));
+    /// ```
     pub fn skip_whitespace(&mut self) {
         while let Some(ch) = self.peek() {
             if ch == ' ' {
@@ -218,6 +361,14 @@ impl Scanner {
     }
 
     /// Scan the next token from the input.
+    ///
+    /// # Examples
+    /// ```
+    /// use toon_format::decode::scanner::{Scanner, Token};
+    ///
+    /// let mut scanner = Scanner::new("[");
+    /// assert_eq!(scanner.scan_token().unwrap(), Token::LeftBracket);
+    /// ```
     pub fn scan_token(&mut self) -> ToonResult<Token> {
         if self.column == 1 {
             let mut indent_consumed = false;
@@ -450,6 +601,16 @@ impl Scanner {
         false
     }
 
+    /// Return the indentation count for the last scanned line.
+    ///
+    /// # Examples
+    /// ```
+    /// use toon_format::decode::scanner::Scanner;
+    ///
+    /// let mut scanner = Scanner::new("  a: 1");
+    /// let _ = scanner.scan_token();
+    /// let _ = scanner.get_last_line_indent();
+    /// ```
     pub fn get_last_line_indent(&self) -> usize {
         self.last_line_indent
     }
@@ -530,6 +691,16 @@ impl Scanner {
     /// Read the rest of the current line (until newline or EOF).
     /// Returns the content and any leading spaces between the current token
     /// and the rest of the line.
+    ///
+    /// # Examples
+    /// ```
+    /// use toon_format::decode::scanner::Scanner;
+    ///
+    /// let mut scanner = Scanner::new("  a: 1");
+    /// let (content, leading) = scanner.read_rest_of_line_with_space_info();
+    /// assert_eq!(leading, "  ");
+    /// assert!(content.contains("a: 1"));
+    /// ```
     pub fn read_rest_of_line_with_space_info(&mut self) -> (String, String) {
         let (content, leading_space) = self.read_rest_of_line_with_space_count();
         let mut spaces = String::with_capacity(leading_space);
@@ -540,6 +711,16 @@ impl Scanner {
     /// Read the rest of the current line (until newline or EOF).
     /// Returns the content and number of leading spaces between the current
     /// token and the rest of the line.
+    ///
+    /// # Examples
+    /// ```
+    /// use toon_format::decode::scanner::Scanner;
+    ///
+    /// let mut scanner = Scanner::new("  a: 1");
+    /// let (content, spaces) = scanner.read_rest_of_line_with_space_count();
+    /// assert_eq!(spaces, 2);
+    /// assert!(content.contains("a: 1"));
+    /// ```
     pub fn read_rest_of_line_with_space_count(&mut self) -> (String, usize) {
         let mut leading_space = 0usize;
         while matches!(self.peek(), Some(' ')) {
@@ -562,11 +743,28 @@ impl Scanner {
     }
 
     /// Read the rest of the current line (until newline or EOF).
+    ///
+    /// # Examples
+    /// ```
+    /// use toon_format::decode::scanner::Scanner;
+    ///
+    /// let mut scanner = Scanner::new("a: 1");
+    /// let content = scanner.read_rest_of_line();
+    /// assert!(content.contains("a: 1"));
+    /// ```
     pub fn read_rest_of_line(&mut self) -> String {
         self.read_rest_of_line_with_space_count().0
     }
 
     /// Parse a complete value string into a token.
+    ///
+    /// # Examples
+    /// ```
+    /// use toon_format::decode::scanner::{Scanner, Token};
+    ///
+    /// let scanner = Scanner::new("");
+    /// assert_eq!(scanner.parse_value_string("true").unwrap(), Token::Bool(true));
+    /// ```
     pub fn parse_value_string(&self, s: &str) -> ToonResult<Token> {
         let trimmed = s.trim();
 
@@ -668,6 +866,16 @@ impl Scanner {
         Ok(Token::String(trimmed.to_string(), false))
     }
 
+    /// Detect the delimiter used in the input.
+    ///
+    /// # Examples
+    /// ```
+    /// use toon_format::decode::scanner::Scanner;
+    /// use toon_format::Delimiter;
+    ///
+    /// let mut scanner = Scanner::new("a|b");
+    /// assert_eq!(scanner.detect_delimiter(), Some(Delimiter::Pipe));
+    /// ```
     pub fn detect_delimiter(&mut self) -> Option<Delimiter> {
         let saved_pos = self.position;
 

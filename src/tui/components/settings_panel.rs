@@ -12,9 +12,39 @@ use crate::{
     types::{Delimiter, Indent, KeyFoldingMode, PathExpansionMode},
 };
 
+/// Settings panel rendering.
+///
+/// # Examples
+/// ```no_run
+/// use ratatui::{backend::TestBackend, Terminal};
+/// use toon_format::tui::{components::SettingsPanel, state::AppState, theme::Theme};
+///
+/// let backend = TestBackend::new(80, 24);
+/// let mut terminal = Terminal::new(backend).unwrap();
+/// let app = AppState::new();
+/// let theme = Theme::default();
+/// terminal
+///     .draw(|f| SettingsPanel::render(f, f.area(), &app, &theme))
+///     .unwrap();
+/// ```
 pub struct SettingsPanel;
 
 impl SettingsPanel {
+    /// Render the settings panel.
+    ///
+    /// # Examples
+    /// ```no_run
+    /// use ratatui::{backend::TestBackend, Terminal};
+    /// use toon_format::tui::{components::SettingsPanel, state::AppState, theme::Theme};
+    ///
+    /// let backend = TestBackend::new(80, 24);
+    /// let mut terminal = Terminal::new(backend).unwrap();
+    /// let app = AppState::new();
+    /// let theme = Theme::default();
+    /// terminal
+    ///     .draw(|f| SettingsPanel::render(f, f.area(), &app, &theme))
+    ///     .unwrap();
+    /// ```
     pub fn render(f: &mut Frame, area: Rect, app: &AppState, theme: &Theme) {
         let block = Block::default()
             .borders(Borders::ALL)

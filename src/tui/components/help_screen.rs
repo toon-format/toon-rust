@@ -9,9 +9,37 @@ use ratatui::{
 
 use crate::tui::{keybindings::KeyBindings, theme::Theme};
 
+/// Help screen rendering.
+///
+/// # Examples
+/// ```no_run
+/// use ratatui::{backend::TestBackend, Terminal};
+/// use toon_format::tui::{components::HelpScreen, theme::Theme};
+///
+/// let backend = TestBackend::new(80, 24);
+/// let mut terminal = Terminal::new(backend).unwrap();
+/// let theme = Theme::default();
+/// terminal
+///     .draw(|f| HelpScreen::render(f, f.area(), &theme))
+///     .unwrap();
+/// ```
 pub struct HelpScreen;
 
 impl HelpScreen {
+    /// Render the help screen.
+    ///
+    /// # Examples
+    /// ```no_run
+    /// use ratatui::{backend::TestBackend, Terminal};
+    /// use toon_format::tui::{components::HelpScreen, theme::Theme};
+    ///
+    /// let backend = TestBackend::new(80, 24);
+    /// let mut terminal = Terminal::new(backend).unwrap();
+    /// let theme = Theme::default();
+    /// terminal
+    ///     .draw(|f| HelpScreen::render(f, f.area(), &theme))
+    ///     .unwrap();
+    /// ```
     pub fn render(f: &mut Frame, area: Rect, theme: &Theme) {
         let block = Block::default()
             .borders(Borders::ALL)

@@ -21,12 +21,29 @@ use crate::{
 use crate::tui::state::ConversionStats;
 
 /// Main TUI application managing state, events, and rendering.
+///
+/// # Examples
+/// ```no_run
+/// use toon_format::tui::app::TuiApp;
+///
+/// let mut app = TuiApp::new();
+/// let _ = app;
+/// ```
 pub struct TuiApp<'a> {
     pub app_state: AppState<'a>,
     pub file_browser: FileBrowser,
 }
 
 impl<'a> TuiApp<'a> {
+    /// Create a new TUI application with default state.
+    ///
+    /// # Examples
+    /// ```
+    /// use toon_format::tui::app::TuiApp;
+    ///
+    /// let app = TuiApp::new();
+    /// let _ = app;
+    /// ```
     pub fn new() -> Self {
         Self {
             app_state: AppState::new(),
@@ -34,6 +51,19 @@ impl<'a> TuiApp<'a> {
         }
     }
 
+    /// Run the application loop on the provided terminal.
+    ///
+    /// # Examples
+    /// ```no_run
+    /// use std::io::stdout;
+    /// use ratatui::{backend::CrosstermBackend, Terminal};
+    /// use toon_format::tui::app::TuiApp;
+    ///
+    /// let mut app = TuiApp::new();
+    /// let backend = CrosstermBackend::new(stdout());
+    /// let mut terminal = Terminal::new(backend).unwrap();
+    /// app.run(&mut terminal).unwrap();
+    /// ```
     pub fn run<B: ratatui::backend::Backend>(
         &mut self,
         terminal: &mut ratatui::Terminal<B>,

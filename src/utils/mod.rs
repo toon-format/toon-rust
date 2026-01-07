@@ -17,6 +17,14 @@ use rayon::prelude::*;
 use crate::types::{JsonValue as Value, Number};
 
 /// Context for determining when quoting is needed.
+///
+/// # Examples
+/// ```
+/// use toon_format::utils::QuotingContext;
+///
+/// let context = QuotingContext::ObjectValue;
+/// let _ = context;
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum QuotingContext {
     ObjectValue,
@@ -27,6 +35,16 @@ pub enum QuotingContext {
 const PARALLEL_THRESHOLD: usize = 256;
 
 /// Normalize a JSON value (converts NaN/Infinity to null, -0 to 0).
+///
+/// # Examples
+/// ```
+/// use serde_json::json;
+/// use toon_format::utils::normalize;
+///
+/// let value = json!(f64::NAN);
+/// let normalized = normalize(value.into());
+/// assert_eq!(serde_json::Value::from(normalized), json!(null));
+/// ```
 pub fn normalize(value: Value) -> Value {
     match value {
         Value::Number(n) => {

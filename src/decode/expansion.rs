@@ -5,6 +5,15 @@ use crate::{
     types::{is_identifier_segment, JsonValue as Value, PathExpansionMode, ToonError, ToonResult},
 };
 
+/// Determine whether a dotted key should be expanded.
+///
+/// # Examples
+/// ```
+/// use toon_format::decode::expansion::should_expand_key;
+/// use toon_format::types::PathExpansionMode;
+///
+/// assert_eq!(should_expand_key("a.b", PathExpansionMode::Safe), Some(vec!["a", "b"]));
+/// ```
 pub fn should_expand_key(key: &str, mode: PathExpansionMode) -> Option<Vec<&str>> {
     match mode {
         PathExpansionMode::Off => None,
@@ -40,6 +49,18 @@ pub fn should_expand_key(key: &str, mode: PathExpansionMode) -> Option<Vec<&str>
     }
 }
 
+/// Merge a value into a nested object based on path segments.
+///
+/// # Examples
+/// ```
+/// use indexmap::IndexMap;
+/// use serde_json::json;
+/// use toon_format::decode::expansion::deep_merge_value;
+/// use toon_format::types::JsonValue;
+///
+/// let mut target = IndexMap::new();
+/// deep_merge_value(&mut target, &["a", "b"], JsonValue::from(json!(1)), true).unwrap();
+/// ```
 pub fn deep_merge_value(
     target: &mut IndexMap<String, Value>,
     segments: &[&str],
@@ -99,6 +120,20 @@ pub fn deep_merge_value(
     deep_merge_value(nested_obj, remaining_segments, value, strict)
 }
 
+/// Expand dotted keys inside an object.
+///
+/// # Examples
+/// ```
+/// use indexmap::IndexMap;
+/// use serde_json::json;
+/// use toon_format::decode::expansion::expand_paths_in_object;
+/// use toon_format::types::{JsonValue, PathExpansionMode};
+///
+/// let mut obj = IndexMap::new();
+/// obj.insert("a.b".to_string(), JsonValue::from(json!(1)));
+/// let expanded = expand_paths_in_object(obj, PathExpansionMode::Safe, true).unwrap();
+/// assert!(expanded.contains_key("a"));
+/// ```
 pub fn expand_paths_in_object(
     obj: IndexMap<String, Value>,
     mode: PathExpansionMode,
@@ -140,6 +175,18 @@ pub fn expand_paths_in_object(
     Ok(result)
 }
 
+/// Recursively expand dotted keys within a JSON value.
+///
+/// # Examples
+/// ```
+/// use serde_json::json;
+/// use toon_format::decode::expansion::expand_paths_recursive;
+/// use toon_format::types::{JsonValue, PathExpansionMode};
+///
+/// let value = JsonValue::from(json!({"a.b": 1}));
+/// let expanded = expand_paths_recursive(value, PathExpansionMode::Safe, true).unwrap();
+/// assert!(expanded.is_object());
+/// ```
 pub fn expand_paths_recursive(
     value: Value,
     mode: PathExpansionMode,

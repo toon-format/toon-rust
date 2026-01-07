@@ -612,6 +612,12 @@ cargo fmt
 
 # Build docs
 cargo doc --open
+
+# Fuzz targets (requires nightly + cargo-fuzz)
+cargo install cargo-fuzz
+cargo +nightly fuzz build
+cargo +nightly fuzz run fuzz_decode -- -max_total_time=10
+cargo +nightly fuzz run fuzz_encode -- -max_total_time=10
 ```
 
 ---

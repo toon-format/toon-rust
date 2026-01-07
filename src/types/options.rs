@@ -1,10 +1,6 @@
 use crate::{
     constants::DEFAULT_INDENT,
-    types::{
-        Delimiter,
-        KeyFoldingMode,
-        PathExpansionMode,
-    },
+    types::{Delimiter, KeyFoldingMode, PathExpansionMode},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]

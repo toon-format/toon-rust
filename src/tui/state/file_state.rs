@@ -2,10 +2,7 @@
 
 use std::path::PathBuf;
 
-use chrono::{
-    DateTime,
-    Local,
-};
+use chrono::{DateTime, Local};
 
 /// A file or directory entry.
 #[derive(Debug, Clone)]

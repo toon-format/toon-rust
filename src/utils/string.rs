@@ -1,7 +1,4 @@
-use crate::{
-    types::Delimiter,
-    utils::literal,
-};
+use crate::{types::Delimiter, utils::literal};
 
 /// Escape special characters in a string for quoted output.
 pub fn escape_string(s: &str) -> String {
@@ -92,9 +89,7 @@ pub fn unescape_string(s: &str) -> Result<String, String> {
     Ok(result)
 }
 
-/// Check if a key can be written without quotes (alphanumeric, underscore,
-/// dot).
-pub fn is_valid_unquoted_key(key: &str) -> bool {
+fn is_valid_unquoted_key_internal(key: &str, allow_hyphen: bool) -> bool {
     if key.is_empty() {
         return false;
     }
@@ -106,11 +101,17 @@ pub fn is_valid_unquoted_key(key: &str) -> bool {
         return false;
     };
 
-    if !first.is_alphabetic() && first != '_' {
+    if !first.is_ascii_alphabetic() && first != '_' {
         return false;
     }
 
-    chars.all(|c| c.is_alphanumeric() || c == '_' || c == '.')
+    chars.all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '.' || (allow_hyphen && c == '-'))
+}
+
+/// Check if a key can be written without quotes (alphanumeric, underscore,
+/// dot).
+pub fn is_valid_unquoted_key(key: &str) -> bool {
+    is_valid_unquoted_key_internal(key, false)
 }
 
 /// Determine if a string needs quoting based on content and delimiter.

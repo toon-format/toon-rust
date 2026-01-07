@@ -1,42 +1,24 @@
-use std::{
-    fs,
-    path::PathBuf,
-    time::Duration,
-};
+use std::{fs, path::PathBuf, time::Duration};
 
-use anyhow::{
-    Context,
-    Result,
-};
-use chrono::Local;
-use crossterm::event::{
-    KeyCode,
-    KeyEvent,
-};
+use anyhow::{Context, Result};
+use crossterm::event::{KeyCode, KeyEvent};
+#[cfg(feature = "cli-stats")]
 use tiktoken_rs::cl100k_base;
 
 use crate::{
-    decode,
-    encode,
+    decode, encode,
     tui::{
         components::FileBrowser,
-        events::{
-            Event,
-            EventHandler,
-        },
-        keybindings::{
-            Action,
-            KeyBindings,
-        },
+        events::{Event, EventHandler},
+        keybindings::{Action, KeyBindings},
         repl_command::ReplCommand,
-        state::{
-            app_state::ConversionStats,
-            AppState,
-            ConversionHistory,
-        },
+        state::{now_timestamp, AppState, ConversionHistory},
         ui,
     },
 };
+
+#[cfg(feature = "cli-stats")]
+use crate::tui::state::ConversionStats;
 
 /// Main TUI application managing state, events, and rendering.
 pub struct TuiApp<'a> {
@@ -312,34 +294,48 @@ impl<'a> TuiApp<'a> {
                     self.app_state.editor.set_output(toon_str.clone());
                     self.app_state.clear_error();
 
-                    if let Ok(bpe) = cl100k_base() {
-                        let json_tokens = bpe.encode_with_special_tokens(input).len();
-                        let toon_tokens = bpe.encode_with_special_tokens(&toon_str).len();
-                        let json_bytes = input.len();
-                        let toon_bytes = toon_str.len();
+                    let json_bytes = input.len();
+                    let toon_bytes = toon_str.len();
+                    let byte_savings = if json_bytes == 0 {
+                        0.0
+                    } else {
+                        100.0 * (1.0 - (toon_bytes as f64 / json_bytes as f64))
+                    };
 
-                        let token_savings =
-                            100.0 * (1.0 - (toon_tokens as f64 / json_tokens as f64));
-                        let byte_savings = 100.0 * (1.0 - (toon_bytes as f64 / json_bytes as f64));
+                    let mut history_entry = ConversionHistory {
+                        timestamp: now_timestamp(),
+                        mode: "Encode".to_string(),
+                        input_file: self.app_state.file_state.current_file.clone(),
+                        output_file: None,
+                        token_savings: None,
+                        byte_savings: Some(byte_savings),
+                    };
 
-                        self.app_state.stats = Some(ConversionStats {
-                            json_tokens,
-                            toon_tokens,
-                            json_bytes,
-                            toon_bytes,
-                            token_savings,
-                            byte_savings,
-                        });
+                    self.app_state.stats = None;
 
-                        self.app_state.file_state.add_to_history(ConversionHistory {
-                            timestamp: Local::now(),
-                            mode: "Encode".to_string(),
-                            input_file: self.app_state.file_state.current_file.clone(),
-                            output_file: None,
-                            token_savings,
-                            byte_savings,
-                        });
+                    #[cfg(feature = "cli-stats")]
+                    {
+                        if let Ok(bpe) = cl100k_base() {
+                            let json_tokens = bpe.encode_with_special_tokens(input).len();
+                            let toon_tokens = bpe.encode_with_special_tokens(&toon_str).len();
+
+                            let token_savings =
+                                100.0 * (1.0 - (toon_tokens as f64 / json_tokens as f64));
+
+                            self.app_state.stats = Some(ConversionStats {
+                                json_tokens,
+                                toon_tokens,
+                                json_bytes,
+                                toon_bytes,
+                                token_savings,
+                                byte_savings,
+                            });
+
+                            history_entry.token_savings = Some(token_savings);
+                        }
                     }
+
+                    self.app_state.file_state.add_to_history(history_entry);
                 }
                 Err(e) => {
                     self.app_state.set_error(format!("Encode error: {e}"));
@@ -360,34 +356,48 @@ impl<'a> TuiApp<'a> {
                     self.app_state.editor.set_output(json_str.clone());
                     self.app_state.clear_error();
 
-                    if let Ok(bpe) = cl100k_base() {
-                        let toon_tokens = bpe.encode_with_special_tokens(input).len();
-                        let json_tokens = bpe.encode_with_special_tokens(&json_str).len();
-                        let toon_bytes = input.len();
-                        let json_bytes = json_str.len();
+                    let toon_bytes = input.len();
+                    let json_bytes = json_str.len();
+                    let byte_savings = if toon_bytes == 0 {
+                        0.0
+                    } else {
+                        100.0 * (1.0 - (toon_bytes as f64 / json_bytes as f64))
+                    };
 
-                        let token_savings =
-                            100.0 * (1.0 - (toon_tokens as f64 / json_tokens as f64));
-                        let byte_savings = 100.0 * (1.0 - (toon_bytes as f64 / json_bytes as f64));
+                    let mut history_entry = ConversionHistory {
+                        timestamp: now_timestamp(),
+                        mode: "Decode".to_string(),
+                        input_file: self.app_state.file_state.current_file.clone(),
+                        output_file: None,
+                        token_savings: None,
+                        byte_savings: Some(byte_savings),
+                    };
 
-                        self.app_state.stats = Some(ConversionStats {
-                            json_tokens,
-                            toon_tokens,
-                            json_bytes,
-                            toon_bytes,
-                            token_savings,
-                            byte_savings,
-                        });
+                    self.app_state.stats = None;
 
-                        self.app_state.file_state.add_to_history(ConversionHistory {
-                            timestamp: Local::now(),
-                            mode: "Decode".to_string(),
-                            input_file: self.app_state.file_state.current_file.clone(),
-                            output_file: None,
-                            token_savings,
-                            byte_savings,
-                        });
+                    #[cfg(feature = "cli-stats")]
+                    {
+                        if let Ok(bpe) = cl100k_base() {
+                            let toon_tokens = bpe.encode_with_special_tokens(input).len();
+                            let json_tokens = bpe.encode_with_special_tokens(&json_str).len();
+
+                            let token_savings =
+                                100.0 * (1.0 - (toon_tokens as f64 / json_tokens as f64));
+
+                            self.app_state.stats = Some(ConversionStats {
+                                json_tokens,
+                                toon_tokens,
+                                json_bytes,
+                                toon_bytes,
+                                token_savings,
+                                byte_savings,
+                            });
+
+                            history_entry.token_savings = Some(token_savings);
+                        }
                     }
+
+                    self.app_state.file_state.add_to_history(history_entry);
                 }
                 Err(e) => {
                     self.app_state
@@ -449,40 +459,60 @@ impl<'a> TuiApp<'a> {
             return Ok(());
         }
 
-        #[cfg(not(target_os = "unknown"))]
+        #[cfg(feature = "tui-clipboard")]
         {
-            use arboard::Clipboard;
-            let mut clipboard = Clipboard::new()?;
-            clipboard.set_text(output)?;
-            self.app_state.set_status("Copied to clipboard".to_string());
+            #[cfg(not(target_os = "unknown"))]
+            {
+                use arboard::Clipboard;
+                let mut clipboard = Clipboard::new()?;
+                clipboard.set_text(output)?;
+                self.app_state.set_status("Copied to clipboard".to_string());
+            }
+
+            #[cfg(target_os = "unknown")]
+            {
+                self.app_state
+                    .set_error("Clipboard not supported on this platform".to_string());
+            }
         }
 
-        #[cfg(target_os = "unknown")]
+        #[cfg(not(feature = "tui-clipboard"))]
         {
-            self.app_state
-                .set_error("Clipboard not supported on this platform".to_string());
+            self.app_state.set_error(
+                "Clipboard support disabled (enable the 'tui-clipboard' feature)".to_string(),
+            );
         }
 
         Ok(())
     }
 
     fn paste_from_clipboard(&mut self) -> Result<()> {
-        #[cfg(not(target_os = "unknown"))]
+        #[cfg(feature = "tui-clipboard")]
         {
-            use arboard::Clipboard;
-            let mut clipboard = Clipboard::new()?;
-            let text = clipboard.get_text()?;
-            self.app_state.editor.set_input(text);
-            self.app_state.file_state.mark_modified();
-            self.perform_conversion();
-            self.app_state
-                .set_status("Pasted from clipboard".to_string());
+            #[cfg(not(target_os = "unknown"))]
+            {
+                use arboard::Clipboard;
+                let mut clipboard = Clipboard::new()?;
+                let text = clipboard.get_text()?;
+                self.app_state.editor.set_input(text);
+                self.app_state.file_state.mark_modified();
+                self.perform_conversion();
+                self.app_state
+                    .set_status("Pasted from clipboard".to_string());
+            }
+
+            #[cfg(target_os = "unknown")]
+            {
+                self.app_state
+                    .set_error("Clipboard not supported on this platform".to_string());
+            }
         }
 
-        #[cfg(target_os = "unknown")]
+        #[cfg(not(feature = "tui-clipboard"))]
         {
-            self.app_state
-                .set_error("Clipboard not supported on this platform".to_string());
+            self.app_state.set_error(
+                "Clipboard support disabled (enable the 'tui-clipboard' feature)".to_string(),
+            );
         }
 
         Ok(())
@@ -570,19 +600,29 @@ impl<'a> TuiApp<'a> {
             return Ok(());
         }
 
-        #[cfg(not(target_os = "unknown"))]
+        #[cfg(feature = "tui-clipboard")]
         {
-            use arboard::Clipboard;
-            let mut clipboard = Clipboard::new()?;
-            clipboard.set_text(text)?;
-            self.app_state
-                .set_status("Copied selection to clipboard".to_string());
+            #[cfg(not(target_os = "unknown"))]
+            {
+                use arboard::Clipboard;
+                let mut clipboard = Clipboard::new()?;
+                clipboard.set_text(text)?;
+                self.app_state
+                    .set_status("Copied selection to clipboard".to_string());
+            }
+
+            #[cfg(target_os = "unknown")]
+            {
+                self.app_state
+                    .set_error("Clipboard not supported on this platform".to_string());
+            }
         }
 
-        #[cfg(target_os = "unknown")]
+        #[cfg(not(feature = "tui-clipboard"))]
         {
-            self.app_state
-                .set_error("Clipboard not supported on this platform".to_string());
+            self.app_state.set_error(
+                "Clipboard support disabled (enable the 'tui-clipboard' feature)".to_string(),
+            );
         }
 
         Ok(())

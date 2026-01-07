@@ -1,7 +1,6 @@
-use crate::types::{
-    Delimiter,
-    ToonError,
-    ToonResult,
+use crate::{
+    constants::DEFAULT_INDENT,
+    types::{Delimiter, ToonError, ToonResult},
 };
 
 /// Tokens produced by the scanner during lexical analysis.
@@ -31,6 +30,9 @@ pub struct Scanner {
     column: usize,
     active_delimiter: Option<Delimiter>,
     last_line_indent: usize,
+    coerce_types: bool,
+    indent_width: usize,
+    allow_tab_indent: bool,
 }
 
 impl Scanner {
@@ -43,12 +45,24 @@ impl Scanner {
             column: 1,
             active_delimiter: None,
             last_line_indent: 0,
+            coerce_types: true,
+            indent_width: DEFAULT_INDENT,
+            allow_tab_indent: false,
         }
     }
 
     /// Set the active delimiter for tokenizing array elements.
     pub fn set_active_delimiter(&mut self, delimiter: Option<Delimiter>) {
         self.active_delimiter = delimiter;
+    }
+
+    pub fn set_coerce_types(&mut self, coerce_types: bool) {
+        self.coerce_types = coerce_types;
+    }
+
+    pub fn configure_indentation(&mut self, strict: bool, indent_width: usize) {
+        self.allow_tab_indent = !strict;
+        self.indent_width = indent_width.max(1);
     }
 
     /// Get the current position (line, column).
@@ -69,17 +83,7 @@ impl Scanner {
     }
 
     pub fn count_leading_spaces(&self) -> usize {
-        let mut idx = self.position;
-        let mut count = 0;
-        while let Some(&ch) = self.input.get(idx) {
-            if ch == ' ' {
-                count += 1;
-                idx += 1;
-            } else {
-                break;
-            }
-        }
-        count
+        self.count_indent_from(self.position)
     }
 
     pub fn count_spaces_after_newline(&self) -> usize {
@@ -88,16 +92,7 @@ impl Scanner {
             return 0;
         }
         idx += 1;
-        let mut count = 0;
-        while let Some(&ch) = self.input.get(idx) {
-            if ch == ' ' {
-                count += 1;
-                idx += 1;
-            } else {
-                break;
-            }
-        }
-        count
+        self.count_indent_from(idx)
     }
 
     pub fn peek_ahead(&self, offset: usize) -> Option<char> {
@@ -129,26 +124,47 @@ impl Scanner {
         }
     }
 
+    fn count_indent_from(&self, mut idx: usize) -> usize {
+        let mut count = 0;
+        while let Some(&ch) = self.input.get(idx) {
+            match ch {
+                ' ' => {
+                    count += 1;
+                    idx += 1;
+                }
+                '\t' if self.allow_tab_indent => {
+                    count += self.indent_width;
+                    idx += 1;
+                }
+                _ => break,
+            }
+        }
+        count
+    }
+
     /// Scan the next token from the input.
     pub fn scan_token(&mut self) -> ToonResult<Token> {
         if self.column == 1 {
             let mut count = 0;
-            let mut idx = self.position;
-
-            while let Some(&ch) = self.input.get(idx) {
-                if ch == ' ' {
-                    count += 1;
-                    idx += 1;
-                } else {
-                    if ch == '\t' {
-                        let (line, col) = self.current_position();
-                        return Err(ToonError::parse_error(
-                            line,
-                            col + count,
-                            "Tabs are not allowed in indentation",
-                        ));
+            while let Some(ch) = self.peek() {
+                match ch {
+                    ' ' => {
+                        count += 1;
+                        self.advance();
                     }
-                    break;
+                    '\t' => {
+                        if !self.allow_tab_indent {
+                            let (line, col) = self.current_position();
+                            return Err(ToonError::parse_error(
+                                line,
+                                col + count,
+                                "Tabs are not allowed in indentation",
+                            ));
+                        }
+                        count += self.indent_width;
+                        self.advance();
+                    }
+                    _ => break,
                 }
             }
             self.last_line_indent = count;
@@ -297,6 +313,10 @@ impl Scanner {
             value.trim_end().to_string()
         };
 
+        if !self.coerce_types {
+            return Ok(Token::String(value, false));
+        }
+
         match value.as_str() {
             "null" => Ok(Token::Null),
             "true" => Ok(Token::Bool(true)),
@@ -330,6 +350,10 @@ impl Scanner {
     }
 
     fn parse_number(&self, s: &str) -> ToonResult<Token> {
+        if !self.coerce_types {
+            return Ok(Token::String(s.to_string(), false));
+        }
+
         // Number followed immediately by other chars like "0(f)" should be a string
         if let Some(next_ch) = self.peek() {
             if next_ch != ' '
@@ -352,9 +376,17 @@ impl Scanner {
 
         // Leading zeros like "05" are strings, but "0", "0.5", "-0" are numbers
         if s.starts_with('0') && s.len() > 1 {
-            let second_char = s.chars().nth(1).unwrap();
-            if second_char.is_ascii_digit() {
-                return Ok(Token::String(s.to_string(), false));
+            if let Some(second_char) = s.chars().nth(1) {
+                if second_char.is_ascii_digit() {
+                    return Ok(Token::String(s.to_string(), false));
+                }
+            }
+        }
+        if s.starts_with("-0") && s.len() > 2 {
+            if let Some(third_char) = s.chars().nth(2) {
+                if third_char.is_ascii_digit() {
+                    return Ok(Token::String(s.to_string(), false));
+                }
             }
         }
 
@@ -372,11 +404,14 @@ impl Scanner {
     }
 
     /// Read the rest of the current line (until newline or EOF).
-    /// Returns the content with a flag indicating if it started with
-    /// whitespace.
-    pub fn read_rest_of_line_with_space_info(&mut self) -> (String, bool) {
-        let had_leading_space = matches!(self.peek(), Some(' '));
-        self.skip_whitespace();
+    /// Returns the content and any leading spaces between the current token
+    /// and the rest of the line.
+    pub fn read_rest_of_line_with_space_info(&mut self) -> (String, String) {
+        let mut leading_space = String::new();
+        while matches!(self.peek(), Some(' ')) {
+            leading_space.push(' ');
+            self.advance();
+        }
 
         let mut result = String::new();
         while let Some(ch) = self.peek() {
@@ -387,7 +422,7 @@ impl Scanner {
             self.advance();
         }
 
-        (result.trim_end().to_string(), had_leading_space)
+        (result.trim_end().to_string(), leading_space)
     }
 
     /// Read the rest of the current line (until newline or EOF).
@@ -451,6 +486,10 @@ impl Scanner {
             ));
         }
 
+        if !self.coerce_types {
+            return Ok(Token::String(trimmed.to_string(), false));
+        }
+
         match trimmed {
             "true" => return Ok(Token::Bool(true)),
             "false" => return Ok(Token::Bool(false)),
@@ -458,12 +497,20 @@ impl Scanner {
             _ => {}
         }
 
-        if trimmed.starts_with('-') || trimmed.chars().next().unwrap().is_ascii_digit() {
-            // Leading zeros like "05" are strings
+        if trimmed.starts_with('-') || trimmed.chars().next().is_some_and(|c| c.is_ascii_digit()) {
+            // Leading zeros like "05" or "-05" are strings
             if trimmed.starts_with('0') && trimmed.len() > 1 {
-                let second_char = trimmed.chars().nth(1).unwrap();
-                if second_char.is_ascii_digit() {
-                    return Ok(Token::String(trimmed.to_string(), false));
+                if let Some(second_char) = trimmed.chars().nth(1) {
+                    if second_char.is_ascii_digit() {
+                        return Ok(Token::String(trimmed.to_string(), false));
+                    }
+                }
+            }
+            if trimmed.starts_with("-0") && trimmed.len() > 2 {
+                if let Some(third_char) = trimmed.chars().nth(2) {
+                    if third_char.is_ascii_digit() {
+                        return Ok(Token::String(trimmed.to_string(), false));
+                    }
                 }
             }
 
@@ -592,24 +639,24 @@ mod tests {
     #[test]
     fn test_read_rest_of_line_with_space_info() {
         let mut scanner = Scanner::new(" world");
-        let (content, had_space) = scanner.read_rest_of_line_with_space_info();
+        let (content, leading_space) = scanner.read_rest_of_line_with_space_info();
         assert_eq!(content, "world");
-        assert!(had_space);
+        assert_eq!(leading_space, " ");
 
         let mut scanner = Scanner::new("world");
-        let (content, had_space) = scanner.read_rest_of_line_with_space_info();
+        let (content, leading_space) = scanner.read_rest_of_line_with_space_info();
         assert_eq!(content, "world");
-        assert!(!had_space);
+        assert!(leading_space.is_empty());
 
         let mut scanner = Scanner::new("(hello)");
-        let (content, had_space) = scanner.read_rest_of_line_with_space_info();
+        let (content, leading_space) = scanner.read_rest_of_line_with_space_info();
         assert_eq!(content, "(hello)");
-        assert!(!had_space);
+        assert!(leading_space.is_empty());
 
         let mut scanner = Scanner::new("");
-        let (content, had_space) = scanner.read_rest_of_line_with_space_info();
+        let (content, leading_space) = scanner.read_rest_of_line_with_space_info();
         assert_eq!(content, "");
-        assert!(!had_space);
+        assert!(leading_space.is_empty());
     }
 
     #[test]

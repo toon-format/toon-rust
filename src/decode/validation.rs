@@ -1,13 +1,20 @@
-use crate::types::{
-    ToonError,
-    ToonResult,
-};
+use crate::types::{ToonError, ToonResult};
+use std::collections::HashSet;
 
 /// Validate that array length matches expected value.
 pub fn validate_array_length(expected: usize, actual: usize) -> ToonResult<()> {
-    // Array length mismatches should always error, regardless of strict mode
     if expected != actual {
         return Err(ToonError::length_mismatch(expected, actual));
+    }
+    Ok(())
+}
+
+/// Validate that array length is non-negative.
+pub fn validate_array_length_non_negative(length: i64) -> ToonResult<()> {
+    if length < 0 {
+        return Err(ToonError::InvalidInput(
+            "Array length must be non-negative".to_string(),
+        ));
     }
     Ok(())
 }
@@ -20,23 +27,17 @@ pub fn validate_field_list(fields: &[String]) -> ToonResult<()> {
         ));
     }
 
-    // Check for duplicate field names
-    for i in 0..fields.len() {
-        for j in (i + 1)..fields.len() {
-            if fields[i] == fields[j] {
-                return Err(ToonError::InvalidInput(format!(
-                    "Duplicate field name: '{}'",
-                    fields[i]
-                )));
-            }
-        }
-    }
-
+    let mut seen = HashSet::with_capacity(fields.len());
     for field in fields {
         if field.is_empty() {
             return Err(ToonError::InvalidInput(
                 "Field name cannot be empty".to_string(),
             ));
+        }
+        if !seen.insert(field.as_str()) {
+            return Err(ToonError::InvalidInput(format!(
+                "Duplicate field name: '{field}'"
+            )));
         }
     }
 
@@ -81,6 +82,13 @@ mod tests {
         assert!(validate_array_length(5, 3).is_err());
         assert!(validate_array_length(3, 5).is_err());
         assert!(validate_array_length(5, 5).is_ok());
+    }
+
+    #[test]
+    fn test_validate_array_length_non_negative() {
+        assert!(validate_array_length_non_negative(0).is_ok());
+        assert!(validate_array_length_non_negative(5).is_ok());
+        assert!(validate_array_length_non_negative(-1).is_err());
     }
 
     #[test]

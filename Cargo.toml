@@ -31,13 +31,14 @@ cli-stats = ["cli", "dep:tiktoken-rs", "dep:comfy-table"]
 tui = ["dep:anyhow", "dep:ratatui", "dep:crossterm", "dep:tui-textarea"]
 tui-clipboard = ["tui", "dep:arboard"]
 tui-time = ["tui", "dep:chrono"]
-parallel = []
+parallel = ["dep:rayon"]
 
 [dependencies]
 serde = { version = "1.0.228", features = ["derive"] }
 indexmap = "2.0"
 serde_json = { version = "1.0.145", features = ["preserve_order"] }
 thiserror = "2.0.17"
+rayon = { version = "1.10", optional = true }
 
 # CLI dependencies (gated behind "cli"/"cli-stats" features)
 clap = { version = "4.5.11", features = ["derive"], optional = true }
@@ -55,7 +56,12 @@ chrono = { version = "0.4", optional = true }
 [dev-dependencies]
 datatest-stable = "0.3.3"
 glob = "0.3"
+criterion = "0.5"
 
 [[test]]
 name = "spec_fixtures"
+harness = false
+
+[[bench]]
+name = "encode_decode"
 harness = false

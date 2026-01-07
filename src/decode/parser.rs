@@ -1,4 +1,5 @@
 use serde_json::{Map, Number, Value};
+use std::sync::Arc;
 
 use crate::{
     constants::{KEYWORDS, MAX_DEPTH, QUOTED_KEY_MARKER},
@@ -27,19 +28,20 @@ enum ArrayParseContext {
 
 /// Parser that builds JSON values from a sequence of tokens.
 #[allow(unused)]
-pub struct Parser<'a> {
+pub struct Parser {
     scanner: Scanner,
     current_token: Token,
     options: DecodeOptions,
     delimiter: Option<Delimiter>,
     delimiter_stack: Vec<Option<Delimiter>>,
-    input: &'a str,
+    input: Arc<str>,
 }
 
-impl<'a> Parser<'a> {
+impl Parser {
     /// Create a new parser with the given input and options.
-    pub fn new(input: &'a str, options: DecodeOptions) -> ToonResult<Self> {
-        let mut scanner = Scanner::new(input);
+    pub fn new(input: &str, options: DecodeOptions) -> ToonResult<Self> {
+        let input: Arc<str> = Arc::from(input);
+        let mut scanner = Scanner::from_shared_input(input.clone());
         let chosen_delim = options.delimiter;
         scanner.set_active_delimiter(chosen_delim);
         scanner.set_coerce_types(options.coerce_types);
@@ -1628,55 +1630,14 @@ impl<'a> Parser<'a> {
         let (line, column) = self.scanner.current_position();
         let message = message.into();
 
-        let context = self.get_error_context(line, column);
+        let context = ErrorContext::from_shared_input(self.input.clone(), line, column, 2)
+            .unwrap_or_else(|| ErrorContext::new(""));
 
         ToonError::ParseError {
             line,
             column,
             message,
             context: Some(Box::new(context)),
-        }
-    }
-
-    fn get_error_context(&self, line: usize, column: usize) -> ErrorContext {
-        let lines: Vec<&str> = self.input.lines().collect();
-
-        let source_line = if line > 0 && line <= lines.len() {
-            lines[line - 1].to_string()
-        } else {
-            String::new()
-        };
-
-        let preceding_lines: Vec<String> = if line > 1 {
-            lines[line.saturating_sub(3)..line - 1]
-                .iter()
-                .map(|s| s.to_string())
-                .collect()
-        } else {
-            Vec::new()
-        };
-
-        let following_lines: Vec<String> = if line < lines.len() {
-            lines[line..line.saturating_add(2).min(lines.len())]
-                .iter()
-                .map(|s| s.to_string())
-                .collect()
-        } else {
-            Vec::new()
-        };
-
-        let indicator = if column > 0 {
-            Some(format!("{:width$}^", "", width = column - 1))
-        } else {
-            None
-        };
-
-        ErrorContext {
-            source_line,
-            preceding_lines,
-            following_lines,
-            suggestion: None,
-            indicator,
         }
     }
 

@@ -1,42 +1,45 @@
+use std::collections::HashSet;
+
 use crate::types::{is_identifier_segment, JsonValue as Value, KeyFoldingMode};
 
 /// Result of chain analysis for folding.
-pub struct FoldableChain {
+pub struct FoldableChain<'a> {
     /// The folded key path (e.g., "a.b.c")
     pub folded_key: String,
     /// The leaf value at the end of the chain
-    pub leaf_value: Value,
+    pub leaf_value: &'a Value,
     /// Number of segments that were folded
     pub depth_folded: usize,
 }
 
 /// Check if a value is a single-key object suitable for folding.
-fn is_single_key_object(value: &Value) -> Option<(&String, &Value)> {
+fn is_single_key_object(value: &Value) -> Option<(&str, &Value)> {
     if let Value::Object(obj) = value {
         if obj.len() == 1 {
-            return obj.iter().next();
+            return obj.iter().next().map(|(key, val)| (key.as_str(), val));
         }
     }
     None
 }
 
 /// Analyze if a key-value pair can be folded into dotted notation.
-pub fn analyze_foldable_chain(
-    key: &str,
-    value: &Value,
+pub fn analyze_foldable_chain<'a>(
+    key: &'a str,
+    value: &'a Value,
     flatten_depth: usize,
-    existing_keys: &[&String],
-) -> Option<FoldableChain> {
+    existing_keys: &HashSet<&str>,
+) -> Option<FoldableChain<'a>> {
     if !is_identifier_segment(key) {
         return None;
     }
 
-    let mut segments = vec![key.to_string()];
+    let mut segments = Vec::with_capacity(4);
+    segments.push(key);
     let mut current_value = value;
 
     // Follow single-key object chain until we hit a multi-key object or leaf
     while let Some((next_key, next_value)) = is_single_key_object(current_value) {
-        if segments.len() >= flatten_depth {
+        if flatten_depth != usize::MAX && segments.len() >= flatten_depth {
             break;
         }
 
@@ -44,7 +47,7 @@ pub fn analyze_foldable_chain(
             break;
         }
 
-        segments.push(next_key.clone());
+        segments.push(next_key);
         current_value = next_value;
     }
 
@@ -53,16 +56,24 @@ pub fn analyze_foldable_chain(
         return None;
     }
 
-    let folded_key = segments.join(".");
+    let total_len =
+        segments.iter().map(|segment| segment.len()).sum::<usize>() + segments.len() - 1;
+    let mut folded_key = String::with_capacity(total_len);
+    for (idx, segment) in segments.iter().enumerate() {
+        if idx > 0 {
+            folded_key.push('.');
+        }
+        folded_key.push_str(segment);
+    }
 
     // Don't fold if it would collide with an existing key
-    if existing_keys.contains(&&folded_key) {
+    if existing_keys.contains(folded_key.as_str()) {
         return None;
     }
 
     Some(FoldableChain {
         folded_key,
-        leaf_value: current_value.clone(),
+        leaf_value: current_value,
         depth_folded: segments.len(),
     })
 }
@@ -77,6 +88,7 @@ pub fn should_fold(mode: KeyFoldingMode, chain: &Option<FoldableChain>) -> bool 
 #[cfg(test)]
 mod tests {
     use serde_json::json;
+    use std::collections::HashSet;
 
     use super::*;
 
@@ -95,7 +107,7 @@ mod tests {
     #[test]
     fn test_analyze_simple_chain() {
         let val = Value::from(json!({"b": {"c": 1}}));
-        let existing: Vec<&String> = vec![];
+        let existing: HashSet<&str> = HashSet::new();
 
         let result = analyze_foldable_chain("a", &val, usize::MAX, &existing);
         assert!(result.is_some());
@@ -103,13 +115,13 @@ mod tests {
         let chain = result.unwrap();
         assert_eq!(chain.folded_key, "a.b.c");
         assert_eq!(chain.depth_folded, 3);
-        assert_eq!(chain.leaf_value, Value::from(json!(1)));
+        assert_eq!(chain.leaf_value, &Value::from(json!(1)));
     }
 
     #[test]
     fn test_analyze_with_flatten_depth() {
         let val = Value::from(json!({"b": {"c": {"d": 1}}}));
-        let existing: Vec<&String> = vec![];
+        let existing: HashSet<&str> = HashSet::new();
 
         let result = analyze_foldable_chain("a", &val, 2, &existing);
         assert!(result.is_some());
@@ -122,7 +134,7 @@ mod tests {
     #[test]
     fn test_analyze_stops_at_multi_key() {
         let val = Value::from(json!({"b": {"c": 1, "d": 2}}));
-        let existing: Vec<&String> = vec![];
+        let existing: HashSet<&str> = HashSet::new();
 
         let result = analyze_foldable_chain("a", &val, usize::MAX, &existing);
         assert!(result.is_some());
@@ -135,7 +147,7 @@ mod tests {
     #[test]
     fn test_analyze_rejects_non_identifier() {
         let val = Value::from(json!({"c": 1}));
-        let existing: Vec<&String> = vec![];
+        let existing: HashSet<&str> = HashSet::new();
 
         let result = analyze_foldable_chain("bad-key", &val, usize::MAX, &existing);
         assert!(result.is_none());
@@ -145,7 +157,8 @@ mod tests {
     fn test_analyze_detects_collision() {
         let val = Value::from(json!({"b": 1}));
         let existing_key = String::from("a.b");
-        let existing: Vec<&String> = vec![&existing_key];
+        let mut existing: HashSet<&str> = HashSet::new();
+        existing.insert(existing_key.as_str());
 
         let result = analyze_foldable_chain("a", &val, usize::MAX, &existing);
         assert!(result.is_none());
@@ -154,7 +167,7 @@ mod tests {
     #[test]
     fn test_analyze_too_short_chain() {
         let val = Value::from(json!(42));
-        let existing: Vec<&String> = vec![];
+        let existing: HashSet<&str> = HashSet::new();
 
         let result = analyze_foldable_chain("a", &val, usize::MAX, &existing);
         assert!(result.is_none());

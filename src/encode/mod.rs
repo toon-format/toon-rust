@@ -3,6 +3,7 @@ pub mod folding;
 pub mod primitives;
 pub mod writer;
 use indexmap::IndexMap;
+use std::collections::HashSet;
 
 use crate::{
     constants::MAX_DEPTH,
@@ -59,11 +60,11 @@ pub fn encode<T: serde::Serialize>(value: &T, options: &EncodeOptions) -> ToonRe
     let json_value =
         serde_json::to_value(value).map_err(|e| ToonError::SerializationError(e.to_string()))?;
     let json_value: Value = json_value.into();
-    encode_impl(&json_value, options)
+    encode_impl(json_value, options)
 }
 
-fn encode_impl(value: &Value, options: &EncodeOptions) -> ToonResult<String> {
-    let normalized: Value = normalize(value.clone());
+fn encode_impl(value: Value, options: &EncodeOptions) -> ToonResult<String> {
+    let normalized: Value = normalize(value);
     let mut writer = writer::Writer::new(options.clone());
 
     match &normalized {
@@ -148,7 +149,7 @@ pub fn encode_object<V: IntoJsonValue>(value: V, options: &EncodeOptions) -> Too
             found: value_type_name(&json_value).to_string(),
         });
     }
-    encode_impl(&json_value, options)
+    encode_impl(json_value, options)
 }
 
 /// Encode a JSON array to TOON format (errors if not an array).
@@ -178,7 +179,7 @@ pub fn encode_array<V: IntoJsonValue>(value: V, options: &EncodeOptions) -> Toon
             found: value_type_name(&json_value).to_string(),
         });
     }
-    encode_impl(&json_value, options)
+    encode_impl(json_value, options)
 }
 
 fn value_type_name(value: &Value) -> &'static str {
@@ -209,26 +210,42 @@ fn write_object_impl(
     validate_depth(depth, MAX_DEPTH)?;
 
     let keys: Vec<&String> = obj.keys().collect();
+    let mut key_set: HashSet<&str> = HashSet::with_capacity(keys.len());
+    let mut prefix_conflicts: HashSet<&str> = HashSet::new();
+
+    for key in &keys {
+        key_set.insert(key.as_str());
+        if key.contains('.') {
+            let mut start = 0;
+            while let Some(pos) = key[start..].find('.') {
+                let end = start + pos;
+                if end > 0 {
+                    prefix_conflicts.insert(&key[..end]);
+                }
+                start = end + 1;
+            }
+        }
+    }
 
     for (i, key) in keys.iter().enumerate() {
         if i > 0 {
             writer.write_newline()?;
         }
 
-        let value = obj.get(*key).expect("key exists in field list");
+        let key = *key;
+        let key_str = key.as_str();
+        let value = obj.get(key).expect("key exists in field list");
 
         // Check if this key-value pair can be folded (v1.5 feature)
         // Don't fold if any sibling key is a dotted path starting with this key
         // (e.g., don't fold inside "data" if "data.meta.items" exists as a sibling)
-        let has_conflicting_sibling = keys
-            .iter()
-            .any(|k| k.starts_with(&format!("{key}.")) || (k.contains('.') && k == key));
+        let has_conflicting_sibling = key_str.contains('.') || prefix_conflicts.contains(key_str);
 
         let folded = if !disable_folding
             && writer.options.key_folding == KeyFoldingMode::Safe
             && !has_conflicting_sibling
         {
-            folding::analyze_foldable_chain(key, value, writer.options.flatten_depth, &keys)
+            folding::analyze_foldable_chain(key_str, value, writer.options.flatten_depth, &key_set)
         } else {
             None
         };
@@ -240,7 +257,7 @@ fn write_object_impl(
             }
 
             // Write the leaf value
-            match &chain.leaf_value {
+            match chain.leaf_value {
                 Value::Array(arr) => {
                     // For arrays, pass the folded key to write_array so it generates the header
                     // correctly
@@ -262,20 +279,20 @@ fn write_object_impl(
                     writer.write_key(&chain.folded_key)?;
                     writer.write_char(':')?;
                     writer.write_char(' ')?;
-                    write_primitive_value(writer, &chain.leaf_value, QuotingContext::ObjectValue)?;
+                    write_primitive_value(writer, chain.leaf_value, QuotingContext::ObjectValue)?;
                 }
             }
         } else {
             // Standard (non-folded) encoding
             match value {
                 Value::Array(arr) => {
-                    write_array(writer, Some(key), arr, depth)?;
+                    write_array(writer, Some(key_str), arr, depth)?;
                 }
                 Value::Object(nested_obj) => {
                     if depth > 0 {
                         writer.write_indent(depth)?;
                     }
-                    writer.write_key(key)?;
+                    writer.write_key(key_str)?;
                     writer.write_char(':')?;
                     if !nested_obj.is_empty() {
                         writer.write_newline()?;
@@ -289,7 +306,7 @@ fn write_object_impl(
                     if depth > 0 {
                         writer.write_indent(depth)?;
                     }
-                    writer.write_key(key)?;
+                    writer.write_key(key_str)?;
                     writer.write_char(':')?;
                     writer.write_char(' ')?;
                     write_primitive_value(writer, value, QuotingContext::ObjectValue)?;

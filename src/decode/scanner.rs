@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::{
     constants::DEFAULT_INDENT,
     types::{Delimiter, ToonError, ToonResult},
@@ -24,7 +26,7 @@ pub enum Token {
 
 /// Scanner that tokenizes TOON input into a sequence of tokens.
 pub struct Scanner {
-    input: Vec<char>,
+    input: Arc<str>,
     position: usize,
     line: usize,
     column: usize,
@@ -38,8 +40,12 @@ pub struct Scanner {
 impl Scanner {
     /// Create a new scanner for the given input string.
     pub fn new(input: &str) -> Self {
+        Self::from_shared_input(Arc::from(input))
+    }
+
+    pub fn from_shared_input(input: Arc<str>) -> Self {
         Self {
-            input: input.chars().collect(),
+            input,
             position: 0,
             line: 1,
             column: 1,
@@ -79,7 +85,7 @@ impl Scanner {
     }
 
     pub fn peek(&self) -> Option<char> {
-        self.input.get(self.position).copied()
+        self.input[self.position..].chars().next()
     }
 
     pub fn count_leading_spaces(&self) -> usize {
@@ -88,7 +94,7 @@ impl Scanner {
 
     pub fn count_spaces_after_newline(&self) -> usize {
         let mut idx = self.position;
-        if self.input.get(idx) != Some(&'\n') {
+        if self.input.as_bytes().get(idx) != Some(&b'\n') {
             return 0;
         }
         idx += 1;
@@ -96,19 +102,19 @@ impl Scanner {
     }
 
     pub fn peek_ahead(&self, offset: usize) -> Option<char> {
-        self.input.get(self.position + offset).copied()
+        self.input[self.position..].chars().nth(offset)
     }
 
     pub fn advance(&mut self) -> Option<char> {
-        if let Some(ch) = self.input.get(self.position) {
-            self.position += 1;
-            if *ch == '\n' {
+        if let Some(ch) = self.peek() {
+            self.position += ch.len_utf8();
+            if ch == '\n' {
                 self.line += 1;
                 self.column = 1;
             } else {
                 self.column += 1;
             }
-            Some(*ch)
+            Some(ch)
         } else {
             None
         }
@@ -126,13 +132,14 @@ impl Scanner {
 
     fn count_indent_from(&self, mut idx: usize) -> usize {
         let mut count = 0;
-        while let Some(&ch) = self.input.get(idx) {
-            match ch {
-                ' ' => {
+        let bytes = self.input.as_bytes();
+        while idx < bytes.len() {
+            match bytes[idx] {
+                b' ' => {
                     count += 1;
                     idx += 1;
                 }
-                '\t' if self.allow_tab_indent => {
+                b'\t' if self.allow_tab_indent => {
                     count += self.indent_width;
                     idx += 1;
                 }
@@ -307,11 +314,10 @@ impl Scanner {
         }
 
         // Single-char delimiters kept as-is, others trimmed
-        let value = if value.len() == 1 && (value == "," || value == "|" || value == "\t") {
-            value
-        } else {
-            value.trim_end().to_string()
-        };
+        if !(value.len() == 1 && (value == "," || value == "|" || value == "\t")) {
+            let trimmed_len = value.trim_end().len();
+            value.truncate(trimmed_len);
+        }
 
         if !self.coerce_types {
             return Ok(Token::String(value, false));
@@ -441,11 +447,11 @@ impl Scanner {
         if trimmed.starts_with('"') {
             let mut value = String::new();
             let mut escaped = false;
-            let chars: Vec<char> = trimmed.chars().collect();
-            let mut i = 1;
 
-            while i < chars.len() {
-                let ch = chars[i];
+            let mut chars = trimmed.char_indices();
+            chars.next();
+
+            for (idx, ch) in chars {
                 if escaped {
                     match ch {
                         'n' => value.push('\n'),
@@ -462,10 +468,16 @@ impl Scanner {
                         }
                     }
                     escaped = false;
-                } else if ch == '\\' {
+                    continue;
+                }
+
+                if ch == '\\' {
                     escaped = true;
-                } else if ch == '"' {
-                    if i != chars.len() - 1 {
+                    continue;
+                }
+
+                if ch == '"' {
+                    if idx + ch.len_utf8() != trimmed.len() {
                         return Err(ToonError::parse_error(
                             self.line,
                             self.column,
@@ -473,10 +485,9 @@ impl Scanner {
                         ));
                     }
                     return Ok(Token::String(value, true));
-                } else {
-                    value.push(ch);
                 }
-                i += 1;
+
+                value.push(ch);
             }
 
             return Err(ToonError::parse_error(

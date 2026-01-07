@@ -447,11 +447,7 @@ fn test_error_context_information() {
             ToonError::ParseError {
                 context: Some(ctx), ..
             } => {
-                println!(
-                    "Error context has {} preceding lines, {} following lines",
-                    ctx.preceding_lines.len(),
-                    ctx.following_lines.len()
-                );
+                println!("Parse error context:\n{ctx}");
             }
             ToonError::LengthMismatch {
                 context: Some(ctx), ..

@@ -215,7 +215,7 @@ fn write_object_impl(
             writer.write_newline()?;
         }
 
-        let value = &obj[*key];
+        let value = obj.get(*key).expect("key exists in field list");
 
         // Check if this key-value pair can be folded (v1.5 feature)
         // Don't fold if any sibling key is a dotted path starting with this key

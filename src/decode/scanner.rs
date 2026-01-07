@@ -1,7 +1,8 @@
-use crate::types::{
-    Delimiter,
-    ToonError,
-    ToonResult,
+use std::sync::Arc;
+
+use crate::{
+    constants::DEFAULT_INDENT,
+    types::{Delimiter, ToonError, ToonResult},
 };
 
 /// Tokens produced by the scanner during lexical analysis.
@@ -25,30 +26,58 @@ pub enum Token {
 
 /// Scanner that tokenizes TOON input into a sequence of tokens.
 pub struct Scanner {
-    input: Vec<char>,
+    input: Arc<str>,
     position: usize,
     line: usize,
     column: usize,
     active_delimiter: Option<Delimiter>,
     last_line_indent: usize,
+    cached_indent: Option<CachedIndent>,
+    coerce_types: bool,
+    indent_width: usize,
+    allow_tab_indent: bool,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct CachedIndent {
+    position: usize,
+    indent: usize,
+    chars: usize,
 }
 
 impl Scanner {
     /// Create a new scanner for the given input string.
     pub fn new(input: &str) -> Self {
+        Self::from_shared_input(Arc::from(input))
+    }
+
+    pub fn from_shared_input(input: Arc<str>) -> Self {
         Self {
-            input: input.chars().collect(),
+            input,
             position: 0,
             line: 1,
             column: 1,
             active_delimiter: None,
             last_line_indent: 0,
+            cached_indent: None,
+            coerce_types: true,
+            indent_width: DEFAULT_INDENT,
+            allow_tab_indent: false,
         }
     }
 
     /// Set the active delimiter for tokenizing array elements.
     pub fn set_active_delimiter(&mut self, delimiter: Option<Delimiter>) {
         self.active_delimiter = delimiter;
+    }
+
+    pub fn set_coerce_types(&mut self, coerce_types: bool) {
+        self.coerce_types = coerce_types;
+    }
+
+    pub fn configure_indentation(&mut self, strict: bool, indent_width: usize) {
+        self.allow_tab_indent = !strict;
+        self.indent_width = indent_width.max(1);
     }
 
     /// Get the current position (line, column).
@@ -65,57 +94,73 @@ impl Scanner {
     }
 
     pub fn peek(&self) -> Option<char> {
-        self.input.get(self.position).copied()
+        let bytes = self.input.as_bytes();
+        match bytes.get(self.position) {
+            Some(&byte) if byte.is_ascii() => Some(byte as char),
+            Some(_) => self.input[self.position..].chars().next(),
+            None => None,
+        }
     }
 
-    pub fn count_leading_spaces(&self) -> usize {
-        let mut idx = self.position;
-        let mut count = 0;
-        while let Some(&ch) = self.input.get(idx) {
-            if ch == ' ' {
-                count += 1;
-                idx += 1;
-            } else {
-                break;
-            }
-        }
-        count
+    pub fn count_leading_spaces(&mut self) -> usize {
+        self.peek_indent()
     }
 
     pub fn count_spaces_after_newline(&self) -> usize {
         let mut idx = self.position;
-        if self.input.get(idx) != Some(&'\n') {
+        if self.input.as_bytes().get(idx) != Some(&b'\n') {
             return 0;
         }
         idx += 1;
-        let mut count = 0;
-        while let Some(&ch) = self.input.get(idx) {
-            if ch == ' ' {
-                count += 1;
-                idx += 1;
-            } else {
-                break;
-            }
-        }
-        count
+        self.count_indent_from(idx)
     }
 
     pub fn peek_ahead(&self, offset: usize) -> Option<char> {
-        self.input.get(self.position + offset).copied()
+        let bytes = self.input.as_bytes();
+        let mut idx = self.position;
+        let mut remaining = offset;
+
+        while let Some(&byte) = bytes.get(idx) {
+            if byte.is_ascii() {
+                if remaining == 0 {
+                    return Some(byte as char);
+                }
+                idx += 1;
+                remaining -= 1;
+                continue;
+            }
+
+            return self.input[self.position..].chars().nth(offset);
+        }
+
+        None
     }
 
     pub fn advance(&mut self) -> Option<char> {
-        if let Some(ch) = self.input.get(self.position) {
-            self.position += 1;
-            if *ch == '\n' {
-                self.line += 1;
-                self.column = 1;
-            } else {
-                self.column += 1;
+        let bytes = self.input.as_bytes();
+        match bytes.get(self.position) {
+            Some(&byte) if byte.is_ascii() => {
+                self.position += 1;
+                if byte == b'\n' {
+                    self.line += 1;
+                    self.column = 1;
+                } else {
+                    self.column += 1;
+                }
+                Some(byte as char)
             }
-            Some(*ch)
-        } else {
-            None
+            Some(_) => {
+                let ch = self.input[self.position..].chars().next()?;
+                self.position += ch.len_utf8();
+                if ch == '\n' {
+                    self.line += 1;
+                    self.column = 1;
+                } else {
+                    self.column += 1;
+                }
+                Some(ch)
+            }
+            None => None,
         }
     }
 
@@ -129,29 +174,97 @@ impl Scanner {
         }
     }
 
+    fn count_indent_from(&self, mut idx: usize) -> usize {
+        self.count_indent_from_with_chars(&mut idx).0
+    }
+
+    fn count_indent_from_with_chars(&self, idx: &mut usize) -> (usize, usize) {
+        let mut count = 0;
+        let mut chars = 0;
+        let bytes = self.input.as_bytes();
+        while *idx < bytes.len() {
+            match bytes[*idx] {
+                b' ' => {
+                    count += 1;
+                    chars += 1;
+                    *idx += 1;
+                }
+                b'\t' if self.allow_tab_indent => {
+                    count += self.indent_width;
+                    chars += 1;
+                    *idx += 1;
+                }
+                _ => break,
+            }
+        }
+        (count, chars)
+    }
+
+    fn peek_indent(&mut self) -> usize {
+        if let Some(cached) = self.cached_indent {
+            if cached.position == self.position {
+                return cached.indent;
+            }
+        }
+
+        let mut idx = self.position;
+        let (indent, chars) = self.count_indent_from_with_chars(&mut idx);
+        self.cached_indent = Some(CachedIndent {
+            position: self.position,
+            indent,
+            chars,
+        });
+        indent
+    }
+
     /// Scan the next token from the input.
     pub fn scan_token(&mut self) -> ToonResult<Token> {
         if self.column == 1 {
-            let mut count = 0;
-            let mut idx = self.position;
-
-            while let Some(&ch) = self.input.get(idx) {
-                if ch == ' ' {
-                    count += 1;
-                    idx += 1;
-                } else {
-                    if ch == '\t' {
+            let mut indent_consumed = false;
+            if let Some(cached) = self.cached_indent.take() {
+                if cached.position == self.position {
+                    self.position += cached.chars;
+                    self.column += cached.chars;
+                    if !self.allow_tab_indent && matches!(self.peek(), Some('\t')) {
                         let (line, col) = self.current_position();
                         return Err(ToonError::parse_error(
                             line,
-                            col + count,
+                            col,
                             "Tabs are not allowed in indentation",
                         ));
                     }
-                    break;
+                    self.last_line_indent = cached.indent;
+                    indent_consumed = true;
+                } else {
+                    self.cached_indent = Some(cached);
                 }
             }
-            self.last_line_indent = count;
+
+            if !indent_consumed {
+                let mut count = 0;
+                while let Some(ch) = self.peek() {
+                    match ch {
+                        ' ' => {
+                            count += 1;
+                            self.advance();
+                        }
+                        '\t' => {
+                            if !self.allow_tab_indent {
+                                let (line, col) = self.current_position();
+                                return Err(ToonError::parse_error(
+                                    line,
+                                    col + count,
+                                    "Tabs are not allowed in indentation",
+                                ));
+                            }
+                            count += self.indent_width;
+                            self.advance();
+                        }
+                        _ => break,
+                    }
+                }
+                self.last_line_indent = count;
+            }
         }
 
         self.skip_whitespace();
@@ -264,38 +377,55 @@ impl Scanner {
 
     fn scan_unquoted_string(&mut self) -> ToonResult<Token> {
         let mut value = String::new();
+        let bytes = self.input.as_bytes();
+        let mut idx = self.position;
+        let mut start = idx;
 
-        while let Some(ch) = self.peek() {
-            if ch == '\n'
-                || ch == ' '
-                || ch == ':'
-                || ch == '['
-                || ch == ']'
-                || ch == '{'
-                || ch == '}'
-            {
-                break;
-            }
-
-            // Active delimiters stop the string; otherwise they're part of it
-            if let Some(active) = self.active_delimiter {
-                if (active == Delimiter::Comma && ch == ',')
-                    || (active == Delimiter::Pipe && ch == '|')
-                    || (active == Delimiter::Tab && ch == '\t')
-                {
+        while idx < bytes.len() {
+            let byte = bytes[idx];
+            if byte.is_ascii() {
+                let ch = byte as char;
+                if self.is_unquoted_terminator(ch) {
                     break;
                 }
+                idx += 1;
+                continue;
             }
-            value.push(ch);
-            self.advance();
+
+            if idx > start {
+                value.push_str(&self.input[start..idx]);
+                self.position = idx;
+                self.column += idx - start;
+            }
+
+            while let Some(ch) = self.peek() {
+                if self.is_unquoted_terminator(ch) {
+                    break;
+                }
+                value.push(ch);
+                self.advance();
+            }
+
+            start = self.position;
+            idx = self.position;
+            break;
+        }
+
+        if idx > start {
+            value.push_str(&self.input[start..idx]);
+            self.position = idx;
+            self.column += idx - start;
         }
 
         // Single-char delimiters kept as-is, others trimmed
-        let value = if value.len() == 1 && (value == "," || value == "|" || value == "\t") {
-            value
-        } else {
-            value.trim_end().to_string()
-        };
+        if !(value.len() == 1 && (value == "," || value == "|" || value == "\t")) {
+            let trimmed_len = value.trim_end().len();
+            value.truncate(trimmed_len);
+        }
+
+        if !self.coerce_types {
+            return Ok(Token::String(value, false));
+        }
 
         match value.as_str() {
             "null" => Ok(Token::Null),
@@ -305,16 +435,30 @@ impl Scanner {
         }
     }
 
+    fn is_unquoted_terminator(&self, ch: char) -> bool {
+        if matches!(ch, '\n' | ' ' | ':' | '[' | ']' | '{' | '}') {
+            return true;
+        }
+
+        if let Some(active) = self.active_delimiter {
+            return matches!(
+                (active, ch),
+                (Delimiter::Comma, ',') | (Delimiter::Pipe, '|') | (Delimiter::Tab, '\t')
+            );
+        }
+
+        false
+    }
+
     pub fn get_last_line_indent(&self) -> usize {
         self.last_line_indent
     }
 
     fn scan_number_string(&mut self, negative: bool) -> ToonResult<String> {
-        let mut num_str = if negative {
-            String::from("-")
-        } else {
-            String::new()
-        };
+        let mut num_str = String::with_capacity(32);
+        if negative {
+            num_str.push('-');
+        }
 
         while let Some(ch) = self.peek() {
             if ch.is_ascii_digit() || ch == '.' || ch == 'e' || ch == 'E' || ch == '+' || ch == '-'
@@ -330,6 +474,10 @@ impl Scanner {
     }
 
     fn parse_number(&self, s: &str) -> ToonResult<Token> {
+        if !self.coerce_types {
+            return Ok(Token::String(s.to_string(), false));
+        }
+
         // Number followed immediately by other chars like "0(f)" should be a string
         if let Some(next_ch) = self.peek() {
             if next_ch != ' '
@@ -352,9 +500,17 @@ impl Scanner {
 
         // Leading zeros like "05" are strings, but "0", "0.5", "-0" are numbers
         if s.starts_with('0') && s.len() > 1 {
-            let second_char = s.chars().nth(1).unwrap();
-            if second_char.is_ascii_digit() {
-                return Ok(Token::String(s.to_string(), false));
+            if let Some(second_char) = s.chars().nth(1) {
+                if second_char.is_ascii_digit() {
+                    return Ok(Token::String(s.to_string(), false));
+                }
+            }
+        }
+        if s.starts_with("-0") && s.len() > 2 {
+            if let Some(third_char) = s.chars().nth(2) {
+                if third_char.is_ascii_digit() {
+                    return Ok(Token::String(s.to_string(), false));
+                }
             }
         }
 
@@ -372,11 +528,24 @@ impl Scanner {
     }
 
     /// Read the rest of the current line (until newline or EOF).
-    /// Returns the content with a flag indicating if it started with
-    /// whitespace.
-    pub fn read_rest_of_line_with_space_info(&mut self) -> (String, bool) {
-        let had_leading_space = matches!(self.peek(), Some(' '));
-        self.skip_whitespace();
+    /// Returns the content and any leading spaces between the current token
+    /// and the rest of the line.
+    pub fn read_rest_of_line_with_space_info(&mut self) -> (String, String) {
+        let (content, leading_space) = self.read_rest_of_line_with_space_count();
+        let mut spaces = String::with_capacity(leading_space);
+        spaces.extend(std::iter::repeat_n(' ', leading_space));
+        (content, spaces)
+    }
+
+    /// Read the rest of the current line (until newline or EOF).
+    /// Returns the content and number of leading spaces between the current
+    /// token and the rest of the line.
+    pub fn read_rest_of_line_with_space_count(&mut self) -> (String, usize) {
+        let mut leading_space = 0usize;
+        while matches!(self.peek(), Some(' ')) {
+            leading_space += 1;
+            self.advance();
+        }
 
         let mut result = String::new();
         while let Some(ch) = self.peek() {
@@ -387,12 +556,14 @@ impl Scanner {
             self.advance();
         }
 
-        (result.trim_end().to_string(), had_leading_space)
+        let trimmed_len = result.trim_end().len();
+        result.truncate(trimmed_len);
+        (result, leading_space)
     }
 
     /// Read the rest of the current line (until newline or EOF).
     pub fn read_rest_of_line(&mut self) -> String {
-        self.read_rest_of_line_with_space_info().0
+        self.read_rest_of_line_with_space_count().0
     }
 
     /// Parse a complete value string into a token.
@@ -406,11 +577,11 @@ impl Scanner {
         if trimmed.starts_with('"') {
             let mut value = String::new();
             let mut escaped = false;
-            let chars: Vec<char> = trimmed.chars().collect();
-            let mut i = 1;
 
-            while i < chars.len() {
-                let ch = chars[i];
+            let mut chars = trimmed.char_indices();
+            chars.next();
+
+            for (idx, ch) in chars {
                 if escaped {
                     match ch {
                         'n' => value.push('\n'),
@@ -427,10 +598,16 @@ impl Scanner {
                         }
                     }
                     escaped = false;
-                } else if ch == '\\' {
+                    continue;
+                }
+
+                if ch == '\\' {
                     escaped = true;
-                } else if ch == '"' {
-                    if i != chars.len() - 1 {
+                    continue;
+                }
+
+                if ch == '"' {
+                    if idx + ch.len_utf8() != trimmed.len() {
                         return Err(ToonError::parse_error(
                             self.line,
                             self.column,
@@ -438,10 +615,9 @@ impl Scanner {
                         ));
                     }
                     return Ok(Token::String(value, true));
-                } else {
-                    value.push(ch);
                 }
-                i += 1;
+
+                value.push(ch);
             }
 
             return Err(ToonError::parse_error(
@@ -451,6 +627,10 @@ impl Scanner {
             ));
         }
 
+        if !self.coerce_types {
+            return Ok(Token::String(trimmed.to_string(), false));
+        }
+
         match trimmed {
             "true" => return Ok(Token::Bool(true)),
             "false" => return Ok(Token::Bool(false)),
@@ -458,12 +638,20 @@ impl Scanner {
             _ => {}
         }
 
-        if trimmed.starts_with('-') || trimmed.chars().next().unwrap().is_ascii_digit() {
-            // Leading zeros like "05" are strings
+        if trimmed.starts_with('-') || trimmed.chars().next().is_some_and(|c| c.is_ascii_digit()) {
+            // Leading zeros like "05" or "-05" are strings
             if trimmed.starts_with('0') && trimmed.len() > 1 {
-                let second_char = trimmed.chars().nth(1).unwrap();
-                if second_char.is_ascii_digit() {
-                    return Ok(Token::String(trimmed.to_string(), false));
+                if let Some(second_char) = trimmed.chars().nth(1) {
+                    if second_char.is_ascii_digit() {
+                        return Ok(Token::String(trimmed.to_string(), false));
+                    }
+                }
+            }
+            if trimmed.starts_with("-0") && trimmed.len() > 2 {
+                if let Some(third_char) = trimmed.chars().nth(2) {
+                    if third_char.is_ascii_digit() {
+                        return Ok(Token::String(trimmed.to_string(), false));
+                    }
                 }
             }
 
@@ -592,24 +780,47 @@ mod tests {
     #[test]
     fn test_read_rest_of_line_with_space_info() {
         let mut scanner = Scanner::new(" world");
-        let (content, had_space) = scanner.read_rest_of_line_with_space_info();
+        let (content, leading_space) = scanner.read_rest_of_line_with_space_info();
         assert_eq!(content, "world");
-        assert!(had_space);
+        assert_eq!(leading_space, " ");
 
         let mut scanner = Scanner::new("world");
-        let (content, had_space) = scanner.read_rest_of_line_with_space_info();
+        let (content, leading_space) = scanner.read_rest_of_line_with_space_info();
         assert_eq!(content, "world");
-        assert!(!had_space);
+        assert!(leading_space.is_empty());
 
         let mut scanner = Scanner::new("(hello)");
-        let (content, had_space) = scanner.read_rest_of_line_with_space_info();
+        let (content, leading_space) = scanner.read_rest_of_line_with_space_info();
         assert_eq!(content, "(hello)");
-        assert!(!had_space);
+        assert!(leading_space.is_empty());
 
         let mut scanner = Scanner::new("");
-        let (content, had_space) = scanner.read_rest_of_line_with_space_info();
+        let (content, leading_space) = scanner.read_rest_of_line_with_space_info();
         assert_eq!(content, "");
-        assert!(!had_space);
+        assert!(leading_space.is_empty());
+    }
+
+    #[test]
+    fn test_read_rest_of_line_with_space_count() {
+        let mut scanner = Scanner::new(" world");
+        let (content, leading_space) = scanner.read_rest_of_line_with_space_count();
+        assert_eq!(content, "world");
+        assert_eq!(leading_space, 1);
+
+        let mut scanner = Scanner::new("world");
+        let (content, leading_space) = scanner.read_rest_of_line_with_space_count();
+        assert_eq!(content, "world");
+        assert_eq!(leading_space, 0);
+
+        let mut scanner = Scanner::new("(hello)");
+        let (content, leading_space) = scanner.read_rest_of_line_with_space_count();
+        assert_eq!(content, "(hello)");
+        assert_eq!(leading_space, 0);
+
+        let mut scanner = Scanner::new("");
+        let (content, leading_space) = scanner.read_rest_of_line_with_space_count();
+        assert_eq!(content, "");
+        assert_eq!(leading_space, 0);
     }
 
     #[test]

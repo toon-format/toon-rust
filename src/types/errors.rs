@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use thiserror::Error;
 
 /// Result type alias for TOON operations.
@@ -51,30 +52,82 @@ pub enum ToonError {
 /// Contextual information for error reporting, including source location
 /// and suggestions.
 #[derive(Debug, Clone, PartialEq, Eq)]
+enum ErrorContextSource {
+    Inline {
+        source_line: String,
+        preceding_lines: Vec<String>,
+        following_lines: Vec<String>,
+        indicator: Option<String>,
+    },
+    Lazy {
+        input: Arc<str>,
+        line: usize,
+        column: usize,
+        context_lines: usize,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ErrorContext {
-    pub source_line: String,
-    pub preceding_lines: Vec<String>,
-    pub following_lines: Vec<String>,
+    source: ErrorContextSource,
     pub suggestion: Option<String>,
-    pub indicator: Option<String>,
 }
 
 impl std::fmt::Display for ErrorContext {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "\nContext:")?;
 
-        for line in &self.preceding_lines {
-            writeln!(f, "  {line}")?;
-        }
+        match &self.source {
+            ErrorContextSource::Inline {
+                source_line,
+                preceding_lines,
+                following_lines,
+                indicator,
+            } => {
+                for line in preceding_lines {
+                    writeln!(f, "  {line}")?;
+                }
 
-        writeln!(f, "> {}", self.source_line)?;
+                writeln!(f, "> {source_line}")?;
 
-        if let Some(indicator) = &self.indicator {
-            writeln!(f, "  {indicator}")?;
-        }
+                if let Some(indicator) = indicator {
+                    writeln!(f, "  {indicator}")?;
+                }
 
-        for line in &self.following_lines {
-            writeln!(f, "  {line}")?;
+                for line in following_lines {
+                    writeln!(f, "  {line}")?;
+                }
+            }
+            ErrorContextSource::Lazy {
+                input,
+                line,
+                column,
+                context_lines,
+            } => {
+                let lines: Vec<&str> = input.lines().collect();
+                if *line == 0 || *line > lines.len() {
+                    return Ok(());
+                }
+
+                let line_idx = line - 1;
+                let start_line = line_idx.saturating_sub(*context_lines);
+                let end_line = (line_idx + context_lines + 1).min(lines.len());
+
+                for line in &lines[start_line..line_idx] {
+                    writeln!(f, "  {line}")?;
+                }
+
+                writeln!(f, "> {}", lines[line_idx])?;
+
+                if *column > 0 {
+                    let indicator = " ".repeat(column.saturating_sub(1));
+                    writeln!(f, "  {indicator}^")?;
+                }
+
+                for line in &lines[(line_idx + 1)..end_line] {
+                    writeln!(f, "  {line}")?;
+                }
+            }
         }
 
         if let Some(suggestion) = &self.suggestion {
@@ -87,27 +140,71 @@ impl std::fmt::Display for ErrorContext {
 
 impl std::error::Error for ErrorContext {}
 
+fn extract_lines_to_strings(
+    input: &str,
+    line: usize,
+    context_lines: usize,
+) -> (String, Vec<String>, Vec<String>) {
+    let lines: Vec<&str> = input.lines().collect();
+
+    if line == 0 || line > lines.len() {
+        return (String::new(), Vec::new(), Vec::new());
+    }
+
+    let line_idx = line - 1;
+    let source_line = lines.get(line_idx).unwrap_or(&"").to_string();
+
+    let start_line = line_idx.saturating_sub(context_lines);
+    let end_line = (line_idx + context_lines + 1).min(lines.len());
+
+    let preceding_lines = lines[start_line..line_idx]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+
+    let following_lines = lines[(line_idx + 1)..end_line]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+
+    (source_line, preceding_lines, following_lines)
+}
+
 impl ErrorContext {
     /// Create a new error context with a source line.
     pub fn new(source_line: impl Into<String>) -> Self {
         Self {
-            source_line: source_line.into(),
-            preceding_lines: Vec::new(),
-            following_lines: Vec::new(),
+            source: ErrorContextSource::Inline {
+                source_line: source_line.into(),
+                preceding_lines: Vec::new(),
+                following_lines: Vec::new(),
+                indicator: None,
+            },
             suggestion: None,
-            indicator: None,
         }
     }
 
     /// Add preceding context lines.
     pub fn with_preceding_lines(mut self, lines: Vec<String>) -> Self {
-        self.preceding_lines = lines;
+        self.ensure_inline();
+        if let ErrorContextSource::Inline {
+            preceding_lines, ..
+        } = &mut self.source
+        {
+            *preceding_lines = lines;
+        }
         self
     }
 
     /// Add following context lines.
     pub fn with_following_lines(mut self, lines: Vec<String>) -> Self {
-        self.following_lines = lines;
+        self.ensure_inline();
+        if let ErrorContextSource::Inline {
+            following_lines, ..
+        } = &mut self.source
+        {
+            *following_lines = lines;
+        }
         self
     }
 
@@ -119,9 +216,60 @@ impl ErrorContext {
 
     /// Add a column indicator (caret) pointing to the error position.
     pub fn with_indicator(mut self, column: usize) -> Self {
-        let indicator = format!("{}^", " ".repeat(column));
-        self.indicator = Some(indicator);
+        self.ensure_inline();
+        if let ErrorContextSource::Inline { indicator, .. } = &mut self.source {
+            let indicator_value = format!("{}^", " ".repeat(column.saturating_sub(1)));
+            *indicator = Some(indicator_value);
+        }
         self
+    }
+
+    fn ensure_inline(&mut self) {
+        if let ErrorContextSource::Lazy {
+            input,
+            line,
+            column,
+            context_lines,
+        } = &self.source
+        {
+            let (source_line, preceding_lines, following_lines) =
+                extract_lines_to_strings(input, *line, *context_lines);
+            let indicator = if *column > 0 {
+                Some(format!("{}^", " ".repeat(column.saturating_sub(1))))
+            } else {
+                None
+            };
+
+            self.source = ErrorContextSource::Inline {
+                source_line,
+                preceding_lines,
+                following_lines,
+                indicator,
+            };
+        }
+    }
+
+    /// Create error context from a shared input buffer with lazy extraction.
+    pub fn from_shared_input(
+        input: Arc<str>,
+        line: usize,
+        column: usize,
+        context_lines: usize,
+    ) -> Option<Self> {
+        let line_count = input.lines().count();
+        if line == 0 || line > line_count {
+            return None;
+        }
+
+        Some(Self {
+            source: ErrorContextSource::Lazy {
+                input,
+                line,
+                column,
+                context_lines,
+            },
+            suggestion: None,
+        })
     }
 
     /// Create error context from input string with automatic context
@@ -132,35 +280,7 @@ impl ErrorContext {
         column: usize,
         context_lines: usize,
     ) -> Option<Self> {
-        let lines: Vec<&str> = input.lines().collect();
-
-        if line == 0 || line > lines.len() {
-            return None;
-        }
-
-        let line_idx = line - 1;
-        let source_line = lines.get(line_idx)?.to_string();
-
-        let start_line = line_idx.saturating_sub(context_lines);
-        let end_line = (line_idx + context_lines + 1).min(lines.len());
-
-        let preceding_lines = lines[start_line..line_idx]
-            .iter()
-            .map(|s| s.to_string())
-            .collect();
-
-        let following_lines = lines[(line_idx + 1)..end_line]
-            .iter()
-            .map(|s| s.to_string())
-            .collect();
-
-        Some(Self {
-            source_line,
-            preceding_lines,
-            following_lines,
-            suggestion: None,
-            indicator: Some(format!("{}^", " ".repeat(column.saturating_sub(1)))),
-        })
+        Self::from_shared_input(Arc::from(input), line, column, context_lines)
     }
 }
 
@@ -285,9 +405,18 @@ mod tests {
             .with_suggestion("Try using quotes")
             .with_indicator(5);
 
-        assert_eq!(ctx.source_line, "test line");
+        match &ctx.source {
+            ErrorContextSource::Inline {
+                source_line,
+                indicator,
+                ..
+            } => {
+                assert_eq!(source_line, "test line");
+                assert!(indicator.is_some());
+            }
+            ErrorContextSource::Lazy { .. } => panic!("Expected inline context"),
+        }
         assert_eq!(ctx.suggestion, Some("Try using quotes".to_string()));
-        assert!(ctx.indicator.is_some());
     }
 
     #[test]
@@ -297,9 +426,24 @@ mod tests {
 
         assert!(ctx.is_some());
         let ctx = ctx.unwrap();
-        assert_eq!(ctx.source_line, "line 2 with error");
-        assert_eq!(ctx.preceding_lines, vec!["line 1"]);
-        assert_eq!(ctx.following_lines, vec!["line 3"]);
+        match &ctx.source {
+            ErrorContextSource::Lazy {
+                line,
+                column,
+                context_lines,
+                ..
+            } => {
+                assert_eq!(*line, 2);
+                assert_eq!(*column, 6);
+                assert_eq!(*context_lines, 1);
+            }
+            ErrorContextSource::Inline { .. } => panic!("Expected lazy context"),
+        }
+
+        let rendered = format!("{ctx}");
+        assert!(rendered.contains("line 2 with error"));
+        assert!(rendered.contains("line 1"));
+        assert!(rendered.contains("line 3"));
     }
 
     #[test]

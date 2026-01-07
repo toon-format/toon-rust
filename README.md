@@ -39,6 +39,25 @@ users[2]{id,name}:
 - **Strict Validation**: Enforces all spec rules (configurable)
 - **Well-Tested**: Comprehensive test suite with unit tests, spec fixtures, and real-world scenarios
 
+## Performance Snapshot (Criterion)
+
+Snapshot from commit `f5b1b7e` using:
+`cargo bench --bench encode_decode -- --save-baseline current --noplot`
+
+| Benchmark | Median |
+| --- | --- |
+| `tabular/encode/128` | 145.81 us |
+| `tabular/decode/128` | 115.51 us |
+| `tabular/encode/1024` | 1.2059 ms |
+| `tabular/decode/1024` | 949.65 us |
+| `deep_object/encode/32` | 11.766 us |
+| `deep_object/decode/32` | 10.930 us |
+| `deep_object/encode/128` | 46.867 us |
+| `deep_object/decode/128` | 49.468 us |
+| `decode_long_unquoted` | 10.554 us |
+
+Numbers vary by machine; use Criterion baselines to compare before/after changes.
+
 ## Installation
 
 ### As a Library
@@ -52,6 +71,22 @@ cargo add toon-format
 ```bash
 cargo install toon-format
 ```
+
+### Feature Flags
+
+By default, all CLI/TUI features are enabled. You can opt in to only what you need:
+
+```toml
+toon-format = { version = "0.4", default-features = false }
+```
+
+```bash
+cargo install toon-format --no-default-features --features cli
+cargo install toon-format --no-default-features --features cli,cli-stats
+cargo install toon-format --no-default-features --features cli,tui,tui-clipboard,tui-time
+```
+
+Feature summary: `cli`, `cli-stats`, `tui`, `tui-clipboard`, `tui-time`, `parallel`.
 
 ---
 
@@ -577,6 +612,12 @@ cargo fmt
 
 # Build docs
 cargo doc --open
+
+# Fuzz targets (requires nightly + cargo-fuzz)
+cargo install cargo-fuzz
+cargo +nightly fuzz build
+cargo +nightly fuzz run fuzz_decode -- -max_total_time=10
+cargo +nightly fuzz run fuzz_encode -- -max_total_time=10
 ```
 
 ---

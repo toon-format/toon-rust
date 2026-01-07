@@ -2,16 +2,10 @@ use indexmap::IndexMap;
 
 use crate::{
     constants::QUOTED_KEY_MARKER,
-    types::{
-        is_identifier_segment,
-        JsonValue as Value,
-        PathExpansionMode,
-        ToonError,
-        ToonResult,
-    },
+    types::{is_identifier_segment, JsonValue as Value, PathExpansionMode, ToonError, ToonResult},
 };
 
-pub fn should_expand_key(key: &str, mode: PathExpansionMode) -> Option<Vec<String>> {
+pub fn should_expand_key(key: &str, mode: PathExpansionMode) -> Option<Vec<&str>> {
     match mode {
         PathExpansionMode::Off => None,
         PathExpansionMode::Safe => {
@@ -24,25 +18,31 @@ pub fn should_expand_key(key: &str, mode: PathExpansionMode) -> Option<Vec<Strin
                 return None;
             }
 
-            let segments: Vec<String> = key.split('.').map(String::from).collect();
+            let mut segment_count = 0;
+            for segment in key.split('.') {
+                if segment.is_empty() || !is_identifier_segment(segment) {
+                    return None;
+                }
+                segment_count += 1;
+            }
 
-            if segments.len() < 2 {
+            if segment_count < 2 {
                 return None;
             }
 
-            // Only expand if all segments are valid identifiers (safety requirement)
-            if segments.iter().all(|s| is_identifier_segment(s)) {
-                Some(segments)
-            } else {
-                None
+            let mut segments = Vec::with_capacity(segment_count);
+            for segment in key.split('.') {
+                segments.push(segment);
             }
+
+            Some(segments)
         }
     }
 }
 
 pub fn deep_merge_value(
     target: &mut IndexMap<String, Value>,
-    segments: &[String],
+    segments: &[&str],
     value: Value,
     strict: bool,
 ) -> ToonResult<()> {
@@ -51,7 +51,7 @@ pub fn deep_merge_value(
     }
 
     if segments.len() == 1 {
-        let key = &segments[0];
+        let key = segments[0];
 
         // Check for conflicts at leaf level
         if let Some(existing) = target.get(key) {
@@ -62,11 +62,11 @@ pub fn deep_merge_value(
             }
         }
 
-        target.insert(key.clone(), value);
+        target.insert(key.to_string(), value);
         return Ok(());
     }
 
-    let first_key = &segments[0];
+    let first_key = segments[0];
     let remaining_segments = &segments[1..];
 
     // Get or create nested object, handling type conflicts
@@ -80,7 +80,6 @@ pub fn deep_merge_value(
                          {existing_value:?}",
                     )));
                 }
-                // Replace non-object with empty object in non-strict mode
                 *existing_value = Value::Object(IndexMap::new());
                 match existing_value {
                     Value::Object(obj) => obj,
@@ -89,8 +88,8 @@ pub fn deep_merge_value(
             }
         }
     } else {
-        target.insert(first_key.clone(), Value::Object(IndexMap::new()));
-        match target.get_mut(first_key).unwrap() {
+        target.insert(first_key.to_string(), Value::Object(IndexMap::new()));
+        match target.get_mut(first_key).expect("key was just inserted") {
             Value::Object(obj) => obj,
             _ => unreachable!(),
         }
@@ -105,33 +104,36 @@ pub fn expand_paths_in_object(
     mode: PathExpansionMode,
     strict: bool,
 ) -> ToonResult<IndexMap<String, Value>> {
-    let mut result = IndexMap::new();
+    let mut result = IndexMap::with_capacity(obj.len());
 
     for (key, mut value) in obj {
-        // Expand nested objects first (depth-first)
-        if let Value::Object(nested_obj) = value {
-            value = Value::Object(expand_paths_in_object(nested_obj, mode, strict)?);
-        }
+        // Expand nested structures (arrays/objects) first (depth-first)
+        value = expand_paths_recursive(value, mode, strict)?;
 
-        // Strip marker from quoted keys
-        let clean_key = if key.starts_with(QUOTED_KEY_MARKER) {
-            key.strip_prefix(QUOTED_KEY_MARKER).unwrap().to_string()
-        } else {
-            key.clone()
-        };
-
-        if let Some(segments) = should_expand_key(&key, mode) {
-            deep_merge_value(&mut result, &segments, value, strict)?;
-        } else {
-            // Check for conflicts with expanded keys
-            if let Some(existing) = result.get(&clean_key) {
-                if strict {
-                    return Err(ToonError::DeserializationError(format!(
-                        "Key '{clean_key}' conflicts with existing value: {existing:?}",
-                    )));
-                }
+        match should_expand_key(&key, mode) {
+            Some(segments) => {
+                deep_merge_value(&mut result, &segments, value, strict)?;
             }
-            result.insert(clean_key, value);
+            None => {
+                // Strip marker from quoted keys
+                let clean_key = if key.starts_with(QUOTED_KEY_MARKER) {
+                    let mut cleaned = key;
+                    cleaned.remove(0);
+                    cleaned
+                } else {
+                    key
+                };
+
+                // Check for conflicts with expanded keys
+                if let Some(existing) = result.get(clean_key.as_str()) {
+                    if strict {
+                        return Err(ToonError::DeserializationError(format!(
+                            "Key '{clean_key}' conflicts with existing value: {existing:?}",
+                        )));
+                    }
+                }
+                result.insert(clean_key, value);
+            }
         }
     }
 
@@ -149,11 +151,11 @@ pub fn expand_paths_recursive(
             Ok(Value::Object(expanded))
         }
         Value::Array(arr) => {
-            let expanded: Result<Vec<_>, _> = arr
-                .into_iter()
-                .map(|v| expand_paths_recursive(v, mode, strict))
-                .collect();
-            Ok(Value::Array(expanded?))
+            let mut expanded = Vec::with_capacity(arr.len());
+            for item in arr {
+                expanded.push(expand_paths_recursive(item, mode, strict)?);
+            }
+            Ok(Value::Array(expanded))
         }
         _ => Ok(value),
     }
@@ -175,11 +177,11 @@ mod tests {
         // Valid expansions
         assert_eq!(
             should_expand_key("a.b", PathExpansionMode::Safe),
-            Some(vec!["a".to_string(), "b".to_string()])
+            Some(vec!["a", "b"])
         );
         assert_eq!(
             should_expand_key("a.b.c", PathExpansionMode::Safe),
-            Some(vec!["a".to_string(), "b".to_string(), "c".to_string()])
+            Some(vec!["a", "b", "c"])
         );
 
         // No dots
@@ -193,13 +195,7 @@ mod tests {
     #[test]
     fn test_deep_merge_simple() {
         let mut target = IndexMap::new();
-        deep_merge_value(
-            &mut target,
-            &["a".to_string(), "b".to_string()],
-            Value::from(json!(1)),
-            true,
-        )
-        .unwrap();
+        deep_merge_value(&mut target, &["a", "b"], Value::from(json!(1)), true).unwrap();
 
         let expected = json!({"a": {"b": 1}});
         assert_eq!(Value::Object(target), Value::from(expected));
@@ -209,21 +205,9 @@ mod tests {
     fn test_deep_merge_multiple_paths() {
         let mut target = IndexMap::new();
 
-        deep_merge_value(
-            &mut target,
-            &["a".to_string(), "b".to_string()],
-            Value::from(json!(1)),
-            true,
-        )
-        .unwrap();
+        deep_merge_value(&mut target, &["a", "b"], Value::from(json!(1)), true).unwrap();
 
-        deep_merge_value(
-            &mut target,
-            &["a".to_string(), "c".to_string()],
-            Value::from(json!(2)),
-            true,
-        )
-        .unwrap();
+        deep_merge_value(&mut target, &["a", "c"], Value::from(json!(2)), true).unwrap();
 
         let expected = json!({"a": {"b": 1, "c": 2}});
         assert_eq!(Value::Object(target), Value::from(expected));
@@ -234,12 +218,7 @@ mod tests {
         let mut target = IndexMap::new();
         target.insert("a".to_string(), Value::from(json!({"b": 1})));
 
-        let result = deep_merge_value(
-            &mut target,
-            &["a".to_string(), "b".to_string()],
-            Value::from(json!(2)),
-            true,
-        );
+        let result = deep_merge_value(&mut target, &["a", "b"], Value::from(json!(2)), true);
 
         assert!(result.is_err());
     }
@@ -249,13 +228,7 @@ mod tests {
         let mut target = IndexMap::new();
         target.insert("a".to_string(), Value::from(json!({"b": 1})));
 
-        deep_merge_value(
-            &mut target,
-            &["a".to_string(), "b".to_string()],
-            Value::from(json!(2)),
-            false,
-        )
-        .unwrap();
+        deep_merge_value(&mut target, &["a", "b"], Value::from(json!(2)), false).unwrap();
 
         let expected = json!({"a": {"b": 2}});
         assert_eq!(Value::Object(target), Value::from(expected));

@@ -36,13 +36,19 @@ EXAMPLES:
   
   toon input.json --fold-keys              # Collapse {a:{b:1}} to a.b: 1
   toon input.json --fold-keys --flatten-depth 2
-  toon input.toon --expand-paths           # Expand a.b:1 to {\"a\":{\"b\":1}}",
+  toon input.toon --expand-paths           # Expand a.b:1 to {\"a\":{\"b\":1}}
+
+NOTES:
+  - Auto-detect uses file extension: .json -> encode, .toon -> decode.
+  - When reading from stdin, encode is the default (use -d to decode).
+  - --interactive cannot be combined with other operations.
+  - --stats requires the cli-stats feature.",
     disable_help_subcommand = true
 )]
 struct Cli {
     input: Option<String>,
 
-    #[arg(short, long, help = "Launch interactive TUI mode")]
+    #[arg(short, long, help = "Launch interactive TUI mode (standalone)")]
     interactive: bool,
 
     #[arg(short, long, help = "Output file path")]
@@ -54,13 +60,17 @@ struct Cli {
     #[arg(short, long, help = "Force decode mode (TOON → JSON)")]
     decode: bool,
 
-    #[arg(long, help = "Show token count and savings")]
+    #[arg(long, help = "Show token count and savings (encode only, cli-stats)")]
     stats: bool,
 
-    #[arg(long, value_parser = parse_delimiter, help = "Delimiter: comma, tab, or pipe")]
+    #[arg(
+        long,
+        value_parser = parse_delimiter,
+        help = "Delimiter: comma, tab, or pipe (encode only)"
+    )]
     delimiter: Option<Delimiter>,
 
-    #[arg(long, value_parser = parse_indent, help = "Indentation spaces")]
+    #[arg(long, value_parser = parse_indent, help = "Indentation spaces (encode only)")]
     indent: Option<usize>,
 
     #[arg(long, help = "Disable strict validation (decode)")]
@@ -69,7 +79,7 @@ struct Cli {
     #[arg(long, help = "Disable type coercion (decode)")]
     no_coerce: bool,
 
-    #[arg(long, help = "Indent output JSON with N spaces")]
+    #[arg(long, help = "Indent output JSON with N spaces (decode only)")]
     json_indent: Option<usize>,
 
     #[arg(
@@ -78,7 +88,7 @@ struct Cli {
     )]
     fold_keys: bool,
 
-    #[arg(long, help = "Max depth for key folding (default: unlimited)")]
+    #[arg(long, help = "Max depth for key folding (encode only)")]
     flatten_depth: Option<usize>,
 
     #[arg(

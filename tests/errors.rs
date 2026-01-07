@@ -271,12 +271,12 @@ fn test_no_coercion_preserves_strings() {
     assert_eq!(result["value"], json!("true"));
 
     let result = decode::<Value>("value: 123", &opts).unwrap();
-    assert!(result["value"].is_number());
-    assert_eq!(result["value"], json!(123));
+    assert!(result["value"].is_string());
+    assert_eq!(result["value"], json!("123"));
 
     let result = decode::<Value>("value: true", &opts).unwrap();
-    assert!(result["value"].is_boolean());
-    assert_eq!(result["value"], json!(true));
+    assert!(result["value"].is_string());
+    assert_eq!(result["value"], json!("true"));
 }
 
 #[test]

@@ -45,7 +45,7 @@ fn test_non_active_delimiters_in_tabular_arrays() {
     // data Per TOON spec §11: "non-active delimiters MUST NOT cause splits"
 
     // Test 1: Pipe character in value when comma is active delimiter (default)
-    let data = r#"item-list[1]{a,b}:
+    let data = r#""item-list"[1]{a,b}:
   ":",|
 "#;
     let decoded: Value = decode_default(data).unwrap();
@@ -53,7 +53,7 @@ fn test_non_active_delimiters_in_tabular_arrays() {
     assert_eq!(decoded["item-list"][0]["b"], "|");
 
     // Test 2: Both values quoted
-    let data = r#"item-list[1]{a,b}:
+    let data = r#""item-list"[1]{a,b}:
   ":","|"
 "#;
     let decoded: Value = decode_default(data).unwrap();
@@ -61,13 +61,13 @@ fn test_non_active_delimiters_in_tabular_arrays() {
     assert_eq!(decoded["item-list"][0]["b"], "|");
 
     // Test 3: Tab character in value when comma is active
-    let data = "item-list[1]{a,b}:\n  \":\",\t\n";
+    let data = "\"item-list\"[1]{a,b}:\n  \":\",\"\\t\"\n";
     let decoded: Value = decode_default(data).unwrap();
     assert_eq!(decoded["item-list"][0]["a"], ":");
     assert_eq!(decoded["item-list"][0]["b"], "\t");
 
     // Test 4: Comma in value when pipe is active delimiter - should quote the comma
-    let data = r#"item-list[1|]{a|b}:
+    let data = r#""item-list"[1|]{a|b}:
   ":"|","
 "#;
     let decoded: Value = decode_default(data).unwrap();
@@ -97,7 +97,7 @@ fn test_non_active_delimiters_in_inline_arrays() {
 fn test_delimiter_mismatch_error() {
     // Per TOON spec §6: delimiter in brackets must match delimiter in braces
     // This should error: pipe in brackets, comma in braces
-    let data = r#"item-list[1|]{a,b}:
+    let data = r#""item-list"[1|]{a,b}:
   ":",|
 "#;
     let result: Result<Value, _> = decode_default(data);

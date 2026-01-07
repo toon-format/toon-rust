@@ -1,9 +1,6 @@
 use std::{
     fmt,
-    ops::{
-        Index,
-        IndexMut,
-    },
+    ops::{Index, IndexMut},
 };
 
 use indexmap::IndexMap;

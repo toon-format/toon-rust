@@ -6,10 +6,7 @@ pub mod validation;
 
 use serde_json::Value;
 
-use crate::types::{
-    DecodeOptions,
-    ToonResult,
-};
+use crate::types::{DecodeOptions, ToonResult};
 
 /// Decode a TOON string into any deserializable type.
 ///

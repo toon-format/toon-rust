@@ -1,36 +1,17 @@
 use std::{
     fs,
-    io::{
-        self,
-        Read,
-        Write,
-    },
-    path::{
-        Path,
-        PathBuf,
-    },
+    io::{self, Read, Write},
+    path::{Path, PathBuf},
 };
 
-use anyhow::{
-    bail,
-    Context,
-    Result,
-};
+use anyhow::{bail, Context, Result};
 use clap::Parser;
 use comfy_table::Table;
 use serde::Serialize;
 use tiktoken_rs::cl100k_base;
 use toon_format::{
-    decode,
-    encode,
-    types::{
-        DecodeOptions,
-        Delimiter,
-        EncodeOptions,
-        Indent,
-        KeyFoldingMode,
-        PathExpansionMode,
-    },
+    decode, encode,
+    types::{DecodeOptions, Delimiter, EncodeOptions, Indent, KeyFoldingMode, PathExpansionMode},
 };
 
 #[derive(Parser, Debug)]

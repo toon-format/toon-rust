@@ -7,19 +7,9 @@ use indexmap::IndexMap;
 use crate::{
     constants::MAX_DEPTH,
     types::{
-        EncodeOptions,
-        IntoJsonValue,
-        JsonValue as Value,
-        KeyFoldingMode,
-        ToonError,
-        ToonResult,
+        EncodeOptions, IntoJsonValue, JsonValue as Value, KeyFoldingMode, ToonError, ToonResult,
     },
-    utils::{
-        format_canonical_number,
-        normalize,
-        validation::validate_depth,
-        QuotingContext,
-    },
+    utils::{format_canonical_number, normalize, validation::validate_depth, QuotingContext},
 };
 
 /// Encode any serializable value to TOON format.

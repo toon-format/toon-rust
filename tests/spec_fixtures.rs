@@ -2,16 +2,8 @@ use datatest_stable::Utf8Path;
 use serde::Deserialize;
 use serde_json::Value;
 use toon_format::{
-    decode,
-    encode,
-    types::{
-        DecodeOptions,
-        Delimiter,
-        EncodeOptions,
-        Indent,
-        KeyFoldingMode,
-        PathExpansionMode,
-    },
+    decode, encode,
+    types::{DecodeOptions, Delimiter, EncodeOptions, Indent, KeyFoldingMode, PathExpansionMode},
 };
 
 #[derive(Deserialize, Debug)]

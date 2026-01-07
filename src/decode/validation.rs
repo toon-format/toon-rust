@@ -1,7 +1,4 @@
-use crate::types::{
-    ToonError,
-    ToonResult,
-};
+use crate::types::{ToonError, ToonResult};
 
 /// Validate that array length matches expected value.
 pub fn validate_array_length(expected: usize, actual: usize) -> ToonResult<()> {

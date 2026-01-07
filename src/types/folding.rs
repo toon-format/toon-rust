@@ -31,12 +31,12 @@ pub fn is_identifier_segment(s: &str) -> bool {
         None => return false,
     };
 
-    if !first.is_alphabetic() && first != '_' {
+    if !first.is_ascii_alphabetic() && first != '_' {
         return false;
     }
 
     // Remaining characters: letters, digits, or underscore (NO dots)
-    chars.all(|c| c.is_alphanumeric() || c == '_')
+    chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
 }
 
 #[cfg(test)]

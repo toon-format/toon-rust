@@ -27,6 +27,7 @@ pub struct Scanner {
     column: usize,
     active_delimiter: Option<Delimiter>,
     last_line_indent: usize,
+    coerce_types: bool,
 }
 
 impl Scanner {
@@ -39,12 +40,17 @@ impl Scanner {
             column: 1,
             active_delimiter: None,
             last_line_indent: 0,
+            coerce_types: true,
         }
     }
 
     /// Set the active delimiter for tokenizing array elements.
     pub fn set_active_delimiter(&mut self, delimiter: Option<Delimiter>) {
         self.active_delimiter = delimiter;
+    }
+
+    pub fn set_coerce_types(&mut self, coerce_types: bool) {
+        self.coerce_types = coerce_types;
     }
 
     /// Get the current position (line, column).
@@ -293,6 +299,10 @@ impl Scanner {
             value.trim_end().to_string()
         };
 
+        if !self.coerce_types {
+            return Ok(Token::String(value, false));
+        }
+
         match value.as_str() {
             "null" => Ok(Token::Null),
             "true" => Ok(Token::Bool(true)),
@@ -326,6 +336,10 @@ impl Scanner {
     }
 
     fn parse_number(&self, s: &str) -> ToonResult<Token> {
+        if !self.coerce_types {
+            return Ok(Token::String(s.to_string(), false));
+        }
+
         // Number followed immediately by other chars like "0(f)" should be a string
         if let Some(next_ch) = self.peek() {
             if next_ch != ' '
@@ -354,6 +368,13 @@ impl Scanner {
                 }
             }
         }
+        if s.starts_with("-0") && s.len() > 2 {
+            if let Some(third_char) = s.chars().nth(2) {
+                if third_char.is_ascii_digit() {
+                    return Ok(Token::String(s.to_string(), false));
+                }
+            }
+        }
 
         if s.contains('.') || s.contains('e') || s.contains('E') {
             if let Ok(f) = s.parse::<f64>() {
@@ -369,11 +390,14 @@ impl Scanner {
     }
 
     /// Read the rest of the current line (until newline or EOF).
-    /// Returns the content with a flag indicating if it started with
-    /// whitespace.
-    pub fn read_rest_of_line_with_space_info(&mut self) -> (String, bool) {
-        let had_leading_space = matches!(self.peek(), Some(' '));
-        self.skip_whitespace();
+    /// Returns the content and any leading spaces between the current token
+    /// and the rest of the line.
+    pub fn read_rest_of_line_with_space_info(&mut self) -> (String, String) {
+        let mut leading_space = String::new();
+        while matches!(self.peek(), Some(' ')) {
+            leading_space.push(' ');
+            self.advance();
+        }
 
         let mut result = String::new();
         while let Some(ch) = self.peek() {
@@ -384,7 +408,7 @@ impl Scanner {
             self.advance();
         }
 
-        (result.trim_end().to_string(), had_leading_space)
+        (result.trim_end().to_string(), leading_space)
     }
 
     /// Read the rest of the current line (until newline or EOF).
@@ -448,6 +472,10 @@ impl Scanner {
             ));
         }
 
+        if !self.coerce_types {
+            return Ok(Token::String(trimmed.to_string(), false));
+        }
+
         match trimmed {
             "true" => return Ok(Token::Bool(true)),
             "false" => return Ok(Token::Bool(false)),
@@ -455,16 +483,18 @@ impl Scanner {
             _ => {}
         }
 
-        if trimmed.starts_with('-')
-            || trimmed
-                .chars()
-                .next()
-                .is_some_and(|c| c.is_ascii_digit())
-        {
-            // Leading zeros like "05" are strings
+        if trimmed.starts_with('-') || trimmed.chars().next().is_some_and(|c| c.is_ascii_digit()) {
+            // Leading zeros like "05" or "-05" are strings
             if trimmed.starts_with('0') && trimmed.len() > 1 {
                 if let Some(second_char) = trimmed.chars().nth(1) {
                     if second_char.is_ascii_digit() {
+                        return Ok(Token::String(trimmed.to_string(), false));
+                    }
+                }
+            }
+            if trimmed.starts_with("-0") && trimmed.len() > 2 {
+                if let Some(third_char) = trimmed.chars().nth(2) {
+                    if third_char.is_ascii_digit() {
                         return Ok(Token::String(trimmed.to_string(), false));
                     }
                 }
@@ -595,24 +625,24 @@ mod tests {
     #[test]
     fn test_read_rest_of_line_with_space_info() {
         let mut scanner = Scanner::new(" world");
-        let (content, had_space) = scanner.read_rest_of_line_with_space_info();
+        let (content, leading_space) = scanner.read_rest_of_line_with_space_info();
         assert_eq!(content, "world");
-        assert!(had_space);
+        assert_eq!(leading_space, " ");
 
         let mut scanner = Scanner::new("world");
-        let (content, had_space) = scanner.read_rest_of_line_with_space_info();
+        let (content, leading_space) = scanner.read_rest_of_line_with_space_info();
         assert_eq!(content, "world");
-        assert!(!had_space);
+        assert!(leading_space.is_empty());
 
         let mut scanner = Scanner::new("(hello)");
-        let (content, had_space) = scanner.read_rest_of_line_with_space_info();
+        let (content, leading_space) = scanner.read_rest_of_line_with_space_info();
         assert_eq!(content, "(hello)");
-        assert!(!had_space);
+        assert!(leading_space.is_empty());
 
         let mut scanner = Scanner::new("");
-        let (content, had_space) = scanner.read_rest_of_line_with_space_info();
+        let (content, leading_space) = scanner.read_rest_of_line_with_space_info();
         assert_eq!(content, "");
-        assert!(!had_space);
+        assert!(leading_space.is_empty());
     }
 
     #[test]

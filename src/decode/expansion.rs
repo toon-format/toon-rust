@@ -102,10 +102,8 @@ pub fn expand_paths_in_object(
     let mut result = IndexMap::new();
 
     for (key, mut value) in obj {
-        // Expand nested objects first (depth-first)
-        if let Value::Object(nested_obj) = value {
-            value = Value::Object(expand_paths_in_object(nested_obj, mode, strict)?);
-        }
+        // Expand nested structures (arrays/objects) first (depth-first)
+        value = expand_paths_recursive(value, mode, strict)?;
 
         // Strip marker from quoted keys
         let clean_key = if key.starts_with(QUOTED_KEY_MARKER) {

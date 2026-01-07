@@ -6,6 +6,7 @@ pub mod validation;
 use indexmap::IndexMap;
 pub use literal::{is_keyword, is_literal_like, is_numeric_like, is_structural_char};
 pub use number::format_canonical_number;
+pub(crate) use string::is_valid_unquoted_key_decode;
 pub use string::{
     escape_string, is_valid_unquoted_key, needs_quoting, quote_string, unescape_string,
 };

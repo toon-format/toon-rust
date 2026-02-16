@@ -620,7 +620,7 @@ fn encode_nested_array(
                         match value {
                             Value::Array(arr) => {
                                 writer.write_key(key)?;
-                                write_array(writer, None, arr, depth + 1)?;
+                                write_array(writer, None, arr, depth + 2)?;
                             }
                             Value::Object(nested_obj) => {
                                 writer.write_key(key)?;

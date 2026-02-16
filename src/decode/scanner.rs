@@ -358,6 +358,14 @@ impl Scanner {
             }
         }
 
+        // Negative leading zeros like "-05" are also strings
+        if s.starts_with("-0") && s.len() > 2 {
+            let third_char = s.chars().nth(2).unwrap();
+            if third_char.is_ascii_digit() {
+                return Ok(Token::String(s.to_string(), false));
+            }
+        }
+
         if s.contains('.') || s.contains('e') || s.contains('E') {
             if let Ok(f) = s.parse::<f64>() {
                 Ok(Token::Number(f))
@@ -463,6 +471,14 @@ impl Scanner {
             if trimmed.starts_with('0') && trimmed.len() > 1 {
                 let second_char = trimmed.chars().nth(1).unwrap();
                 if second_char.is_ascii_digit() {
+                    return Ok(Token::String(trimmed.to_string(), false));
+                }
+            }
+
+            // Negative leading zeros like "-05" are also strings
+            if trimmed.starts_with("-0") && trimmed.len() > 2 {
+                let third_char = trimmed.chars().nth(2).unwrap();
+                if third_char.is_ascii_digit() {
                     return Ok(Token::String(trimmed.to_string(), false));
                 }
             }

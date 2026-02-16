@@ -2,13 +2,13 @@
 
 [![Crates.io](https://img.shields.io/crates/v/toon-format.svg)](https://crates.io/crates/toon-format)
 [![Documentation](https://docs.rs/toon-format/badge.svg)](https://docs.rs/toon-format)
-[![Spec v2.0](https://img.shields.io/badge/spec-v2.0-brightgreen.svg)](https://github.com/toon-format/spec/blob/main/SPEC.md)
+[![Spec v3.0](https://img.shields.io/badge/spec-v3.0-brightgreen.svg)](https://github.com/toon-format/spec/blob/main/SPEC.md)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 [![Tests](https://img.shields.io/badge/tests-%20passing-success.svg)]()
 
 **Token-Oriented Object Notation (TOON)** is a compact, human-readable format designed for passing structured data to Large Language Models with significantly reduced token usage.
 
-This crate provides the official, **spec-compliant Rust implementation** of TOON v2.0 with v1.5 optional features, offering both a library (`toon-format`) and a full-featured command-line tool (`toon`).
+This crate provides the official, **spec-compliant Rust implementation** of TOON v3.0, offering both a library (`toon-format`) and a full-featured command-line tool (`toon`).
 
 ## Quick Example
 
@@ -32,8 +32,8 @@ users[2]{id,name}:
 ## Features
 
 - **Generic API**: Works with any `Serialize`/`Deserialize` type - custom structs, enums, JSON values, and more
-- **Spec-Compliant**: Fully compliant with [TOON Specification v2.0](https://github.com/toon-format/spec/blob/main/SPEC.md)
-- **v1.5 Optional Features**: Key folding and path expansion
+- **Spec-Compliant**: Fully compliant with [TOON Specification v3.0](https://github.com/toon-format/spec/blob/main/SPEC.md)
+- **Key Folding & Path Expansion**: Collapse and expand dotted key paths
 - **Safe & Performant**: Built with safe, fast Rust
 - **Powerful CLI**: Full-featured command-line tool
 - **Strict Validation**: Enforces all spec rules (configurable)
@@ -547,7 +547,7 @@ Run with `cargo run --example examples` to see all examples:
 
 ## Resources
 
-- 📖 [TOON Specification v2.0](https://github.com/toon-format/spec/blob/main/SPEC.md)
+- 📖 [TOON Specification v3.0](https://github.com/toon-format/spec/blob/main/SPEC.md)
 - 📦 [Crates.io Package](https://crates.io/crates/toon-format)
 - 📚 [API Documentation](https://docs.rs/toon-format)
 - 🔧 [Main Repository (JS/TS)](https://github.com/toon-format/toon)

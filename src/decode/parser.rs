@@ -995,6 +995,13 @@ impl<'a> Parser<'a> {
                                         if !self.options.strict {
                                             self.skip_newlines()?;
                                         }
+                                    } else if matches!(self.current_token, Token::String(_, _)) {
+                                        // Tabular array parser already consumed the newline
+                                        // and advanced to the next token — check indent
+                                        let current_indent = self.scanner.get_last_line_indent();
+                                        if current_indent != field_indent {
+                                            break;
+                                        }
                                     } else {
                                         break;
                                     }

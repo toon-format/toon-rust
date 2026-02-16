@@ -855,6 +855,12 @@ impl<'a> Parser<'a> {
     fn parse_regular_array(&mut self, length: usize, depth: usize) -> ToonResult<Value> {
         let mut items = Vec::new();
 
+        // Empty arrays: return immediately without consuming the trailing newline,
+        // so the caller's field-parsing loop can correctly check indentation.
+        if length == 0 {
+            return Ok(Value::Array(items));
+        }
+
         match &self.current_token {
             Token::Newline => {
                 self.skip_newlines()?;
@@ -1086,7 +1092,7 @@ impl<'a> Parser<'a> {
                     } else if matches!(self.current_token, Token::LeftBracket) {
                         self.parse_array(depth + 1)?
                     } else {
-                        self.parse_primitive()?
+                        self.parse_tabular_field_value()?
                     };
 
                     items.push(value);

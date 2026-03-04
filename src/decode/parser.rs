@@ -1704,7 +1704,7 @@ hello: 0(f)"#;
         let result = parse("nums[1]: 42").unwrap();
         assert_eq!(result["nums"], json!([42]));
 
-        let result = parse("nums[1]: 3.14").unwrap();
-        assert_eq!(result["nums"], json!([3.14]));
+        let result = parse("nums[1]: 2.75").unwrap();
+        assert_eq!(result["nums"], json!([2.75]));
     }
 }

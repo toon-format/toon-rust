@@ -1125,13 +1125,32 @@ impl<'a> Parser<'a> {
             Token::Integer(i) => {
                 let val = *i;
                 self.advance()?;
-                Ok(Number::from(val).into())
+                // If followed by string tokens, treat the whole value as a string
+                if let Token::String(..) = &self.current_token {
+                    let mut accumulated = val.to_string();
+                    while let Token::String(next, _) = &self.current_token {
+                        accumulated.push(' ');
+                        accumulated.push_str(next);
+                        self.advance()?;
+                    }
+                    Ok(Value::String(accumulated))
+                } else {
+                    Ok(Number::from(val).into())
+                }
             }
             Token::Number(n) => {
                 let val = *n;
                 self.advance()?;
-                // If the float is actually an integer, represent it as such
-                if val.is_finite() && val.fract() == 0.0 && val.abs() <= i64::MAX as f64 {
+                // If followed by string tokens, treat the whole value as a string
+                if let Token::String(..) = &self.current_token {
+                    let mut accumulated = val.to_string();
+                    while let Token::String(next, _) = &self.current_token {
+                        accumulated.push(' ');
+                        accumulated.push_str(next);
+                        self.advance()?;
+                    }
+                    Ok(Value::String(accumulated))
+                } else if val.is_finite() && val.fract() == 0.0 && val.abs() <= i64::MAX as f64 {
                     Ok(Number::from(val as i64).into())
                 } else {
                     Ok(Number::from_f64(val)
@@ -1669,5 +1688,23 @@ hello: 0(f)"#;
                 ]
             })
         );
+    }
+
+    #[test]
+    fn test_array_element_number_followed_by_string() {
+        // Issue #56: Array elements starting with a number should be parsed as string
+        // when followed by non-numeric text
+        let result = parse("version1[1]: 1.0 something").unwrap();
+        assert_eq!(result["version1"], json!(["1 something"]));
+
+        let result = parse("data[1]: 42 units").unwrap();
+        assert_eq!(result["data"], json!(["42 units"]));
+
+        // Pure numbers should still be parsed as numbers
+        let result = parse("nums[1]: 42").unwrap();
+        assert_eq!(result["nums"], json!([42]));
+
+        let result = parse("nums[1]: 3.14").unwrap();
+        assert_eq!(result["nums"], json!([3.14]));
     }
 }

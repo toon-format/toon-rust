@@ -167,13 +167,11 @@ impl<'a> Parser<'a> {
                                     | Token::Number(..)
                                     | Token::Bool(..)
                                     | Token::Null => {
-                                        let ws =
-                                            self.scanner.last_whitespace_count().max(1);
+                                        let ws = self.scanner.last_whitespace_count().max(1);
                                         for _ in 0..ws {
                                             accumulated.push(' ');
                                         }
-                                        accumulated
-                                            .push_str(self.scanner.last_token_text());
+                                        accumulated.push_str(self.scanner.last_token_text());
                                         self.advance()?;
                                     }
                                     _ => break,
@@ -210,13 +208,11 @@ impl<'a> Parser<'a> {
                                     | Token::Number(..)
                                     | Token::Bool(..)
                                     | Token::Null => {
-                                        let ws =
-                                            self.scanner.last_whitespace_count().max(1);
+                                        let ws = self.scanner.last_whitespace_count().max(1);
                                         for _ in 0..ws {
                                             accumulated.push(' ');
                                         }
-                                        accumulated
-                                            .push_str(self.scanner.last_token_text());
+                                        accumulated.push_str(self.scanner.last_token_text());
                                         self.advance()?;
                                     }
                                     _ => break,
@@ -226,17 +222,13 @@ impl<'a> Parser<'a> {
                         }
                         _ => {
                             // Normalize floats that are actually integers
-                            if val.is_finite()
-                                && val.fract() == 0.0
-                                && val.abs() <= i64::MAX as f64
+                            if val.is_finite() && val.fract() == 0.0 && val.abs() <= i64::MAX as f64
                             {
                                 Ok(serde_json::Number::from(val as i64).into())
                             } else {
                                 Ok(serde_json::Number::from_f64(val)
                                     .ok_or_else(|| {
-                                        ToonError::InvalidInput(format!(
-                                            "Invalid number: {val}"
-                                        ))
+                                        ToonError::InvalidInput(format!("Invalid number: {val}"))
                                     })?
                                     .into())
                             }
@@ -1242,9 +1234,7 @@ impl<'a> Parser<'a> {
                         Ok(Number::from(n as i64).into())
                     } else {
                         Ok(Number::from_f64(n)
-                            .ok_or_else(|| {
-                                ToonError::InvalidInput(format!("Invalid number: {n}"))
-                            })?
+                            .ok_or_else(|| ToonError::InvalidInput(format!("Invalid number: {n}")))?
                             .into())
                     }
                 }

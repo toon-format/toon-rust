@@ -160,22 +160,18 @@ impl<'a> Parser<'a> {
                         | Token::Bool(..)
                         | Token::Null => {
                             let mut accumulated = first_text;
-                            loop {
-                                match &self.current_token {
-                                    Token::String(..)
-                                    | Token::Integer(..)
-                                    | Token::Number(..)
-                                    | Token::Bool(..)
-                                    | Token::Null => {
-                                        let ws = self.scanner.last_whitespace_count().max(1);
-                                        for _ in 0..ws {
-                                            accumulated.push(' ');
-                                        }
-                                        accumulated.push_str(self.scanner.last_token_text());
-                                        self.advance()?;
-                                    }
-                                    _ => break,
+                            while let Token::String(..)
+                            | Token::Integer(..)
+                            | Token::Number(..)
+                            | Token::Bool(..)
+                            | Token::Null = &self.current_token
+                            {
+                                let ws = self.scanner.last_whitespace_count().max(1);
+                                for _ in 0..ws {
+                                    accumulated.push(' ');
                                 }
+                                accumulated.push_str(self.scanner.last_token_text());
+                                self.advance()?;
                             }
                             Ok(Value::String(accumulated))
                         }
@@ -201,22 +197,18 @@ impl<'a> Parser<'a> {
                         | Token::Bool(..)
                         | Token::Null => {
                             let mut accumulated = first_text;
-                            loop {
-                                match &self.current_token {
-                                    Token::String(..)
-                                    | Token::Integer(..)
-                                    | Token::Number(..)
-                                    | Token::Bool(..)
-                                    | Token::Null => {
-                                        let ws = self.scanner.last_whitespace_count().max(1);
-                                        for _ in 0..ws {
-                                            accumulated.push(' ');
-                                        }
-                                        accumulated.push_str(self.scanner.last_token_text());
-                                        self.advance()?;
-                                    }
-                                    _ => break,
+                            while let Token::String(..)
+                            | Token::Integer(..)
+                            | Token::Number(..)
+                            | Token::Bool(..)
+                            | Token::Null = &self.current_token
+                            {
+                                let ws = self.scanner.last_whitespace_count().max(1);
+                                for _ in 0..ws {
+                                    accumulated.push(' ');
                                 }
+                                accumulated.push_str(self.scanner.last_token_text());
+                                self.advance()?;
                             }
                             Ok(Value::String(accumulated))
                         }
@@ -263,22 +255,18 @@ impl<'a> Parser<'a> {
                         }
                         // Root-level string value - join consecutive tokens with exact spacing
                         let mut accumulated = first;
-                        loop {
-                            match &self.current_token {
-                                Token::String(..)
-                                | Token::Integer(..)
-                                | Token::Number(..)
-                                | Token::Bool(..)
-                                | Token::Null => {
-                                    let ws = self.scanner.last_whitespace_count().max(1);
-                                    for _ in 0..ws {
-                                        accumulated.push(' ');
-                                    }
-                                    accumulated.push_str(self.scanner.last_token_text());
-                                    self.advance()?;
-                                }
-                                _ => break,
+                        while let Token::String(..)
+                        | Token::Integer(..)
+                        | Token::Number(..)
+                        | Token::Bool(..)
+                        | Token::Null = &self.current_token
+                        {
+                            let ws = self.scanner.last_whitespace_count().max(1);
+                            for _ in 0..ws {
+                                accumulated.push(' ');
                             }
+                            accumulated.push_str(self.scanner.last_token_text());
+                            self.advance()?;
                         }
                         Ok(Value::String(accumulated))
                     }

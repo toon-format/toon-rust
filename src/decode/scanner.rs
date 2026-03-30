@@ -170,7 +170,7 @@ impl Scanner {
 
         self.skip_whitespace();
 
-        let token = match self.peek() {
+        match self.peek() {
             None => Ok(Token::Eof),
             Some('\n') => {
                 self.advance();
@@ -248,9 +248,7 @@ impl Scanner {
                 self.parse_number(&num_str)
             }
             Some(_) => self.scan_unquoted_string(),
-        };
-
-        token
+        }
     }
 
     fn scan_quoted_string(&mut self) -> ToonResult<Token> {

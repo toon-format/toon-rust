@@ -149,9 +149,40 @@ impl<'a> Parser<'a> {
                     self.advance()?;
                     self.parse_object_with_initial_key(key, depth)
                 } else {
+                    let first_text = self.scanner.last_token_text().to_string();
                     let val = *i;
                     self.advance()?;
-                    Ok(serde_json::Number::from(val).into())
+                    // Check if followed by more value tokens on the same line
+                    match &self.current_token {
+                        Token::String(..)
+                        | Token::Integer(..)
+                        | Token::Number(..)
+                        | Token::Bool(..)
+                        | Token::Null => {
+                            let mut accumulated = first_text;
+                            loop {
+                                match &self.current_token {
+                                    Token::String(..)
+                                    | Token::Integer(..)
+                                    | Token::Number(..)
+                                    | Token::Bool(..)
+                                    | Token::Null => {
+                                        let ws =
+                                            self.scanner.last_whitespace_count().max(1);
+                                        for _ in 0..ws {
+                                            accumulated.push(' ');
+                                        }
+                                        accumulated
+                                            .push_str(self.scanner.last_token_text());
+                                        self.advance()?;
+                                    }
+                                    _ => break,
+                                }
+                            }
+                            Ok(Value::String(accumulated))
+                        }
+                        _ => Ok(serde_json::Number::from(val).into()),
+                    }
                 }
             }
             Token::Number(n) => {
@@ -161,17 +192,55 @@ impl<'a> Parser<'a> {
                     self.advance()?;
                     self.parse_object_with_initial_key(key, depth)
                 } else {
+                    let first_text = self.scanner.last_token_text().to_string();
                     let val = *n;
                     self.advance()?;
-                    // Normalize floats that are actually integers
-                    if val.is_finite() && val.fract() == 0.0 && val.abs() <= i64::MAX as f64 {
-                        Ok(serde_json::Number::from(val as i64).into())
-                    } else {
-                        Ok(serde_json::Number::from_f64(val)
-                            .ok_or_else(|| {
-                                ToonError::InvalidInput(format!("Invalid number: {val}"))
-                            })?
-                            .into())
+                    // Check if followed by more value tokens on the same line
+                    match &self.current_token {
+                        Token::String(..)
+                        | Token::Integer(..)
+                        | Token::Number(..)
+                        | Token::Bool(..)
+                        | Token::Null => {
+                            let mut accumulated = first_text;
+                            loop {
+                                match &self.current_token {
+                                    Token::String(..)
+                                    | Token::Integer(..)
+                                    | Token::Number(..)
+                                    | Token::Bool(..)
+                                    | Token::Null => {
+                                        let ws =
+                                            self.scanner.last_whitespace_count().max(1);
+                                        for _ in 0..ws {
+                                            accumulated.push(' ');
+                                        }
+                                        accumulated
+                                            .push_str(self.scanner.last_token_text());
+                                        self.advance()?;
+                                    }
+                                    _ => break,
+                                }
+                            }
+                            Ok(Value::String(accumulated))
+                        }
+                        _ => {
+                            // Normalize floats that are actually integers
+                            if val.is_finite()
+                                && val.fract() == 0.0
+                                && val.abs() <= i64::MAX as f64
+                            {
+                                Ok(serde_json::Number::from(val as i64).into())
+                            } else {
+                                Ok(serde_json::Number::from_f64(val)
+                                    .ok_or_else(|| {
+                                        ToonError::InvalidInput(format!(
+                                            "Invalid number: {val}"
+                                        ))
+                                    })?
+                                    .into())
+                            }
+                        }
                     }
                 }
             }
@@ -197,14 +266,27 @@ impl<'a> Parser<'a> {
                                 ));
                         }
 
-                        // Root-level string value - join consecutive tokens
+                        if matches!(self.current_token, Token::Newline | Token::Eof) {
+                            return Ok(Value::String(first));
+                        }
+                        // Root-level string value - join consecutive tokens with exact spacing
                         let mut accumulated = first;
-                        while let Token::String(next, _) = &self.current_token {
-                            if !accumulated.is_empty() {
-                                accumulated.push(' ');
+                        loop {
+                            match &self.current_token {
+                                Token::String(..)
+                                | Token::Integer(..)
+                                | Token::Number(..)
+                                | Token::Bool(..)
+                                | Token::Null => {
+                                    let ws = self.scanner.last_whitespace_count().max(1);
+                                    for _ in 0..ws {
+                                        accumulated.push(' ');
+                                    }
+                                    accumulated.push_str(self.scanner.last_token_text());
+                                    self.advance()?;
+                                }
+                                _ => break,
                             }
-                            accumulated.push_str(next);
-                            self.advance()?;
                         }
                         Ok(Value::String(accumulated))
                     }
@@ -433,9 +515,10 @@ impl<'a> Parser<'a> {
             self.parse_value_with_depth(depth + 1)
         } else {
             // Check if there's more content after the current token
-            let (rest, had_space) = self.scanner.read_rest_of_line_with_space_info();
+            let token_text = self.scanner.last_token_text().to_string();
+            let (rest, space_count) = self.scanner.read_rest_of_line_with_space_info();
 
-            let result = if rest.is_empty() {
+            let result = if rest.is_empty() && space_count == 0 {
                 // Single token - convert directly to avoid redundant parsing
                 match &self.current_token {
                     Token::String(s, _) => Ok(Value::String(s.clone())),
@@ -457,28 +540,24 @@ impl<'a> Parser<'a> {
                     _ => Err(self.parse_error_with_context("Unexpected token after colon")),
                 }
             } else {
-                // Multi-token value - reconstruct and re-parse as complete string
-                let mut value_str = String::new();
-
-                match &self.current_token {
-                    Token::String(s, true) => {
-                        // Quoted strings need quotes preserved for re-parsing
-                        value_str.push('"');
-                        value_str.push_str(&crate::utils::escape_string(s));
-                        value_str.push('"');
+                // Multi-token value - reconstruct using original token text and re-parse
+                let mut value_str = match &self.current_token {
+                    Token::String(_, true) => {
+                        // Quoted strings: use last_token_text which includes quotes
+                        token_text.clone()
                     }
-                    Token::String(s, false) => value_str.push_str(s),
-                    Token::Integer(i) => value_str.push_str(&i.to_string()),
-                    Token::Number(n) => value_str.push_str(&n.to_string()),
-                    Token::Bool(b) => value_str.push_str(if *b { "true" } else { "false" }),
-                    Token::Null => value_str.push_str("null"),
+                    Token::String(_, false)
+                    | Token::Integer(_)
+                    | Token::Number(_)
+                    | Token::Bool(_)
+                    | Token::Null => token_text.clone(),
                     _ => {
                         return Err(self.parse_error_with_context("Unexpected token after colon"));
                     }
-                }
+                };
 
-                // Only add space if there was whitespace in the original input
-                if had_space {
+                // Preserve exact spacing from the original input
+                for _ in 0..space_count {
                     value_str.push(' ');
                 }
                 value_str.push_str(&rest);
@@ -1112,71 +1191,67 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_tabular_field_value(&mut self) -> ToonResult<Value> {
-        match &self.current_token {
-            Token::Null => {
-                self.advance()?;
-                Ok(Value::Null)
-            }
-            Token::Bool(b) => {
-                let val = *b;
-                self.advance()?;
-                Ok(Value::Bool(val))
-            }
-            Token::Integer(i) => {
-                let val = *i;
-                self.advance()?;
-                // If followed by string tokens, treat the whole value as a string
-                if let Token::String(..) = &self.current_token {
-                    let mut accumulated = val.to_string();
-                    while let Token::String(next, _) = &self.current_token {
-                        accumulated.push(' ');
-                        accumulated.push_str(next);
-                        self.advance()?;
-                    }
-                    Ok(Value::String(accumulated))
-                } else {
-                    Ok(Number::from(val).into())
-                }
-            }
-            Token::Number(n) => {
-                let val = *n;
-                self.advance()?;
-                // If followed by string tokens, treat the whole value as a string
-                if let Token::String(..) = &self.current_token {
-                    let mut accumulated = val.to_string();
-                    while let Token::String(next, _) = &self.current_token {
-                        accumulated.push(' ');
-                        accumulated.push_str(next);
-                        self.advance()?;
-                    }
-                    Ok(Value::String(accumulated))
-                } else if val.is_finite() && val.fract() == 0.0 && val.abs() <= i64::MAX as f64 {
-                    Ok(Number::from(val as i64).into())
-                } else {
-                    Ok(Number::from_f64(val)
-                        .ok_or_else(|| ToonError::InvalidInput(format!("Invalid number: {val}")))?
-                        .into())
-                }
-            }
-            Token::String(s, _) => {
-                // Tabular fields can have multiple string tokens joined with spaces
-                let mut accumulated = s.clone();
-                self.advance()?;
+        // Get the original text of the current token
+        let token_text = self.scanner.last_token_text().to_string();
 
-                while let Token::String(next, _) = &self.current_token {
-                    if !accumulated.is_empty() {
-                        accumulated.push(' ');
-                    }
-                    accumulated.push_str(next);
-                    self.advance()?;
-                }
+        // Read remaining text until delimiter/newline/EOF
+        let (rest, space_count) = self.scanner.read_until_delimiter_with_space_info();
 
-                Ok(Value::String(accumulated))
+        if rest.is_empty() && space_count == 0 {
+            // Single token — handle as primitive directly
+            let result = match &self.current_token {
+                Token::Null => Ok(Value::Null),
+                Token::Bool(b) => Ok(Value::Bool(*b)),
+                Token::Integer(i) => Ok(Number::from(*i).into()),
+                Token::Number(n) => {
+                    let val = *n;
+                    if val.is_finite() && val.fract() == 0.0 && val.abs() <= i64::MAX as f64 {
+                        Ok(Number::from(val as i64).into())
+                    } else {
+                        Ok(Number::from_f64(val)
+                            .ok_or_else(|| {
+                                ToonError::InvalidInput(format!("Invalid number: {val}"))
+                            })?
+                            .into())
+                    }
+                }
+                Token::String(s, _) => Ok(Value::String(s.clone())),
+                _ => Err(self.parse_error_with_context(format!(
+                    "Expected primitive value, found {:?}",
+                    self.current_token
+                ))),
+            };
+            self.advance()?;
+            result
+        } else {
+            // Multiple tokens — combine original text + spaces + rest, then type-infer
+            let mut value_str = token_text;
+            for _ in 0..space_count {
+                value_str.push(' ');
             }
-            _ => Err(self.parse_error_with_context(format!(
-                "Expected primitive value, found {:?}",
-                self.current_token
-            ))),
+            value_str.push_str(&rest);
+
+            let token = self.scanner.parse_value_string(&value_str)?;
+            // Rescan so current_token is positioned at the next delimiter/newline
+            self.current_token = self.scanner.scan_token()?;
+            match token {
+                Token::String(s, _) => Ok(Value::String(s)),
+                Token::Integer(i) => Ok(Number::from(i).into()),
+                Token::Number(n) => {
+                    if n.is_finite() && n.fract() == 0.0 && n.abs() <= i64::MAX as f64 {
+                        Ok(Number::from(n as i64).into())
+                    } else {
+                        Ok(Number::from_f64(n)
+                            .ok_or_else(|| {
+                                ToonError::InvalidInput(format!("Invalid number: {n}"))
+                            })?
+                            .into())
+                    }
+                }
+                Token::Bool(b) => Ok(Value::Bool(b)),
+                Token::Null => Ok(Value::Null),
+                _ => Err(ToonError::InvalidInput("Unexpected token type".to_string())),
+            }
         }
     }
 
@@ -1695,7 +1770,7 @@ hello: 0(f)"#;
         // Issue #56: Array elements starting with a number should be parsed as string
         // when followed by non-numeric text
         let result = parse("version1[1]: 1.0 something").unwrap();
-        assert_eq!(result["version1"], json!(["1 something"]));
+        assert_eq!(result["version1"], json!(["1.0 something"]));
 
         let result = parse("data[1]: 42 units").unwrap();
         assert_eq!(result["data"], json!(["42 units"]));
@@ -1706,5 +1781,65 @@ hello: 0(f)"#;
 
         let result = parse("nums[1]: 2.75").unwrap();
         assert_eq!(result["nums"], json!([2.75]));
+    }
+
+    #[test]
+    fn test_issue_59_multiple_spaces_preserved() {
+        // Issue #59: Multiple spaces between words should be preserved
+        // Field value context
+        let result = parse("key: a   b").unwrap();
+        assert_eq!(result["key"], json!("a   b"));
+
+        // Tabular cell context
+        let result = parse("data[2]: a   b, c   d").unwrap();
+        assert_eq!(result["data"], json!(["a   b", "c   d"]));
+
+        // Root-level value
+        let result = parse("a   b").unwrap();
+        assert_eq!(result, json!("a   b"));
+    }
+
+    #[test]
+    fn test_issue_60_mixed_type_tokens_as_string() {
+        // Issue #60: "1 null" and "a 1" should parse as strings in tabular rows
+        // Tabular cell context
+        let result = parse("data[2]: 1 null, a 1").unwrap();
+        assert_eq!(result["data"], json!(["1 null", "a 1"]));
+
+        // Root-level value
+        let result = parse("1 null").unwrap();
+        assert_eq!(result, json!("1 null"));
+
+        let result = parse("a 1").unwrap();
+        assert_eq!(result, json!("a 1"));
+
+        // Field value context
+        let result = parse("key: 1 null").unwrap();
+        assert_eq!(result["key"], json!("1 null"));
+
+        let result = parse("key: a 1").unwrap();
+        assert_eq!(result["key"], json!("a 1"));
+    }
+
+    #[test]
+    fn test_issue_61_number_format_preserved() {
+        // Issue #61: "1.0 b" should preserve "1.0", not become "1 b"
+        // Tabular cell context
+        let result = parse("data[2]: 1.0 b, 1e1 b").unwrap();
+        assert_eq!(result["data"], json!(["1.0 b", "1e1 b"]));
+
+        // Field value context
+        let result = parse("key: 1.0 b").unwrap();
+        assert_eq!(result["key"], json!("1.0 b"));
+
+        let result = parse("key: 1e1 b").unwrap();
+        assert_eq!(result["key"], json!("1e1 b"));
+
+        // Root-level value
+        let result = parse("1.0 b").unwrap();
+        assert_eq!(result, json!("1.0 b"));
+
+        let result = parse("1e1 b").unwrap();
+        assert_eq!(result, json!("1e1 b"));
     }
 }

@@ -31,6 +31,8 @@ pub struct Scanner {
     column: usize,
     active_delimiter: Option<Delimiter>,
     last_line_indent: usize,
+    last_whitespace_count: usize,
+    last_token_text: String,
 }
 
 impl Scanner {
@@ -43,6 +45,8 @@ impl Scanner {
             column: 1,
             active_delimiter: None,
             last_line_indent: 0,
+            last_whitespace_count: 0,
+            last_token_text: String::new(),
         }
     }
 
@@ -120,13 +124,23 @@ impl Scanner {
     }
 
     pub fn skip_whitespace(&mut self) {
+        self.last_whitespace_count = 0;
         while let Some(ch) = self.peek() {
             if ch == ' ' {
+                self.last_whitespace_count += 1;
                 self.advance();
             } else {
                 break;
             }
         }
+    }
+
+    pub fn last_whitespace_count(&self) -> usize {
+        self.last_whitespace_count
+    }
+
+    pub fn last_token_text(&self) -> &str {
+        &self.last_token_text
     }
 
     /// Scan the next token from the input.
@@ -156,7 +170,7 @@ impl Scanner {
 
         self.skip_whitespace();
 
-        match self.peek() {
+        let token = match self.peek() {
             None => Ok(Token::Eof),
             Some('\n') => {
                 self.advance();
@@ -164,22 +178,27 @@ impl Scanner {
             }
             Some('[') => {
                 self.advance();
+                self.last_token_text = "[".to_string();
                 Ok(Token::LeftBracket)
             }
             Some(']') => {
                 self.advance();
+                self.last_token_text = "]".to_string();
                 Ok(Token::RightBracket)
             }
             Some('{') => {
                 self.advance();
+                self.last_token_text = "{".to_string();
                 Ok(Token::LeftBrace)
             }
             Some('}') => {
                 self.advance();
+                self.last_token_text = "}".to_string();
                 Ok(Token::RightBrace)
             }
             Some(':') => {
                 self.advance();
+                self.last_token_text = ":".to_string();
                 Ok(Token::Colon)
             }
             Some('-') => {
@@ -187,15 +206,18 @@ impl Scanner {
                 if let Some(ch) = self.peek() {
                     if ch.is_ascii_digit() {
                         let num_str = self.scan_number_string(true)?;
+                        self.last_token_text = num_str.clone();
                         return self.parse_number(&num_str);
                     }
                 }
+                self.last_token_text = "-".to_string();
                 Ok(Token::Dash)
             }
             Some(',') => {
                 // Delimiter only when active, otherwise part of unquoted string
                 if matches!(self.active_delimiter, Some(Delimiter::Comma)) {
                     self.advance();
+                    self.last_token_text = ",".to_string();
                     Ok(Token::Delimiter(Delimiter::Comma))
                 } else {
                     self.scan_unquoted_string()
@@ -204,6 +226,7 @@ impl Scanner {
             Some('|') => {
                 if matches!(self.active_delimiter, Some(Delimiter::Pipe)) {
                     self.advance();
+                    self.last_token_text = "|".to_string();
                     Ok(Token::Delimiter(Delimiter::Pipe))
                 } else {
                     self.scan_unquoted_string()
@@ -212,6 +235,7 @@ impl Scanner {
             Some('\t') => {
                 if matches!(self.active_delimiter, Some(Delimiter::Tab)) {
                     self.advance();
+                    self.last_token_text = "\t".to_string();
                     Ok(Token::Delimiter(Delimiter::Tab))
                 } else {
                     self.scan_unquoted_string()
@@ -220,10 +244,13 @@ impl Scanner {
             Some('"') => self.scan_quoted_string(),
             Some(ch) if ch.is_ascii_digit() => {
                 let num_str = self.scan_number_string(false)?;
+                self.last_token_text = num_str.clone();
                 self.parse_number(&num_str)
             }
             Some(_) => self.scan_unquoted_string(),
-        }
+        };
+
+        token
     }
 
     fn scan_quoted_string(&mut self) -> ToonResult<Token> {
@@ -253,6 +280,7 @@ impl Scanner {
             } else if ch == '\\' {
                 escaped = true;
             } else if ch == '"' {
+                self.last_token_text = format!("\"{}\"", crate::utils::escape_string(&value));
                 return Ok(Token::String(value, true));
             } else {
                 value.push(ch);
@@ -297,6 +325,7 @@ impl Scanner {
             value.trim_end().to_string()
         };
 
+        self.last_token_text = value.clone();
         match value.as_str() {
             "null" => Ok(Token::Null),
             "true" => Ok(Token::Bool(true)),
@@ -380,11 +409,13 @@ impl Scanner {
     }
 
     /// Read the rest of the current line (until newline or EOF).
-    /// Returns the content with a flag indicating if it started with
-    /// whitespace.
-    pub fn read_rest_of_line_with_space_info(&mut self) -> (String, bool) {
-        let had_leading_space = matches!(self.peek(), Some(' '));
-        self.skip_whitespace();
+    /// Returns the content with the count of leading spaces consumed.
+    pub fn read_rest_of_line_with_space_info(&mut self) -> (String, usize) {
+        let mut space_count = 0;
+        while let Some(' ') = self.peek() {
+            space_count += 1;
+            self.advance();
+        }
 
         let mut result = String::new();
         while let Some(ch) = self.peek() {
@@ -395,12 +426,41 @@ impl Scanner {
             self.advance();
         }
 
-        (result.trim_end().to_string(), had_leading_space)
+        (result.trim_end().to_string(), space_count)
     }
 
     /// Read the rest of the current line (until newline or EOF).
     pub fn read_rest_of_line(&mut self) -> String {
         self.read_rest_of_line_with_space_info().0
+    }
+
+    /// Read raw text until the next active delimiter, newline, or EOF.
+    /// Returns the content with the count of leading spaces consumed.
+    pub fn read_until_delimiter_with_space_info(&mut self) -> (String, usize) {
+        let mut space_count = 0;
+        while let Some(' ') = self.peek() {
+            space_count += 1;
+            self.advance();
+        }
+
+        let mut result = String::new();
+        while let Some(ch) = self.peek() {
+            if ch == '\n' {
+                break;
+            }
+            if let Some(active) = self.active_delimiter {
+                if (active == Delimiter::Comma && ch == ',')
+                    || (active == Delimiter::Pipe && ch == '|')
+                    || (active == Delimiter::Tab && ch == '\t')
+                {
+                    break;
+                }
+            }
+            result.push(ch);
+            self.advance();
+        }
+
+        (result.trim_end().to_string(), space_count)
     }
 
     /// Parse a complete value string into a token.
@@ -608,24 +668,29 @@ mod tests {
     #[test]
     fn test_read_rest_of_line_with_space_info() {
         let mut scanner = Scanner::new(" world");
-        let (content, had_space) = scanner.read_rest_of_line_with_space_info();
+        let (content, space_count) = scanner.read_rest_of_line_with_space_info();
         assert_eq!(content, "world");
-        assert!(had_space);
+        assert_eq!(space_count, 1);
 
         let mut scanner = Scanner::new("world");
-        let (content, had_space) = scanner.read_rest_of_line_with_space_info();
+        let (content, space_count) = scanner.read_rest_of_line_with_space_info();
         assert_eq!(content, "world");
-        assert!(!had_space);
+        assert_eq!(space_count, 0);
 
         let mut scanner = Scanner::new("(hello)");
-        let (content, had_space) = scanner.read_rest_of_line_with_space_info();
+        let (content, space_count) = scanner.read_rest_of_line_with_space_info();
         assert_eq!(content, "(hello)");
-        assert!(!had_space);
+        assert_eq!(space_count, 0);
 
         let mut scanner = Scanner::new("");
-        let (content, had_space) = scanner.read_rest_of_line_with_space_info();
+        let (content, space_count) = scanner.read_rest_of_line_with_space_info();
         assert_eq!(content, "");
-        assert!(!had_space);
+        assert_eq!(space_count, 0);
+
+        let mut scanner = Scanner::new("   world");
+        let (content, space_count) = scanner.read_rest_of_line_with_space_info();
+        assert_eq!(content, "world");
+        assert_eq!(space_count, 3);
     }
 
     #[test]

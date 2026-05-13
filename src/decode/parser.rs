@@ -26,6 +26,15 @@ use crate::{
     },
     utils::validation::validate_depth,
 };
+#[cfg(feature = "layout")]
+use crate::{
+    decode::layout_builder::LayoutBuilder,
+    layout::{
+        FieldDescriptor,
+        Layout,
+        NodeLayout,
+    },
+};
 
 /// Context for parsing arrays to determine correct indentation depth.
 ///
@@ -50,6 +59,8 @@ pub struct Parser<'a> {
     options: DecodeOptions,
     delimiter: Option<Delimiter>,
     input: &'a str,
+    #[cfg(feature = "layout")]
+    layout: Option<LayoutBuilder>,
 }
 
 impl<'a> Parser<'a> {
@@ -66,7 +77,74 @@ impl<'a> Parser<'a> {
             delimiter: chosen_delim,
             options,
             input,
+            #[cfg(feature = "layout")]
+            layout: None,
         })
+    }
+
+    #[cfg(feature = "layout")]
+    pub fn with_layout(mut self) -> Self {
+        self.layout = Some(LayoutBuilder::new());
+        self
+    }
+
+    #[cfg(feature = "layout")]
+    pub fn take_layout(&mut self) -> Option<Layout> {
+        self.layout.take().map(LayoutBuilder::finish)
+    }
+
+    fn layout_push(&mut self, segment: &str) {
+        #[cfg(feature = "layout")]
+        if let Some(b) = self.layout.as_mut() {
+            b.push(segment.to_string());
+        }
+        #[cfg(not(feature = "layout"))]
+        let _ = segment;
+    }
+
+    fn layout_pop(&mut self) {
+        #[cfg(feature = "layout")]
+        if let Some(b) = self.layout.as_mut() {
+            b.pop();
+        }
+    }
+
+    fn layout_record_tabular(&mut self, length: usize, fields: &[String], delimiter: Delimiter) {
+        #[cfg(feature = "layout")]
+        if let Some(b) = self.layout.as_mut() {
+            let descriptors: Vec<FieldDescriptor> =
+                fields.iter().map(FieldDescriptor::leaf).collect();
+            b.record(NodeLayout::Tabular {
+                declared_len: length,
+                fields: descriptors,
+                delimiter,
+            });
+        }
+        #[cfg(not(feature = "layout"))]
+        let _ = (length, fields, delimiter);
+    }
+
+    fn layout_record_list(&mut self, length: usize) {
+        #[cfg(feature = "layout")]
+        if let Some(b) = self.layout.as_mut() {
+            b.record(NodeLayout::List {
+                declared_len: length,
+            });
+        }
+        #[cfg(not(feature = "layout"))]
+        let _ = length;
+    }
+
+    fn layout_record_inline_array(&mut self, length: usize, delimiter: Delimiter) {
+        #[cfg(feature = "layout")]
+        if let Some(b) = self.layout.as_mut() {
+            b.record(NodeLayout::InlineArray {
+                declared_len: length,
+                delimiter,
+            });
+        }
+        #[cfg(not(feature = "layout"))]
+        let _ = (length, delimiter);
     }
 
     /// Parse the input into a JSON value.
@@ -330,6 +408,7 @@ impl<'a> Parser<'a> {
             };
             self.advance()?;
 
+            self.layout_push(&key);
             let value = if matches!(self.current_token, Token::LeftBracket) {
                 self.parse_array(depth)?
             } else {
@@ -344,6 +423,7 @@ impl<'a> Parser<'a> {
                 self.advance()?;
                 self.parse_field_value(depth)?
             };
+            self.layout_pop();
 
             obj.insert(key, value);
         }
@@ -363,8 +443,10 @@ impl<'a> Parser<'a> {
             self.validate_indentation(current_indent)?;
         }
 
+        self.layout_push(&key);
         if matches!(self.current_token, Token::LeftBracket) {
             let value = self.parse_array(depth)?;
+            self.layout_pop();
             obj.insert(key, value);
         } else {
             if !matches!(self.current_token, Token::Colon) {
@@ -376,6 +458,7 @@ impl<'a> Parser<'a> {
             self.advance()?;
 
             let value = self.parse_field_value(depth)?;
+            self.layout_pop();
             obj.insert(key, value);
         }
 
@@ -458,15 +541,18 @@ impl<'a> Parser<'a> {
             };
             self.advance()?;
 
+            self.layout_push(&key);
             let value = if matches!(self.current_token, Token::LeftBracket) {
                 self.parse_array(depth)?
             } else {
                 if !matches!(self.current_token, Token::Colon) {
+                    self.layout_pop();
                     break;
                 }
                 self.advance()?;
                 self.parse_field_value(depth)?
             };
+            self.layout_pop();
 
             obj.insert(key, value);
         }
@@ -706,10 +792,12 @@ impl<'a> Parser<'a> {
     ) -> ToonResult<Value> {
         validate_depth(depth, MAX_DEPTH)?;
 
-        let (length, _detected_delim, fields) = self.parse_array_header()?;
+        let (length, detected_delim, fields) = self.parse_array_header()?;
+        let delim = detected_delim.unwrap_or(Delimiter::Comma);
 
         if let Some(fields) = fields {
             validation::validate_field_list(&fields)?;
+            self.layout_record_tabular(length, &fields, delim);
             self.parse_tabular_array(length, &fields, depth, context)
         } else {
             // Non-tabular arrays as first field of list items require depth adjustment
@@ -718,6 +806,11 @@ impl<'a> Parser<'a> {
                 ArrayParseContext::Normal => depth,
                 ArrayParseContext::ListItemFirstField => depth + 1,
             };
+            if length == 0 || matches!(self.current_token, Token::Newline) {
+                self.layout_record_list(length);
+            } else {
+                self.layout_record_inline_array(length, delim);
+            }
             self.parse_regular_array(length, adjusted_depth)
         }
     }
@@ -952,6 +1045,9 @@ impl<'a> Parser<'a> {
                     }
                     self.advance()?;
 
+                    let item_path = i.to_string();
+                    self.layout_push(&item_path);
+
                     let value = if matches!(self.current_token, Token::Newline | Token::Eof) {
                         Value::Object(Map::new())
                     } else if matches!(self.current_token, Token::LeftBracket) {
@@ -964,6 +1060,7 @@ impl<'a> Parser<'a> {
                             // This is an object: key followed by colon or array bracket
                             // First field of list-item object may be an array requiring special
                             // indentation
+                            self.layout_push(&key);
                             let first_value = if matches!(self.current_token, Token::LeftBracket) {
                                 // Array directly after key (e.g., "- key[N]:")
                                 // Use ListItemFirstField context to apply correct indentation
@@ -982,6 +1079,7 @@ impl<'a> Parser<'a> {
                                     self.parse_field_value(depth + 2)?
                                 }
                             };
+                            self.layout_pop();
 
                             let mut obj = Map::new();
                             obj.insert(key, first_value);
@@ -1035,6 +1133,7 @@ impl<'a> Parser<'a> {
                                     };
                                     self.advance()?;
 
+                                    self.layout_push(&field_key);
                                     let field_value =
                                         if matches!(self.current_token, Token::LeftBracket) {
                                             self.parse_array(depth + 2)?
@@ -1046,8 +1145,10 @@ impl<'a> Parser<'a> {
                                                 self.parse_field_value(depth + 2)?
                                             }
                                         } else {
+                                            self.layout_pop();
                                             break;
                                         };
+                                    self.layout_pop();
 
                                     obj.insert(field_key, field_value);
 
@@ -1088,6 +1189,7 @@ impl<'a> Parser<'a> {
                         self.parse_primitive()?
                     };
 
+                    self.layout_pop();
                     items.push(value);
 
                     if items.len() < length {

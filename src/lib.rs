@@ -28,11 +28,15 @@
 pub mod constants;
 pub mod decode;
 pub mod encode;
+#[cfg(feature = "layout")]
+pub mod layout;
 #[cfg(feature = "cli")]
 pub mod tui;
 pub mod types;
 pub mod utils;
 
+#[cfg(feature = "layout")]
+pub use decode::decode_with_layout;
 pub use decode::{
     decode,
     decode_default,
@@ -54,6 +58,12 @@ pub use encode::{
     encode_array,
     encode_default,
     encode_object,
+};
+#[cfg(feature = "layout")]
+pub use layout::{
+    FieldDescriptor,
+    Layout,
+    NodeLayout,
 };
 pub use types::{
     DecodeOptions,

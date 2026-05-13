@@ -1,5 +1,7 @@
 //! Decoder Implementation
 pub mod expansion;
+#[cfg(feature = "layout")]
+pub(crate) mod layout_builder;
 pub mod parser;
 pub mod scanner;
 pub mod validation;
@@ -63,20 +65,25 @@ pub fn decode<T: serde::de::DeserializeOwned>(
 ) -> ToonResult<T> {
     let mut parser = parser::Parser::new(input, options.clone())?;
     let value = parser.parse()?;
+    let final_value = apply_path_expansion(value, options)?;
+    serde_json::from_value(final_value)
+        .map_err(|e| crate::types::ToonError::DeserializationError(e.to_string()))
+}
 
-    // Apply path expansion if enabled (v1.5 feature)
+/// Apply path expansion to a decoded value if enabled in `options`.
+///
+/// Shared by [`decode`] and [`decode_with_layout`] so both paths see the same
+/// post-parse transformation.
+fn apply_path_expansion(value: Value, options: &DecodeOptions) -> ToonResult<Value> {
     use crate::types::PathExpansionMode;
-    let final_value = if options.expand_paths != PathExpansionMode::Off {
+    if options.expand_paths != PathExpansionMode::Off {
         let json_value = crate::types::JsonValue::from(value);
         let expanded =
             expansion::expand_paths_recursive(json_value, options.expand_paths, options.strict)?;
-        Value::from(expanded)
+        Ok(Value::from(expanded))
     } else {
-        value
-    };
-
-    serde_json::from_value(final_value)
-        .map_err(|e| crate::types::ToonError::DeserializationError(e.to_string()))
+        Ok(value)
+    }
 }
 
 /// Decode with strict validation enabled (validates array lengths,
@@ -223,6 +230,50 @@ pub fn decode_no_coerce_with_options<T: serde::de::DeserializeOwned>(
 /// ```
 pub fn decode_default<T: serde::de::DeserializeOwned>(input: &str) -> ToonResult<T> {
     decode(input, &DecodeOptions::default())
+}
+
+/// Decode a TOON document and return the value alongside layout metadata
+/// describing how the document was actually written on the wire.
+///
+/// Available only when the `layout` cargo feature is enabled.
+///
+/// # Pointer semantics with `expand_paths`
+///
+/// JSON pointers in the returned [`Layout`](crate::layout::Layout) reflect
+/// the document's *pre-expansion* structure — i.e. the key names the parser
+/// actually saw on the wire. When `options.expand_paths` is `Safe`, the
+/// returned value is restructured (e.g. `a.b: 1` becomes `{"a": {"b": 1}}`)
+/// but layout pointers still address the original keys. For unambiguous
+/// pointer-to-value lookups, prefer `PathExpansionMode::Off` (the default).
+///
+/// # Examples
+///
+/// ```
+/// use toon_format::{
+///     decode_with_layout,
+///     DecodeOptions,
+///     NodeLayout,
+/// };
+///
+/// let toon = "users[2]{id,name}:\n  1,Alice\n  2,Bob";
+/// let (_value, layout) = decode_with_layout(toon, &DecodeOptions::default())?;
+///
+/// assert!(matches!(
+///     layout.get("/users"),
+///     Some(NodeLayout::Tabular { .. })
+/// ));
+/// # Ok::<(), toon_format::ToonError>(())
+/// ```
+#[cfg(feature = "layout")]
+pub fn decode_with_layout(
+    input: &str,
+    options: &DecodeOptions,
+) -> ToonResult<(Value, crate::layout::Layout)> {
+    let mut parser = parser::Parser::new(input, options.clone())?.with_layout();
+    let value = parser.parse()?;
+    let final_value = apply_path_expansion(value, options)?;
+    let layout = parser.take_layout().unwrap_or_default();
+    Ok((final_value, layout))
 }
 
 #[cfg(test)]

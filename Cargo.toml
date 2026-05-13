@@ -27,6 +27,9 @@ required-features = ["cli"]
 [features]
 default = ["cli"]
 json_stream = []
+# Expose decoder layout metadata via `decode_with_layout`. Experimental:
+# scoped to schema/tooling exploration, not part of the TOON specification.
+layout = []
 cli = [
     "dep:clap",
     "dep:anyhow",

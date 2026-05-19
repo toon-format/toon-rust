@@ -1,3 +1,8 @@
+#[cfg(feature = "json_stream")]
+use std::io::{
+    BufReader,
+    BufWriter,
+};
 use std::{
     fs,
     io::{
@@ -32,6 +37,11 @@ use toon_format::{
         PathExpansionMode,
     },
 };
+#[cfg(feature = "json_stream")]
+use toon_format::{
+    encode_json_stream,
+    StreamingEncodeOptions,
+};
 
 #[derive(Parser, Debug)]
 #[command(
@@ -44,13 +54,13 @@ use toon_format::{
 EXAMPLES:
   toon --interactive                       # Launch interactive TUI
   toon -i                                  # Short flag for interactive mode
-  
+
   toon input.json -o output.toon
   toon input.toon --json-indent 2
   cat data.json | toon -e --stats
   toon input.json --delimiter pipe
   toon input.toon -d --no-coerce
-  
+
   toon input.json --fold-keys              # Collapse {a:{b:1}} to a.b: 1
   toon input.json --fold-keys --flatten-depth 2
   toon input.toon --expand-paths           # Expand a.b:1 to {\"a\":{\"b\":1}}",
@@ -103,6 +113,10 @@ struct Cli {
         help = "Enable path expansion (decode): expand a.b:1 → {\"a\":{\"b\":1}}"
     )]
     expand_paths: bool,
+
+    #[cfg(feature = "json_stream")]
+    #[arg(long, help = "Streaming traversal depth for JSON encode (default: 2)")]
+    streaming_depth: Option<usize>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -143,6 +157,31 @@ fn get_input(file_arg: Option<&str>) -> Result<String> {
         .read_to_string(&mut input_str)
         .context("Failed to read input")?;
     Ok(input_str)
+}
+
+#[cfg(feature = "json_stream")]
+fn open_input_reader(file_arg: Option<&str>) -> Result<Box<dyn Read>> {
+    match file_arg {
+        Some(path_str) if path_str != "-" => {
+            let path = Path::new(path_str);
+            Ok(Box::new(BufReader::new(
+                fs::File::open(path)
+                    .with_context(|| format!("Failed to open: {}", path.display()))?,
+            )))
+        }
+        _ => Ok(Box::new(BufReader::new(io::stdin()))),
+    }
+}
+
+#[cfg(feature = "json_stream")]
+fn open_output_writer(output_path: Option<&PathBuf>) -> Result<Box<dyn Write>> {
+    match output_path {
+        Some(path) => Ok(Box::new(BufWriter::new(
+            fs::File::create(path)
+                .with_context(|| format!("Failed to create: {}", path.display()))?,
+        ))),
+        None => Ok(Box::new(BufWriter::new(io::stdout()))),
+    }
 }
 
 fn write_output(output_path: Option<PathBuf>, content: &str) -> Result<()> {
@@ -219,6 +258,34 @@ fn run_encode(cli: &Cli, input: &str) -> Result<()> {
         ]);
 
         eprintln!("\n{table}\n");
+    }
+
+    Ok(())
+}
+
+#[cfg(feature = "json_stream")]
+fn run_encode_streaming(cli: &Cli) -> Result<()> {
+    let reader = open_input_reader(cli.input.as_deref())?;
+    let mut writer = open_output_writer(cli.output.as_ref())?;
+
+    let mut opts = EncodeOptions::new();
+    if let Some(d) = cli.delimiter {
+        opts = opts.with_delimiter(d);
+    }
+    if let Some(i) = cli.indent {
+        opts = opts.with_indent(Indent::Spaces(i));
+    }
+
+    let streaming_options =
+        StreamingEncodeOptions::new().with_streaming_depth(cli.streaming_depth.unwrap_or(2));
+
+    encode_json_stream(reader, &mut writer, &opts, &streaming_options)
+        .context("Failed to encode JSON to TOON with streaming")?;
+
+    if cli.output.is_none() {
+        writer
+            .write_all(b"\n")
+            .context("Failed to write trailing newline")?;
     }
 
     Ok(())
@@ -344,6 +411,10 @@ fn validate_flags(cli: &Cli, operation: &Operation) -> Result<()> {
             if cli.flatten_depth.is_some() {
                 bail!("--flatten-depth is only valid for encode mode (use with --fold-keys)");
             }
+            #[cfg(feature = "json_stream")]
+            if cli.streaming_depth.is_some() {
+                bail!("--streaming-depth is only valid for encode mode");
+            }
         }
     }
 
@@ -366,17 +437,34 @@ fn main() -> Result<()> {
     let (operation, from_stdin) = determine_operation(&cli)?;
     validate_flags(&cli, &operation)?;
 
-    let input = get_input(cli.input.as_deref()).with_context(|| {
-        if from_stdin {
-            "Failed to read from stdin"
-        } else {
-            "Failed to read input file"
-        }
-    })?;
-
     match operation {
-        Operation::Encode => run_encode(&cli, &input)?,
-        Operation::Decode => run_decode(&cli, &input)?,
+        Operation::Encode => {
+            #[cfg(feature = "json_stream")]
+            {
+                if !cli.stats && !cli.fold_keys {
+                    return run_encode_streaming(&cli);
+                }
+            }
+
+            let input = get_input(cli.input.as_deref()).with_context(|| {
+                if from_stdin {
+                    "Failed to read from stdin"
+                } else {
+                    "Failed to read input file"
+                }
+            })?;
+            run_encode(&cli, &input)?;
+        }
+        Operation::Decode => {
+            let input = get_input(cli.input.as_deref()).with_context(|| {
+                if from_stdin {
+                    "Failed to read from stdin"
+                } else {
+                    "Failed to read input file"
+                }
+            })?;
+            run_decode(&cli, &input)?;
+        }
     }
 
     Ok(())

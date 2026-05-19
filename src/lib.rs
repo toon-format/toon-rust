@@ -41,6 +41,14 @@ pub use decode::{
     decode_strict,
     decode_strict_with_options,
 };
+#[cfg(feature = "json_stream")]
+pub use encode::json_stream::{
+    encode_json_reader,
+    encode_json_reader_default,
+    encode_json_stream,
+    encode_json_stream_default,
+    StreamingEncodeOptions,
+};
 pub use encode::{
     encode,
     encode_array,

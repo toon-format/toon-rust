@@ -1,5 +1,7 @@
 //! Encoder Implementation
 pub mod folding;
+#[cfg(feature = "json_stream")]
+pub mod json_stream;
 pub mod primitives;
 pub mod writer;
 use indexmap::IndexMap;

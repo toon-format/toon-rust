@@ -26,6 +26,7 @@ required-features = ["cli"]
 
 [features]
 default = ["cli"]
+json_stream = []
 cli = [
     "dep:clap",
     "dep:anyhow",

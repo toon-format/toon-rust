@@ -122,7 +122,7 @@ fn main() -> Result<(), toon_format::ToonError> {
     // Decode back to JSON
     let decoded: Value = decode_default(&toon_str)?;
     assert_eq!(decoded, data);
-    
+
     Ok(())
 }
 ```
@@ -167,6 +167,30 @@ let toon = encode(&data, &opts)?;
 | `with_spaces(n)` | Shorthand for `Indent::Spaces(n)` | `2` |
 | `with_key_folding(mode)` | Enable key folding (v1.5) | `Off` |
 | `with_flatten_depth(n)` | Set max folding depth | `usize::MAX` |
+
+#### `json_stream` Feature
+
+For large JSON inputs, enable the optional `json_stream` feature to encode
+progressive chunks from a `Read` source to a `Write` target. This dramatically
+reduces both memory usage and execution time.
+
+```bash
+cargo add toon-format --features json_stream
+```
+
+```rust
+use std::io::Cursor;
+use toon_format::{encode_json_stream_default};
+
+let input = Cursor::new(br#"{"users":[{"id":1,"name":"Alice"},{"id":2,"name":"Bob"}]}"#);
+let mut output = Vec::new();
+encode_json_stream_default(input, &mut output)?;
+let toon = String::from_utf8(output)?;
+assert!(toon.contains("users[2]{id,name}:"));
+```
+
+When key folding is enabled, streaming encode falls back to the existing
+encoder because folding depends on whole-document sibling inspection.
 
 ### Decoding
 

@@ -8,6 +8,11 @@
 //!
 //! Available only when the `layout` cargo feature is enabled.
 //!
+//! **Experimental.** This module supports independent exploration of schema
+//! and tooling use cases (validators, formatters, linters). It is not part
+//! of the TOON specification and its API may evolve independently of the
+//! core decoder.
+//!
 //! # Example
 //!
 //! ```

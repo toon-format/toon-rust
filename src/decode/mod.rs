@@ -237,6 +237,10 @@ pub fn decode_default<T: serde::de::DeserializeOwned>(input: &str) -> ToonResult
 ///
 /// Available only when the `layout` cargo feature is enabled.
 ///
+/// **Experimental.** This API supports independent exploration of schema
+/// and tooling use cases and is not part of the TOON specification.
+/// See [`crate::layout`] for the metadata types.
+///
 /// # Pointer semantics with `expand_paths`
 ///
 /// JSON pointers in the returned [`Layout`](crate::layout::Layout) reflect

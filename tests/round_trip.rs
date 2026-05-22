@@ -31,6 +31,12 @@ fn test_comprehensive_round_trips() {
         ]}),
         json!({"empty_array": []}),
         json!({"empty_object": {}}),
+        json!({"large_unsigned_integer": 12591154125385152738_u64}),
+        json!([
+            12591154125385152738_u64,
+            18446744073709551615_u64,
+            9223372036854775808_u64
+        ]),
     ];
 
     for (i, case) in test_cases.iter().enumerate() {

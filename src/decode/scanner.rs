@@ -16,7 +16,8 @@ pub enum Token {
     Newline,
     String(String, bool),
     Number(f64),
-    Integer(i64),
+    SignedInteger(i64),
+    UnsignedInteger(u64),
     Bool(bool),
     Null,
     Delimiter(Delimiter),
@@ -24,6 +25,7 @@ pub enum Token {
 }
 
 /// Scanner that tokenizes TOON input into a sequence of tokens.
+#[derive(Debug)]
 pub struct Scanner {
     input: Vec<char>,
     position: usize,
@@ -400,7 +402,9 @@ impl Scanner {
                 Ok(Token::String(s.to_string(), false))
             }
         } else if let Ok(i) = s.parse::<i64>() {
-            Ok(Token::Integer(i))
+            Ok(Token::SignedInteger(i))
+        } else if let Ok(i) = s.parse::<u64>() {
+            Ok(Token::UnsignedInteger(i))
         } else {
             Ok(Token::String(s.to_string(), false))
         }
@@ -547,7 +551,9 @@ impl Scanner {
                     return Ok(Token::Number(normalized));
                 }
             } else if let Ok(i) = trimmed.parse::<i64>() {
-                return Ok(Token::Integer(i));
+                return Ok(Token::SignedInteger(i));
+            } else if let Ok(i) = trimmed.parse::<u64>() {
+                return Ok(Token::UnsignedInteger(i));
             }
         }
 
@@ -602,13 +608,17 @@ mod tests {
 
     #[test]
     fn test_scan_numbers() {
-        let mut scanner = Scanner::new("42 3.141592653589793 -5");
-        assert_eq!(scanner.scan_token().unwrap(), Token::Integer(42));
+        let mut scanner = Scanner::new("42 3.141592653589793 -5 12591154125385152738");
+        assert_eq!(scanner.scan_token().unwrap(), Token::SignedInteger(42));
         assert_eq!(
             scanner.scan_token().unwrap(),
             Token::Number(f64::consts::PI)
         );
-        assert_eq!(scanner.scan_token().unwrap(), Token::Integer(-5));
+        assert_eq!(scanner.scan_token().unwrap(), Token::SignedInteger(-5));
+        assert_eq!(
+            scanner.scan_token().unwrap(),
+            Token::UnsignedInteger(12591154125385152738)
+        );
     }
 
     #[test]
@@ -717,7 +727,7 @@ mod tests {
 
         assert_eq!(
             scanner.parse_value_string("42").unwrap(),
-            Token::Integer(42)
+            Token::SignedInteger(42)
         );
 
         assert_eq!(

@@ -39,6 +39,14 @@ users[2]{id,name}:
 - **Strict Validation**: Enforces all spec rules (configurable)
 - **Well-Tested**: Comprehensive test suite with unit tests, spec fixtures, and real-world scenarios
 
+### Experimental Cargo Features
+
+- **`layout`** *(experimental, off by default)*: Exposes decoder layout metadata
+  (tabular vs list vs inline, declared `[N]` lengths, field descriptors) via
+  `decode_with_layout`. Scoped to independent exploration of schema and tooling
+  use cases (validators, formatters, linters); **not part of the TOON
+  specification** and may evolve independently of the core decoder.
+
 ## Installation
 
 ### As a Library

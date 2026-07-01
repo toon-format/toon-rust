@@ -322,7 +322,11 @@ fn write_array(
     validate_depth(depth, MAX_DEPTH)?;
 
     if arr.is_empty() {
-        writer.write_empty_array_with_key(key, depth)?;
+        if key.is_none() && depth == 0 {
+            writer.write_str("[]")?;
+        } else {
+            writer.write_empty_array_with_key(key, depth)?;
+        }
         return Ok(());
     }
 
@@ -352,6 +356,10 @@ fn is_tabular_array(arr: &[Value]) -> Option<Vec<String>> {
     }
 
     let first_obj = first.as_object()?;
+    if first_obj.is_empty() {
+        return None;
+    }
+
     let keys: Vec<String> = first_obj.keys().cloned().collect();
 
     // First object must have only primitive values
@@ -588,7 +596,9 @@ fn encode_nested_array(
                             // (rows for tabular, items for non-uniform)
                             writer.write_key(first_key)?;
 
-                            if let Some(keys) = is_tabular_array(arr) {
+                            if arr.is_empty() {
+                                writer.write_str(": []")?;
+                            } else if let Some(keys) = is_tabular_array(arr) {
                                 // Tabular array: write inline with correct indentation
                                 encode_list_item_tabular_array(writer, arr, &keys, depth + 1)?;
                             } else {
@@ -622,7 +632,11 @@ fn encode_nested_array(
                         match value {
                             Value::Array(arr) => {
                                 writer.write_key(key)?;
-                                write_array(writer, None, arr, depth + 2)?;
+                                if arr.is_empty() {
+                                    writer.write_str(": []")?;
+                                } else {
+                                    write_array(writer, None, arr, depth + 2)?;
+                                }
                             }
                             Value::Object(nested_obj) => {
                                 writer.write_key(key)?;
@@ -729,7 +743,7 @@ mod tests {
     fn test_encode_empty_array() {
         let obj = json!({"items": []});
         let result = encode_default(&obj).unwrap();
-        assert_eq!(result, "items[0]:");
+        assert_eq!(result, "items: []");
     }
 
     #[test]

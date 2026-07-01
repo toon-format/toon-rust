@@ -24,6 +24,17 @@ pub enum Token {
     Eof,
 }
 
+#[derive(Debug, Clone)]
+pub struct ScannerCheckpoint {
+    position: usize,
+    line: usize,
+    column: usize,
+    active_delimiter: Option<Delimiter>,
+    last_line_indent: usize,
+    last_whitespace_count: usize,
+    last_token_text: String,
+}
+
 /// Scanner that tokenizes TOON input into a sequence of tokens.
 #[derive(Debug)]
 pub struct Scanner {
@@ -108,6 +119,28 @@ impl Scanner {
 
     pub fn peek_ahead(&self, offset: usize) -> Option<char> {
         self.input.get(self.position + offset).copied()
+    }
+
+    pub fn checkpoint(&self) -> ScannerCheckpoint {
+        ScannerCheckpoint {
+            position: self.position,
+            line: self.line,
+            column: self.column,
+            active_delimiter: self.active_delimiter,
+            last_line_indent: self.last_line_indent,
+            last_whitespace_count: self.last_whitespace_count,
+            last_token_text: self.last_token_text.clone(),
+        }
+    }
+
+    pub fn restore(&mut self, checkpoint: ScannerCheckpoint) {
+        self.position = checkpoint.position;
+        self.line = checkpoint.line;
+        self.column = checkpoint.column;
+        self.active_delimiter = checkpoint.active_delimiter;
+        self.last_line_indent = checkpoint.last_line_indent;
+        self.last_whitespace_count = checkpoint.last_whitespace_count;
+        self.last_token_text = checkpoint.last_token_text;
     }
 
     pub fn advance(&mut self) -> Option<char> {
@@ -267,6 +300,33 @@ impl Scanner {
                     't' => value.push('\t'),
                     '"' => value.push('"'),
                     '\\' => value.push('\\'),
+                    'u' => {
+                        let mut hex = String::with_capacity(4);
+                        for _ in 0..4 {
+                            if let Some(hex_ch) = self.advance() {
+                                if hex_ch.is_ascii_hexdigit() {
+                                    hex.push(hex_ch);
+                                } else {
+                                    let (line, col) = self.current_position();
+                                    return Err(ToonError::parse_error(
+                                        line,
+                                        col,
+                                        "Invalid Unicode escape: expected four hexadecimal digits",
+                                    ));
+                                }
+                            } else {
+                                let (line, col) = self.current_position();
+                                return Err(ToonError::parse_error(
+                                    line,
+                                    col,
+                                    "Incomplete Unicode escape",
+                                ));
+                            }
+                        }
+
+                        let (line, col) = self.current_position();
+                        value.push(Self::parse_unicode_scalar(&hex, line, col)?);
+                    }
                     _ => {
                         let (line, col) = self.current_position();
                         return Err(ToonError::parse_error(
@@ -488,6 +548,27 @@ impl Scanner {
                         't' => value.push('\t'),
                         '"' => value.push('"'),
                         '\\' => value.push('\\'),
+                        'u' => {
+                            if i + 4 >= chars.len() {
+                                return Err(ToonError::parse_error(
+                                    self.line,
+                                    self.column,
+                                    "Incomplete Unicode escape",
+                                ));
+                            }
+
+                            let hex: String = chars[i + 1..i + 5].iter().collect();
+                            if !hex.chars().all(|c| c.is_ascii_hexdigit()) {
+                                return Err(ToonError::parse_error(
+                                    self.line,
+                                    self.column,
+                                    "Invalid Unicode escape: expected four hexadecimal digits",
+                                ));
+                            }
+
+                            value.push(Self::parse_unicode_scalar(&hex, self.line, self.column)?);
+                            i += 4;
+                        }
                         _ => {
                             return Err(ToonError::parse_error(
                                 self.line,
@@ -558,6 +639,16 @@ impl Scanner {
         }
 
         Ok(Token::String(trimmed.to_string(), false))
+    }
+
+    fn parse_unicode_scalar(hex: &str, line: usize, column: usize) -> ToonResult<char> {
+        let codepoint = u32::from_str_radix(hex, 16).map_err(|_| {
+            ToonError::parse_error(line, column, format!("Invalid Unicode escape: \\u{hex}"))
+        })?;
+
+        char::from_u32(codepoint).ok_or_else(|| {
+            ToonError::parse_error(line, column, format!("Invalid Unicode scalar: \\u{hex}"))
+        })
     }
 
     pub fn detect_delimiter(&mut self) -> Option<Delimiter> {

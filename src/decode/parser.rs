@@ -431,7 +431,7 @@ impl<'a> Parser<'a> {
                 base_indent = Some(current_indent);
             }
 
-            let key = match &self.current_token {
+            let mut key = match &self.current_token {
                 Token::String(s, was_quoted) => {
                     // Mark quoted keys containing dots with a special prefix
                     // so path expansion can skip them
@@ -454,7 +454,16 @@ impl<'a> Parser<'a> {
 
             self.layout_push(&key);
             let value = if matches!(self.current_token, Token::LeftBracket) {
-                self.parse_array(depth)?
+                if self.should_fall_back_to_literal_header_key() {
+                    self.layout_pop();
+                    let (literal_key, value) =
+                        self.parse_malformed_header_literal_key_value(key, depth)?;
+                    key = literal_key;
+                    self.layout_push(&key);
+                    value
+                } else {
+                    self.parse_array(depth)?
+                }
             } else {
                 if !matches!(self.current_token, Token::Colon) {
                     return Err(self
@@ -469,6 +478,11 @@ impl<'a> Parser<'a> {
             };
             self.layout_pop();
 
+            if self.options.strict && obj.contains_key(&key) {
+                return Err(self.parse_error_with_context(format!(
+                    "Duplicate sibling key '{key}' is not allowed in strict mode"
+                )));
+            }
             obj.insert(key, value);
         }
 
@@ -478,6 +492,7 @@ impl<'a> Parser<'a> {
     fn parse_object_with_initial_key(&mut self, key: String, depth: usize) -> ToonResult<Value> {
         validate_depth(depth, MAX_DEPTH)?;
 
+        let mut key = key;
         let mut obj = Map::new();
         let mut base_indent: Option<usize> = None;
 
@@ -489,7 +504,16 @@ impl<'a> Parser<'a> {
 
         self.layout_push(&key);
         if matches!(self.current_token, Token::LeftBracket) {
-            let value = self.parse_array(depth)?;
+            let value = if self.should_fall_back_to_literal_header_key() {
+                self.layout_pop();
+                let (literal_key, value) =
+                    self.parse_malformed_header_literal_key_value(key, depth)?;
+                key = literal_key;
+                self.layout_push(&key);
+                value
+            } else {
+                self.parse_array(depth)?
+            };
             self.layout_pop();
             obj.insert(key, value);
         } else {
@@ -571,7 +595,7 @@ impl<'a> Parser<'a> {
                 base_indent = Some(current_indent);
             }
 
-            let key = match &self.current_token {
+            let mut key = match &self.current_token {
                 Token::String(s, was_quoted) => {
                     // Mark quoted keys containing dots with a special prefix
                     // so path expansion can skip them
@@ -587,7 +611,16 @@ impl<'a> Parser<'a> {
 
             self.layout_push(&key);
             let value = if matches!(self.current_token, Token::LeftBracket) {
-                self.parse_array(depth)?
+                if self.should_fall_back_to_literal_header_key() {
+                    self.layout_pop();
+                    let (literal_key, value) =
+                        self.parse_malformed_header_literal_key_value(key, depth)?;
+                    key = literal_key;
+                    self.layout_push(&key);
+                    value
+                } else {
+                    self.parse_array(depth)?
+                }
             } else {
                 if !matches!(self.current_token, Token::Colon) {
                     self.layout_pop();
@@ -598,10 +631,154 @@ impl<'a> Parser<'a> {
             };
             self.layout_pop();
 
+            if self.options.strict && obj.contains_key(&key) {
+                return Err(self.parse_error_with_context(format!(
+                    "Duplicate sibling key '{key}' is not allowed in strict mode"
+                )));
+            }
             obj.insert(key, value);
         }
 
         Ok(Value::Object(obj))
+    }
+
+    fn parse_malformed_header_literal_key_value(
+        &mut self,
+        mut key: String,
+        depth: usize,
+    ) -> ToonResult<(String, Value)> {
+        if !matches!(self.current_token, Token::LeftBracket) {
+            return Err(self.parse_error_with_context("Expected malformed header bracket"));
+        }
+
+        key.push('[');
+        let mut in_quotes = false;
+        let mut escaped = false;
+        while let Some(ch) = self.scanner.advance() {
+            if escaped {
+                key.push(ch);
+                escaped = false;
+                continue;
+            }
+            if ch == '\\' && in_quotes {
+                key.push(ch);
+                escaped = true;
+                continue;
+            }
+            if ch == '"' {
+                key.push(ch);
+                in_quotes = !in_quotes;
+                continue;
+            }
+            if ch == '\n' {
+                return Err(
+                    self.parse_error_with_context("Expected ':' after malformed header key")
+                );
+            }
+            if ch == ':' && !in_quotes {
+                self.current_token = self.scanner.scan_token()?;
+                let value = self.parse_field_value(depth)?;
+                return Ok((key, value));
+            }
+            key.push(ch);
+        }
+
+        Err(self.parse_error_with_context("Expected ':' after malformed header key"))
+    }
+
+    fn should_fall_back_to_literal_header_key(&mut self) -> bool {
+        if self.options.strict || !matches!(self.current_token, Token::LeftBracket) {
+            return false;
+        }
+
+        let checkpoint = self.scanner.checkpoint();
+        let mut segment = String::new();
+        let mut saw_colon = false;
+        let mut in_quotes = false;
+        let mut escaped = false;
+
+        while let Some(ch) = self.scanner.advance() {
+            if escaped {
+                segment.push(ch);
+                escaped = false;
+                continue;
+            }
+            if ch == '\\' && in_quotes {
+                segment.push(ch);
+                escaped = true;
+                continue;
+            }
+            if ch == '"' {
+                segment.push(ch);
+                in_quotes = !in_quotes;
+                continue;
+            }
+            if ch == '\n' {
+                break;
+            }
+            if ch == ':' && !in_quotes {
+                saw_colon = true;
+                break;
+            }
+            segment.push(ch);
+        }
+
+        self.scanner.restore(checkpoint);
+
+        saw_colon && !Self::is_canonical_array_header_segment(&segment)
+    }
+
+    fn is_canonical_array_header_segment(segment: &str) -> bool {
+        let Some(close_bracket_index) = Self::find_unquoted_char(segment, ']') else {
+            return false;
+        };
+
+        let raw_length = &segment[..close_bracket_index];
+        let suffix = &segment[close_bracket_index + 1..];
+        let length = raw_length
+            .strip_suffix([',', '|', '\t'])
+            .unwrap_or(raw_length);
+
+        if !Self::is_canonical_array_length(length) {
+            return false;
+        }
+
+        if suffix.is_empty() {
+            return true;
+        }
+
+        suffix.starts_with('{') && suffix.ends_with('}')
+    }
+
+    fn find_unquoted_char(input: &str, target: char) -> Option<usize> {
+        let mut in_quotes = false;
+        let mut escaped = false;
+
+        for (index, ch) in input.char_indices() {
+            if escaped {
+                escaped = false;
+                continue;
+            }
+            if ch == '\\' && in_quotes {
+                escaped = true;
+                continue;
+            }
+            if ch == '"' {
+                in_quotes = !in_quotes;
+                continue;
+            }
+            if ch == target && !in_quotes {
+                return Some(index);
+            }
+        }
+
+        None
+    }
+
+    fn is_canonical_array_length(length: &str) -> bool {
+        !length.is_empty()
+            && length.chars().all(|ch| ch.is_ascii_digit())
+            && (length == "0" || !length.starts_with('0'))
     }
 
     fn parse_field_value(&mut self, depth: usize) -> ToonResult<Value> {
@@ -708,7 +885,40 @@ impl<'a> Parser<'a> {
             return Err(self.parse_error_with_context("Expected '[' at the start of root array"));
         }
 
+        if self.parse_canonical_empty_array()? {
+            if depth > 0 {
+                return Ok(Value::Array(Vec::new()));
+            }
+
+            self.skip_newlines()?;
+            if !matches!(self.current_token, Token::Eof) {
+                return Err(
+                    self.parse_error_with_context("Unexpected content after empty array literal")
+                );
+            }
+            return Ok(Value::Array(Vec::new()));
+        }
+
         self.parse_array(depth)
+    }
+
+    fn parse_canonical_empty_array(&mut self) -> ToonResult<bool> {
+        if !matches!(self.current_token, Token::LeftBracket) {
+            return Ok(false);
+        }
+
+        if !matches!(self.scanner.peek(), Some(']')) {
+            return Ok(false);
+        }
+
+        self.advance()?;
+        self.advance()?;
+        if !matches!(self.current_token, Token::Eof | Token::Newline) {
+            return Err(
+                self.parse_error_with_context("Unexpected content after empty array literal")
+            );
+        }
+        Ok(true)
     }
 
     fn parse_array_header(
@@ -722,6 +932,9 @@ impl<'a> Parser<'a> {
         // Parse array length (plain integer only)
         // Supports formats: [N], [N|], [N\t] (no # marker)
         let length = if let Token::SignedInteger(n) = &self.current_token {
+            if self.scanner.last_token_text().starts_with('-') {
+                return Err(self.parse_error_with_context(format!("Invalid array length: {n}")));
+            }
             *n as usize
         } else if let Token::UnsignedInteger(n) = &self.current_token {
             *n as usize
@@ -733,6 +946,12 @@ impl<'a> Parser<'a> {
                         "Length marker '#' is not supported. Use [N] format instead of [#N]",
                     )
                     .with_suggestion("Remove the '#' prefix from the array length"));
+            }
+
+            if s.len() > 1 && s.starts_with('0') {
+                return Err(self.parse_error_with_context(format!(
+                    "Invalid array length with leading zero: {s}"
+                )));
             }
 
             // Plain string that's a number: "3"
@@ -782,6 +1001,15 @@ impl<'a> Parser<'a> {
             )));
         }
         self.advance()?;
+
+        if self.options.strict
+            && self.scanner.last_whitespace_count() > 0
+            && matches!(self.current_token, Token::LeftBrace | Token::Colon)
+        {
+            return Err(self.parse_error_with_context(
+                "Whitespace is not allowed between array header segments in strict mode",
+            ));
+        }
 
         let fields = if matches!(self.current_token, Token::LeftBrace) {
             self.advance()?;
@@ -1199,6 +1427,12 @@ impl<'a> Parser<'a> {
                                         };
                                     self.layout_pop();
 
+                                    if self.options.strict && obj.contains_key(&field_key) {
+                                        return Err(self.parse_error_with_context(format!(
+                                            "Duplicate sibling key '{field_key}' is not allowed \
+                                             in strict mode"
+                                        )));
+                                    }
                                     obj.insert(field_key, field_value);
 
                                     if matches!(self.current_token, Token::Newline) {

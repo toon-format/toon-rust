@@ -14,6 +14,9 @@ pub fn escape_string(s: &str) -> String {
             '\t' => result.push_str("\\t"),
             '"' => result.push_str("\\\""),
             '\\' => result.push_str("\\\\"),
+            '\u{0000}'..='\u{001f}' => {
+                result.push_str(&format!("\\u{:04x}", ch as u32));
+            }
             _ => result.push(ch),
         }
     }
@@ -29,6 +32,7 @@ pub fn escape_string(s: &str) -> String {
 /// - `\n` → newline
 /// - `\r` → carriage return
 /// - `\t` → tab
+/// - `\uXXXX` → Unicode scalar value in the basic multilingual plane
 ///
 /// Any other escape sequence MUST cause an error.
 ///
@@ -72,10 +76,42 @@ pub fn unescape_string(s: &str) -> Result<String, String> {
                         chars.next();
                         position += 1;
                     }
+                    'u' => {
+                        chars.next();
+                        position += 1;
+
+                        let mut hex = String::with_capacity(4);
+                        for _ in 0..4 {
+                            if let Some(hex_ch) = chars.next() {
+                                position += 1;
+                                if hex_ch.is_ascii_hexdigit() {
+                                    hex.push(hex_ch);
+                                } else {
+                                    return Err(format!(
+                                        "Invalid Unicode escape at position {position}: expected \
+                                         four hexadecimal digits",
+                                    ));
+                                }
+                            } else {
+                                return Err(format!(
+                                    "Incomplete Unicode escape at position {position}: expected \
+                                     four hexadecimal digits",
+                                ));
+                            }
+                        }
+
+                        let codepoint = u32::from_str_radix(&hex, 16).map_err(|_| {
+                            format!("Invalid Unicode escape '\\u{hex}' at position {position}")
+                        })?;
+                        let scalar = char::from_u32(codepoint).ok_or_else(|| {
+                            format!("Invalid Unicode scalar '\\u{hex}' at position {position}")
+                        })?;
+                        result.push(scalar);
+                    }
                     _ => {
                         return Err(format!(
                             "Invalid escape sequence '\\{next}' at position {position}. Only \
-                             \\\\, \\\", \\n, \\r, \\t are valid",
+                             \\\\, \\\", \\n, \\r, \\t, \\uXXXX are valid",
                         ));
                     }
                 }
@@ -136,6 +172,10 @@ pub fn needs_quoting(s: &str, delimiter: char) -> bool {
     }
 
     if s.contains('\n') || s.contains('\r') || s.contains('\t') {
+        return true;
+    }
+
+    if s.chars().any(char::is_control) {
         return true;
     }
 
@@ -208,6 +248,10 @@ mod tests {
         assert_eq!(unescape_string("back\\\\slash").unwrap(), "back\\slash");
         assert_eq!(unescape_string("tab\\there").unwrap(), "tab\there");
         assert_eq!(unescape_string("return\\rhere").unwrap(), "return\rhere");
+        assert_eq!(
+            unescape_string("unicode\\u0004escape").unwrap(),
+            "unicode\u{4}escape"
+        );
     }
 
     #[test]

@@ -123,16 +123,11 @@ impl Writer {
                 self.write_indent(depth)?;
             }
             self.write_key(k)?;
+            self.write_str(": []")?;
+        } else {
+            self.write_str("[0]:")?;
         }
-        self.write_char('[')?;
-        self.write_str("0")?;
-
-        if self.options.delimiter != Delimiter::Comma {
-            self.write_delimiter()?;
-        }
-
-        self.write_char(']')?;
-        self.write_char(':')
+        Ok(())
     }
 
     pub fn needs_quoting(&self, s: &str, context: QuotingContext) -> bool {
@@ -327,6 +322,6 @@ mod tests {
         let mut writer = Writer::new(opts);
 
         writer.write_empty_array_with_key(Some("items"), 0).unwrap();
-        assert_eq!(writer.finish(), "items[0]:");
+        assert_eq!(writer.finish(), "items: []");
     }
 }

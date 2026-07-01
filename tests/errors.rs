@@ -6,6 +6,7 @@ use toon_format::{
     decode,
     decode_default,
     decode_strict,
+    encode_default,
     DecodeOptions,
     ToonError,
 };
@@ -111,6 +112,195 @@ fn test_length_mismatch_non_strict_mode() {
         let result = decode_default::<Value>(input);
         println!("Non-strict test for '{input}': {result:?}");
     }
+}
+
+#[test]
+fn test_non_strict_preserves_array_body_errors() {
+    let options = DecodeOptions::new().with_strict(false);
+    let result = decode::<Value>("items[2]: a", &options);
+
+    assert!(
+        result.is_err(),
+        "Non-strict malformed-header fallback must not hide array length mismatches"
+    );
+}
+
+#[test]
+fn test_canonical_empty_array_rejects_trailing_content() {
+    let object_result = decode_strict::<Value>("items: []junk");
+    assert!(
+        object_result.is_err(),
+        "Canonical empty array must be a complete value token"
+    );
+
+    let options = DecodeOptions::new().with_strict(false);
+    let root_result = decode::<Value>("[]junk", &options);
+    assert!(
+        root_result.is_err(),
+        "Non-strict root empty array must not silently discard trailing content"
+    );
+
+    let multiline_root_result = decode::<Value>("[]\nfoo: 1", &options);
+    assert!(
+        multiline_root_result.is_err(),
+        "Non-strict root empty array must not silently discard following lines"
+    );
+}
+
+#[test]
+fn test_canonical_empty_array_allows_sibling_fields() {
+    let decoded = decode_strict::<Value>("a: []\nb: 1").unwrap();
+    assert_eq!(decoded, json!({"a": [], "b": 1}));
+
+    let decoded = decode_strict::<Value>("outer:\n  a: []\n  b: 2").unwrap();
+    assert_eq!(decoded, json!({"outer": {"a": [], "b": 2}}));
+
+    let value = json!({"a": [], "b": 1});
+    let encoded = encode_default(&value).unwrap();
+    assert_eq!(encoded, "a: []\nb: 1");
+    let round_tripped: Value = decode_default(&encoded).unwrap();
+    assert_eq!(round_tripped, value);
+}
+
+#[test]
+fn test_unicode_escape_scanner_errors_include_position() {
+    let invalid_scalar = decode_strict::<Value>("value: \"\\uD800\"").unwrap_err();
+    match invalid_scalar {
+        ToonError::ParseError {
+            line,
+            column,
+            message,
+            ..
+        } => {
+            assert_eq!(line, 1);
+            assert!(column > 0);
+            assert!(message.contains("Invalid Unicode scalar"));
+        }
+        err => panic!("Expected located parse error for invalid scalar, got {err:?}"),
+    }
+
+    let incomplete_escape = decode_strict::<Value>("value: \"\\u12").unwrap_err();
+    match incomplete_escape {
+        ToonError::ParseError {
+            line,
+            column,
+            message,
+            ..
+        } => {
+            assert_eq!(line, 1);
+            assert!(column > 0);
+            assert!(message.contains("Incomplete Unicode escape"));
+        }
+        err => panic!("Expected located parse error for incomplete escape, got {err:?}"),
+    }
+}
+
+#[test]
+fn test_tabular_unicode_escape_errors_include_position() {
+    let invalid_scalar = decode_strict::<Value>("items[1]{name}:\n  \"\\uD800\"").unwrap_err();
+    match invalid_scalar {
+        ToonError::ParseError {
+            line,
+            column,
+            message,
+            ..
+        } => {
+            assert_eq!(line, 2);
+            assert!(column > 0);
+            assert!(message.contains("Invalid Unicode scalar"));
+        }
+        err => panic!("Expected located parse error for tabular invalid scalar, got {err:?}"),
+    }
+
+    let incomplete_escape = decode_strict::<Value>("items[1]{name}:\n  \"\\u12").unwrap_err();
+    match incomplete_escape {
+        ToonError::ParseError {
+            line,
+            column,
+            message,
+            ..
+        } => {
+            assert_eq!(line, 2);
+            assert!(column > 0);
+            assert!(
+                message.contains("Incomplete Unicode escape"),
+                "Expected incomplete Unicode escape message, got: {message}"
+            );
+        }
+        err => panic!("Expected located parse error for tabular incomplete escape, got {err:?}"),
+    }
+}
+
+#[test]
+fn test_strict_array_header_segment_whitespace_errors() {
+    let header_before_fields = decode_strict::<Value>("items[1] {name}:\n  Alice");
+    assert!(
+        header_before_fields.is_err(),
+        "Strict mode must reject whitespace between array header segments"
+    );
+
+    let header_before_colon = decode_strict::<Value>("items[1] : Alice");
+    assert!(
+        header_before_colon.is_err(),
+        "Strict mode must reject whitespace before array header colon"
+    );
+}
+
+#[test]
+fn test_strict_duplicate_sibling_key_errors() {
+    let object_duplicate = decode_strict::<Value>("a: 1\na: 2");
+    assert!(
+        object_duplicate.is_err(),
+        "Strict mode must reject duplicate object sibling keys"
+    );
+
+    let nested_duplicate = decode_strict::<Value>("items[1]:\n  - a: 1\n    a: 2");
+    assert!(
+        nested_duplicate.is_err(),
+        "Strict mode must reject duplicate sibling keys inside list-item objects"
+    );
+}
+
+#[test]
+fn test_non_strict_malformed_headers_fall_back_only_with_same_line_colon() {
+    let options = DecodeOptions::new().with_strict(false);
+
+    let decoded: Value = decode("foo[1][bar]: 10", &options).unwrap();
+    assert_eq!(decoded, json!({"foo[1][bar]": 10}));
+
+    let result = decode::<Value>("foo[1][bar]\nnext: 2", &options);
+    assert!(
+        result.is_err(),
+        "Malformed-header fallback must not consume later lines"
+    );
+}
+
+#[test]
+fn test_non_strict_valid_quoted_field_headers_do_not_fall_back() {
+    let options = DecodeOptions::new().with_strict(false);
+
+    let decoded: Value = decode("items[1]{\"a:b\"}:\n  x", &options).unwrap();
+    assert_eq!(decoded, json!({"items": [{"a:b": "x"}]}));
+
+    let decoded: Value = decode("items[1]{\"a]b\"}:\n  x", &options).unwrap();
+    assert_eq!(decoded, json!({"items": [{"a]b": "x"}]}));
+
+    let decoded: Value = decode("items[1]{\"a}b\"}:\n  x", &options).unwrap();
+    assert_eq!(decoded, json!({"items": [{"a}b": "x"}]}));
+}
+
+#[test]
+fn test_non_canonical_lengths_are_not_array_headers() {
+    let options = DecodeOptions::new().with_strict(false);
+
+    let leading_zero: Value = decode("items[03]: a,b,c", &options).unwrap();
+    assert_eq!(leading_zero, json!({"items[03]": "a,b,c"}));
+
+    let negative: Value = decode("items[-1]: a,b,c", &options).unwrap();
+    assert_eq!(negative, json!({"items[-1]": "a,b,c"}));
+
+    assert!(decode_strict::<Value>("items[03]: a,b,c").is_err());
+    assert!(decode_strict::<Value>("items[-1]: a,b,c").is_err());
 }
 
 #[test]

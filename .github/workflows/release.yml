@@ -12,6 +12,7 @@ jobs:
   # Update/Create Release PR
   release-plz-pr:
     name: Release-plz PR
+    if: github.repository == 'toon-format/toon-rust'  # Skip on forks
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -20,38 +21,45 @@ jobs:
       group: release-plz-${{ github.ref }}
       cancel-in-progress: false
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0
-      
+          fetch-tags: true
+          persist-credentials: false
+
       - uses: dtolnay/rust-toolchain@stable
-      
+
       - name: Run release-plz
-        uses: release-plz/action@v0.5
+        uses: release-plz/action@e8792575c7f2366cf6ff3ccc33ead9ace5b691c7 # v0.5.130
         with:
           command: release-pr
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-  
+
   # Publish if Release PR was merged
   release-plz-release:
     name: Release-plz Release
+    if: github.repository == 'toon-format/toon-rust'  # Skip on forks
     runs-on: ubuntu-latest
     permissions:
       contents: write
       id-token: write
+    concurrency:
+      group: release-plz-publish-${{ github.ref }}
+      cancel-in-progress: false
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0
-      
+          fetch-tags: true
+          persist-credentials: false
+
       - uses: dtolnay/rust-toolchain@stable
-      
+
       - name: Run release-plz
-        uses: release-plz/action@v0.5
+        uses: release-plz/action@e8792575c7f2366cf6ff3ccc33ead9ace5b691c7 # v0.5.130
         with:
           command: release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-

@@ -10,11 +10,6 @@ pub fn is_keyword(s: &str) -> bool {
     constants::is_keyword(s)
 }
 
-#[inline]
-pub fn is_structural_char(ch: char) -> bool {
-    constants::is_structural_char(ch)
-}
-
 /// The §7.2 numeric-like quoting trigger:
 /// `/^[+-]?[0-9]+(?:\.[0-9]+)?(?:e[+-]?[0-9]+)?$/i` (ASCII digits only).
 ///

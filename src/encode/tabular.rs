@@ -2,16 +2,13 @@
 
 use indexmap::IndexMap;
 
-use crate::types::JsonValue as Value;
-
-/// One entry of a tabular header's field list. A leaf field (no children)
-/// maps to one row cell; a nested field group carries its subfields and
-/// declares a nested-uniform column (§9.3).
-#[derive(Debug, Clone)]
-pub(crate) struct FieldNode {
-    pub name: String,
-    pub children: Option<Vec<FieldNode>>,
-}
+use crate::{
+    constants::MAX_DEPTH,
+    types::{
+        FieldNode,
+        JsonValue as Value,
+    },
+};
 
 /// Classifies array elements into a tabular field list, or `None` when they
 /// are not uniformly tabular (§9.3).
@@ -28,7 +25,7 @@ pub(crate) fn extract_tabular_fields(rows: &[Value]) -> Option<Vec<FieldNode>> {
         objects.push(map);
     }
 
-    extract_fields_from_objects(&objects)
+    extract_fields_from_objects(&objects, 0)
 }
 
 /// Classifies an object's values as a keyed tabular field list – at least
@@ -52,10 +49,13 @@ pub(crate) fn extract_keyed_tabular_fields(
         entry_values.push(map);
     }
 
-    extract_fields_from_objects(&entry_values)
+    extract_fields_from_objects(&entry_values, 0)
 }
 
-fn extract_fields_from_objects(objects: &[&IndexMap<String, Value>]) -> Option<Vec<FieldNode>> {
+fn extract_fields_from_objects(
+    objects: &[&IndexMap<String, Value>],
+    depth: usize,
+) -> Option<Vec<FieldNode>> {
     let first_keys: Vec<&String> = objects[0].keys().collect();
     if first_keys.is_empty() {
         return None;
@@ -79,13 +79,13 @@ fn extract_fields_from_objects(objects: &[&IndexMap<String, Value>]) -> Option<V
             .iter()
             .map(|object| object.get(key).expect("key presence checked above"))
             .collect();
-        fields.push(classify_column(key, &values)?);
+        fields.push(classify_column(key, &values, depth)?);
     }
 
     Some(fields)
 }
 
-fn classify_column(name: &str, values: &[&Value]) -> Option<FieldNode> {
+fn classify_column(name: &str, values: &[&Value], depth: usize) -> Option<FieldNode> {
     // Uniform-primitive column: a bare leaf field.
     if values.iter().all(|value| is_primitive(value)) {
         return Some(FieldNode {
@@ -94,8 +94,14 @@ fn classify_column(name: &str, values: &[&Value]) -> Option<FieldNode> {
         });
     }
 
-    // Nested-uniform column: non-empty objects sharing one key set,
-    // classified recursively.
+    // Nested-uniform column: non-empty objects sharing one key set, classified
+    // recursively. Field-group nesting is bounded by MAX_DEPTH so a
+    // pathological value cannot recurse until the stack overflows; deeper
+    // columns fall back to list form, where the ordinary depth guard applies.
+    if depth >= MAX_DEPTH {
+        return None;
+    }
+
     let mut objects = Vec::with_capacity(values.len());
     for value in values {
         let Value::Object(map) = value else {
@@ -107,7 +113,7 @@ fn classify_column(name: &str, values: &[&Value]) -> Option<FieldNode> {
         objects.push(map);
     }
 
-    let children = extract_fields_from_objects(&objects)?;
+    let children = extract_fields_from_objects(&objects, depth + 1)?;
     Some(FieldNode {
         name: name.to_string(),
         children: Some(children),

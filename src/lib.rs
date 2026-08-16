@@ -9,13 +9,22 @@
 //!
 //! Documented implementation-defined behavior:
 //! - Numeric out-of-range policy (§4): integral tokens preserve full
-//!   `i64`/`u64` precision; fractional and exponent forms decode as `f64`, and
-//!   a token whose value is not finite in `f64` decodes as a string.
+//!   `i64`/`u64` precision; fractional and exponent forms parse as `f64`, with
+//!   integer-valued results normalized to integers (`-1E+03` decodes as the
+//!   integer `-1000`). A token whose value is not finite in `f64` decodes as a
+//!   string.
 //! - Host-type normalization (§3) follows `serde::Serialize`; Rust strings are
 //!   always well-formed UTF-8, so unpaired surrogates cannot occur.
 //! - Decoded objects preserve document key order (`serde_json` with
 //!   `preserve_order`), and every key — including `__proto__`, `constructor`,
 //!   and `prototype` — is an ordinary map entry (§15).
+//! - Nesting depth limit (§15): encoding and decoding recurse over nesting, so
+//!   both impose the documented limit of 256 levels — including nested field
+//!   groups in headers — and report exceeding it as an error rather than
+//!   exhausting the host stack.
+//! - Non-strict tab indentation (§12): strict mode rejects tabs in indentation;
+//!   non-strict mode accepts them, counting each leading tab as one depth level
+//!   and each run of `indentSize` leading spaces as one.
 //!
 //! ## Resources
 //!

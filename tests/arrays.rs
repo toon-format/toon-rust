@@ -92,3 +92,47 @@ fn test_large_arrays() {
     let decoded: Value = decode_default(&encoded).unwrap();
     assert_eq!(large_tabular, decoded);
 }
+
+/// Builds `levels` nested `{"a": ...}` objects around a primitive.
+fn nested_object(levels: usize) -> Value {
+    let mut inner = json!(1);
+    for _ in 0..levels {
+        inner = json!({ "a": inner });
+    }
+    inner
+}
+
+#[test]
+fn test_deeply_nested_uniform_column_is_rejected_not_overflowed() {
+    // A uniform nested column is classified recursively into a field group.
+    // Past the depth limit the array falls back to list form, where the
+    // encoder's own depth check rejects it. Either way the process must not
+    // abort on a stack overflow.
+    let shallow = json!({ "rows": [nested_object(255), nested_object(255)] });
+    let encoded = encode_default(&shallow).unwrap();
+    assert!(
+        encoded.starts_with("rows[2]{a{a{"),
+        "not tabular: {encoded}"
+    );
+
+    let deep = json!({ "rows": [nested_object(300), nested_object(300)] });
+    let err = encode_default(&deep).expect_err("past the depth limit must be rejected");
+    assert!(
+        err.to_string()
+            .contains("Maximum nesting depth of 256 exceeded"),
+        "unexpected error: {err}"
+    );
+}
+
+#[test]
+fn test_deeply_nested_object_is_rejected_not_overflowed() {
+    // Encoding normalizes the whole tree before the depth check runs, so this
+    // guards a separate recursion from the one above: 1000 levels of plain
+    // object nesting must produce an error, not abort the process.
+    let err = encode_default(&nested_object(1000)).expect_err("past the depth limit must fail");
+    assert!(
+        err.to_string()
+            .contains("Maximum nesting depth of 256 exceeded"),
+        "unexpected error: {err}"
+    );
+}

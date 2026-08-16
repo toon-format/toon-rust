@@ -10,6 +10,26 @@ use toon_format::{
     ToonError,
 };
 
+/// Asserts a SPEC 14.1 count mismatch and pins both counts.
+///
+/// The decoder reports these as `ToonError::ParseError`. Matching on a
+/// specific variant here would make the count assertions silently
+/// unreachable if that ever changed, so assert on the rendered message.
+#[track_caller]
+fn assert_count_mismatch(
+    result: Result<Value, ToonError>,
+    expected: usize,
+    found: usize,
+    input: &str,
+) {
+    let err = result.expect_err(&format!("expected a count mismatch for {input:?}"));
+    let msg = err.to_string();
+    assert!(
+        msg.contains(&format!("Expected {expected} ")) && msg.contains(&format!("but got {found}")),
+        "expected a mismatch of {expected} vs {found} for {input:?}, got: {msg}"
+    );
+}
+
 #[test]
 fn test_invalid_syntax_errors() {
     let cases = vec![
@@ -64,35 +84,12 @@ fn test_length_mismatch_strict_mode() {
     let test_cases = vec![("items[3]: a,b", 3, 2), ("items[5]: x", 5, 1)];
 
     for (input, expected, actual) in test_cases {
-        let result = decode_strict::<Value>(input);
-
-        assert!(
-            result.is_err(),
-            "Expected error for input '{input}' (expected: {expected}, actual: {actual})",
-        );
-
-        if let Err(ToonError::LengthMismatch {
-            expected: exp,
-            found: fnd,
-            ..
-        }) = result
-        {
-            assert_eq!(
-                exp, expected,
-                "Expected length {expected} but got {exp} for input '{input}'"
-            );
-            assert_eq!(
-                fnd, actual,
-                "Expected found {actual} but got {fnd} for input '{input}'"
-            );
-        }
+        assert_count_mismatch(decode_strict::<Value>(input), expected, actual, input);
     }
 
-    let result = decode_strict::<Value>("items[1]: a,b,c");
-
-    if let Ok(val) = result {
-        assert_eq!(val["items"], json!(["a"]));
-    }
+    // More values than declared is a mismatch too, not a silent truncation.
+    let input = "items[1]: a,b,c";
+    assert_count_mismatch(decode_strict::<Value>(input), 1, 3, input);
 }
 
 #[test]
@@ -156,19 +153,8 @@ fn test_tabular_array_errors() {
         println!("Note: Extra fields are ignored in tabular arrays");
     }
 
-    let result = decode_strict::<Value>("items[3]{id,name}:\n  1,Alice\n  2,Bob");
-    assert!(
-        result.is_err(),
-        "Should error on row count mismatch in strict mode"
-    );
-
-    if let Err(ToonError::LengthMismatch {
-        expected, found, ..
-    }) = result
-    {
-        assert_eq!(expected, 3);
-        assert_eq!(found, 2);
-    }
+    let input = "items[3]{id,name}:\n  1,Alice\n  2,Bob";
+    assert_count_mismatch(decode_strict::<Value>(input), 3, 2, input);
 }
 
 #[test]
@@ -324,19 +310,8 @@ fn test_recovery_from_errors() {
 
 #[test]
 fn test_strict_mode_indentation_errors() {
-    let result = decode_strict::<Value>("items[2]: a");
-    assert!(
-        result.is_err(),
-        "Should error on insufficient items in strict mode"
-    );
-
-    if let Err(ToonError::LengthMismatch {
-        expected, found, ..
-    }) = result
-    {
-        assert_eq!(expected, 2);
-        assert_eq!(found, 1);
-    }
+    let input = "items[2]: a";
+    assert_count_mismatch(decode_strict::<Value>(input), 2, 1, input);
 }
 
 #[test]
@@ -380,6 +355,44 @@ fn test_tabular_array_field_count_mismatch() {
         result.is_err(),
         "Should error when row has fewer fields than header"
     );
+}
+
+/// Builds `x[1]{a{a{...{v}...}}}:` with `levels` nested field groups.
+fn nested_field_group_header(levels: usize) -> String {
+    format!(
+        "x[1]{{{}v{}}}:\n  1",
+        "a{".repeat(levels),
+        "}".repeat(levels)
+    )
+}
+
+#[test]
+fn test_nested_field_group_depth_is_bounded() {
+    // Field-group nesting rides on braces within a single line, so it is not
+    // bounded by indentation. Without a limit a small input recurses until
+    // the process aborts on a stack overflow, which no caller can catch.
+    let err = decode_strict::<Value>(&nested_field_group_header(257))
+        .expect_err("field group nesting past the limit must be rejected");
+    assert!(
+        err.to_string()
+            .contains("Field group nesting exceeds maximum depth of 256"),
+        "unexpected error: {err}"
+    );
+
+    // The limit itself still decodes.
+    assert!(decode_strict::<Value>(&nested_field_group_header(256)).is_ok());
+
+    // Non-strict mode does not error on the header itself: an unparseable
+    // header is simply not a header, so the line falls through to the
+    // key-value class (SPEC 5.2) with the whole text as the key.
+    let opts = DecodeOptions::new().with_strict(false);
+    let header_only = format!("x[1]{{{}v{}}}:", "a{".repeat(257), "}".repeat(257));
+    let value: Value = decode(&header_only, &opts).expect("non-strict falls through to key-value");
+    let key = value
+        .as_object()
+        .and_then(|map| map.keys().next())
+        .expect("one key-value pair");
+    assert!(key.starts_with("x[1]{a{a{"), "unexpected key: {key}");
 }
 
 #[test]
@@ -448,22 +461,15 @@ fn test_error_context_information() {
             "Error should contain length information: {err_str}",
         );
 
-        match e {
-            ToonError::ParseError {
-                context: Some(ctx), ..
-            } => {
-                println!(
-                    "Error context has {} preceding lines, {} following lines",
-                    ctx.preceding_lines.len(),
-                    ctx.following_lines.len()
-                );
-            }
-            ToonError::LengthMismatch {
-                context: Some(ctx), ..
-            } => {
-                println!("Length mismatch context available:{ctx}");
-            }
-            _ => {}
+        if let ToonError::ParseError {
+            context: Some(ctx), ..
+        } = e
+        {
+            println!(
+                "Error context has {} preceding lines, {} following lines",
+                ctx.preceding_lines.len(),
+                ctx.following_lines.len()
+            );
         }
     }
 }

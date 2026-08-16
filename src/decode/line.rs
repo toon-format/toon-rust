@@ -25,7 +25,7 @@ pub(crate) struct ParsedLine {
 /// Streams [`ParsedLine`]s with one line of lookahead, so strict-mode line
 /// errors surface in document order relative to structural errors.
 pub(crate) struct LineReader<'s> {
-    lines: std::str::Lines<'s>,
+    lines: std::str::Split<'s, char>,
     buffered: Option<ParsedLine>,
     done: bool,
     line_number: usize,
@@ -40,7 +40,7 @@ pub(crate) struct LineReader<'s> {
 impl<'s> LineReader<'s> {
     pub fn new(input: &'s str, indent_size: usize, strict: bool) -> Self {
         Self {
-            lines: input.lines(),
+            lines: input.split('\n'),
             buffered: None,
             done: false,
             line_number: 0,
@@ -88,8 +88,8 @@ impl<'s> LineReader<'s> {
         let line_number = self.line_number;
 
         // A single leading U+FEFF is a byte-order mark, not content (§12).
-        // `str::lines` excludes the CR of a CRLF terminator, but a CR ending
-        // the final line without a following LF must be excluded here.
+        // Lines are split on LF alone, so exactly one trailing CR – the CR of
+        // a CRLF terminator – is excluded here; a second CR is content.
         let raw = raw.strip_suffix('\r').unwrap_or(raw);
         let raw = if line_number == 1 {
             raw.strip_prefix('\u{FEFF}').unwrap_or(raw)

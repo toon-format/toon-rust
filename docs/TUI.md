@@ -43,7 +43,6 @@ Configure encoding and decoding options on-the-fly:
 
 **Decode Settings:**
 - **Strict Mode**: Toggle with `s` - Enforce spec compliance
-- **Type Coercion**: Toggle with `c` - Auto-convert strings to types
 
 ### File Browser (`Ctrl+F`)
 - Visual file navigation
@@ -142,9 +141,7 @@ Configure encoding and decoding options on-the-fly:
 | `d` | Cycle delimiter (Comma → Tab → Pipe) |
 | `+` / `=` | Increase indentation |
 | `-` / `_` | Decrease indentation |
-| `p` | Toggle path expansion |
 | `s` | Toggle strict mode |
-| `c` | Toggle type coercion |
 
 ### File Browser (when `Ctrl+F` is active)
 | Shortcut | Action |

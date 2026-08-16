@@ -273,4 +273,45 @@ mod tests {
         let result: Value = decode("items[3]: a,b", &opts).unwrap();
         assert_eq!(result, json!({"items": ["a", "b"]}));
     }
+
+    #[test]
+    fn test_decode_excludes_only_the_crlf_carriage_return() {
+        // Lines are split on LF alone and exactly one trailing CR is dropped,
+        // so a second CR is content rather than a line terminator.
+        let result: Value = decode_default("k: 1\r\n").unwrap();
+        assert_eq!(result, json!({"k": 1}));
+
+        let result: Value = decode_default("k: 1\r\r\n").unwrap();
+        assert_eq!(result, json!({"k": "1\r"}));
+
+        // A CR inside a line is never a terminator.
+        let result: Value = decode_default("k: a\rb").unwrap();
+        assert_eq!(result, json!({"k": "a\rb"}));
+    }
+
+    #[test]
+    fn test_decode_rejects_zero_indent_size() {
+        use crate::types::{
+            Indent,
+            ToonError,
+        };
+
+        // Indentation depth is `indent / indent_size`, so a zero indent size
+        // would divide by zero. The parser rejects it up front, before any
+        // line is read, in both strict and non-strict mode.
+        for strict in [true, false] {
+            let opts = DecodeOptions::new()
+                .with_strict(strict)
+                .with_indent(Indent::Spaces(0));
+
+            for input in ["name: Alice", "user:\n  name: Alice", ""] {
+                let err = decode::<Value>(input, &opts)
+                    .expect_err("zero indent size must be rejected, not panic");
+                assert!(
+                    matches!(err, ToonError::InvalidInput(_)),
+                    "expected InvalidInput for strict={strict}, input={input:?}, got: {err:?}"
+                );
+            }
+        }
+    }
 }

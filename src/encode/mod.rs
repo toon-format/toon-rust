@@ -15,7 +15,6 @@ use tabular::{
     extract_keyed_tabular_fields,
     extract_tabular_fields,
     is_primitive,
-    FieldNode,
 };
 
 use crate::{
@@ -23,6 +22,7 @@ use crate::{
     types::{
         Delimiter,
         EncodeOptions,
+        FieldNode,
         IntoJsonValue,
         JsonValue as Value,
         ToonError,
@@ -89,6 +89,14 @@ pub fn encode<T: serde::Serialize>(value: &T, options: &EncodeOptions) -> ToonRe
 }
 
 pub(crate) fn encode_impl(value: &Value, options: &EncodeOptions) -> ToonResult<String> {
+    // Zero spaces per level would emit nesting no decoder can recover; the
+    // decoder rejects the same option at the same boundary.
+    if options.indent.get_spaces() == 0 {
+        return Err(ToonError::InvalidInput(
+            "indentSize must be at least 1".to_string(),
+        ));
+    }
+
     let normalized: Value = normalize(value.clone());
     let mut lines = Vec::new();
 
@@ -544,6 +552,8 @@ fn write_tabular_rows(
 
 // #endregion
 
+// #region Mixed and non-uniform arrays – list form (§9.4)
+
 fn encode_mixed_array_as_list_items(
     key: Option<&str>,
     items: &[Value],
@@ -828,6 +838,15 @@ mod tests {
     fn test_encode_object_and_array_type_guards() {
         assert!(encode_object(json!(42), &EncodeOptions::default()).is_err());
         assert!(encode_array(json!({"a": 1}), &EncodeOptions::default()).is_err());
+    }
+
+    #[test]
+    fn test_encode_rejects_zero_indent_size() {
+        let options = EncodeOptions::new().with_spaces(0);
+        assert!(matches!(
+            encode(&json!({"a": {"b": 1}}), &options),
+            Err(ToonError::InvalidInput(_))
+        ));
     }
 
     #[test]

@@ -15,7 +15,8 @@ pub fn escape_string(s: &str) -> String {
             '\r' => result.push_str("\\r"),
             '\t' => result.push_str("\\t"),
             '\u{0000}'..='\u{001F}' => {
-                result.push_str(&format!("\\u{:04x}", ch as u32));
+                use std::fmt::Write;
+                write!(result, "\\u{:04x}", ch as u32).expect("writing to String cannot fail");
             }
             _ => result.push(ch),
         }
@@ -27,9 +28,9 @@ pub fn escape_string(s: &str) -> String {
 /// Unescape special characters in a quoted string (§7.1).
 ///
 /// Valid escape sequences are `\\`, `\"`, `\n`, `\r`, `\t`, and `\uXXXX`
-/// with exactly four case-insensitive hex digits. `\uXXXX` escapes encoding
-/// surrogate code points (U+D800–U+DFFF) are rejected: supplementary code
-/// points appear as literal UTF-8, never as surrogate escapes.
+/// with exactly four case-insensitive hex digits. A `\uXXXX` escape that
+/// encodes a surrogate code point (U+D800–U+DFFF) is rejected: supplementary
+/// code points appear as literal UTF-8, never as surrogate escapes.
 ///
 /// # Errors
 ///

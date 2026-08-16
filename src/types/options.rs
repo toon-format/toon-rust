@@ -1,5 +1,8 @@
 use crate::{
-    constants::DEFAULT_INDENT,
+    constants::{
+        DEFAULT_DELIMITER,
+        DEFAULT_INDENT,
+    },
     types::Delimiter,
 };
 
@@ -48,7 +51,7 @@ pub struct EncodeOptions {
 impl Default for EncodeOptions {
     fn default() -> Self {
         Self {
-            delimiter: Delimiter::Comma,
+            delimiter: DEFAULT_DELIMITER,
             indent: Indent::default(),
         }
     }

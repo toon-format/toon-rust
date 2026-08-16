@@ -1,9 +1,6 @@
 //! Constants
 use crate::types::Delimiter;
 
-/// Characters that have structural meaning in TOON format.
-pub const STRUCTURAL_CHARS: &[char] = &['[', ']', '{', '}', ':', '-'];
-
 /// TOON keywords that must be quoted when used as strings.
 pub const KEYWORDS: &[&str] = &["null", "true", "false"];
 
@@ -17,11 +14,6 @@ pub const DEFAULT_DELIMITER: Delimiter = Delimiter::Comma;
 pub const MAX_DEPTH: usize = 256;
 
 #[inline]
-pub fn is_structural_char(ch: char) -> bool {
-    STRUCTURAL_CHARS.contains(&ch)
-}
-
-#[inline]
 pub fn is_keyword(s: &str) -> bool {
     KEYWORDS.contains(&s)
 }
@@ -29,18 +21,6 @@ pub fn is_keyword(s: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_is_structural_char() {
-        assert!(is_structural_char('['));
-        assert!(is_structural_char(']'));
-        assert!(is_structural_char('{'));
-        assert!(is_structural_char('}'));
-        assert!(is_structural_char(':'));
-        assert!(is_structural_char('-'));
-        assert!(!is_structural_char('a'));
-        assert!(!is_structural_char(','));
-    }
 
     #[test]
     fn test_is_keyword() {

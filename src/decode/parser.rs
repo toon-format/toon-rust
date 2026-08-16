@@ -21,6 +21,7 @@ use crate::{
         DecodeOptions,
         Delimiter,
         ErrorContext,
+        FieldNode,
         ToonError,
         ToonResult,
     },
@@ -140,11 +141,18 @@ fn is_numeric_literal(token: &str) -> bool {
 /// Decodes a numeric token to a JSON number.
 ///
 /// Integral tokens preserve full `i64`/`u64` precision. Fractional and
-/// exponent forms parse as `f64`; integer-valued results within the `i64`
-/// domain normalize to integers so `-1E+03` decodes as `-1000`. A token whose
-/// value is not finite in `f64` (e.g. `1e999`) decodes as a string, per the
-/// documented out-of-range policy.
+/// exponent forms parse as `f64`; an integer-valued result inside the
+/// `i64`/`u64` domain normalizes to that integer, so `-1E+03` decodes as
+/// `-1000` and `1e19` as `10000000000000000000` – the same values the plain
+/// integer spelling yields (§2 JSON-model equality). A token whose value is
+/// not finite in `f64` (e.g. `1e999`) decodes as a string, per the documented
+/// out-of-range policy.
 fn parse_number_token(token: &str) -> Value {
+    /// 2^64, the first `f64` above the `u64` domain. `u64::MAX as f64` rounds
+    /// up to this value, so a `<=` comparison against it would let `f as u64`
+    /// saturate and silently return the wrong integer.
+    const TWO_POW_64: f64 = 18_446_744_073_709_551_616.0;
+
     if !token.contains(['.', 'e', 'E']) {
         if let Ok(i) = token.parse::<i64>() {
             return Value::Number(Number::from(i));
@@ -159,7 +167,9 @@ fn parse_number_token(token: &str) -> Value {
             if f == 0.0 {
                 // -0 decodes to 0 (§4).
                 Value::Number(Number::from(0u64))
-            } else if f.fract() == 0.0 && f.abs() < i64::MAX as f64 {
+            } else if f.fract() == 0.0 && f > 0.0 && f < TWO_POW_64 {
+                Value::Number(Number::from(f as u64))
+            } else if f.fract() == 0.0 && f < 0.0 && f >= i64::MIN as f64 {
                 Value::Number(Number::from(f as i64))
             } else {
                 Number::from_f64(f).map_or_else(|| Value::String(token.to_string()), Value::Number)
@@ -240,15 +250,6 @@ fn parse_key_token(content: &str) -> Result<(String, usize), String> {
 // #endregion
 
 // #region Header parsing (§6)
-
-/// One entry of a header's field list. A leaf field maps to one row cell; a
-/// nested field group carries its subfields and materializes a nested object
-/// per row (§9.3).
-#[derive(Debug, Clone)]
-pub(crate) struct FieldNode {
-    pub name: String,
-    pub children: Option<Vec<FieldNode>>,
-}
 
 #[derive(Debug, Clone)]
 pub(crate) struct ArrayHeaderInfo {
@@ -383,7 +384,7 @@ fn parse_array_header_line(content: &str) -> HeaderParse {
                         ));
                     }
 
-                    match parse_field_entries(fields_content, delimiter) {
+                    match parse_field_entries(fields_content, delimiter, 0) {
                         Ok(parsed) => fields = Some(parsed),
                         Err(reason) => return HeaderParse::Invalid(reason),
                     }
@@ -466,10 +467,22 @@ fn parse_bracket_segment(seg: &str) -> Result<(usize, Delimiter, bool), String> 
 
 /// Parses the content of a field list into field entries, recursively
 /// descending into nested field groups (`field{sub1,sub2}`).
+///
+/// `depth` is the current field-group nesting level. Nesting is bounded by
+/// [`MAX_DEPTH`]: the recursion here follows brace nesting on a single line,
+/// which is otherwise unbounded by indentation and would abort the process on
+/// a stack overflow.
 fn parse_field_entries(
     fields_content: &str,
     delimiter: Delimiter,
+    depth: usize,
 ) -> Result<Vec<FieldNode>, String> {
+    if depth > MAX_DEPTH {
+        return Err(format!(
+            "Field group nesting exceeds maximum depth of {MAX_DEPTH}"
+        ));
+    }
+
     split_field_entries(fields_content, delimiter)
         .into_iter()
         .map(|entry| {
@@ -496,7 +509,8 @@ fn parse_field_entries(
                 return Err("Unexpected content after nested field group".to_string());
             }
 
-            let children = parse_field_entries(&trimmed[group_start + 1..group_end], delimiter)?;
+            let children =
+                parse_field_entries(&trimmed[group_start + 1..group_end], delimiter, depth + 1)?;
             Ok(FieldNode {
                 name: parse_string_literal(name_part)?,
                 children: Some(children),
@@ -806,23 +820,26 @@ impl<'s> Parser<'s> {
 
     #[cfg(feature = "layout")]
     fn layout_record_array(&mut self, header: &ArrayHeaderInfo, inline: bool) {
-        use crate::layout::{
-            FieldDescriptor,
-            NodeLayout,
-        };
+        use crate::layout::NodeLayout;
 
         let Some(builder) = &mut self.layout else {
             return;
         };
 
         let node = if let Some(fields) = &header.fields {
-            NodeLayout::Tabular {
-                declared_len: header.length,
-                fields: fields
-                    .iter()
-                    .map(|field| FieldDescriptor::leaf(field.name.clone()))
-                    .collect(),
-                delimiter: header.delimiter,
+            let descriptors = layout_field_descriptors(fields);
+            if header.keyed {
+                NodeLayout::KeyedTabular {
+                    declared_len: header.length,
+                    fields: descriptors,
+                    delimiter: header.delimiter,
+                }
+            } else {
+                NodeLayout::Tabular {
+                    declared_len: header.length,
+                    fields: descriptors,
+                    delimiter: header.delimiter,
+                }
             }
         } else if inline {
             NodeLayout::InlineArray {
@@ -900,11 +917,19 @@ impl<'s> Parser<'s> {
         if !self.strict {
             return Ok(());
         }
+        // `blank_lines` is appended in line order, so the first entry past
+        // `start_line` is the candidate. A linear scan here is quadratic in
+        // the number of arrays for a document that separates them by blank
+        // lines.
+        let first_past_start = self
+            .reader
+            .blank_lines
+            .partition_point(|n| *n <= start_line);
         if let Some(blank) = self
             .reader
             .blank_lines
-            .iter()
-            .find(|n| **n > start_line && **n < end_line)
+            .get(first_past_start)
+            .filter(|n| **n < end_line)
         {
             return Err(ToonError::parse_error(
                 *blank,
@@ -1136,6 +1161,7 @@ impl<'s> Parser<'s> {
 
         // A keyed tabular header decodes to an object, not an array (§9.5).
         if header.keyed {
+            self.layout_record_array(&header, false);
             return self.decode_keyed_object(&header, base_depth, header_line);
         }
 
@@ -1477,6 +1503,23 @@ impl<'s> Parser<'s> {
     }
 
     // #endregion
+}
+
+/// Maps a header's field list to layout descriptors, preserving nested
+/// field groups.
+#[cfg(feature = "layout")]
+fn layout_field_descriptors(fields: &[FieldNode]) -> Vec<crate::layout::FieldDescriptor> {
+    use crate::layout::FieldDescriptor;
+
+    fields
+        .iter()
+        .map(|field| match &field.children {
+            Some(children) => {
+                FieldDescriptor::group(field.name.clone(), layout_field_descriptors(children))
+            }
+            None => FieldDescriptor::leaf(field.name.clone()),
+        })
+        .collect()
 }
 
 /// Materializes one row's object by walking the field list in header order:

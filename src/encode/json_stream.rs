@@ -42,7 +42,7 @@ use crate::types::{
 /// ```
 pub fn encode_json_reader<R: Read>(reader: R, options: &EncodeOptions) -> ToonResult<String> {
     let value: SerdeValue = serde_json::from_reader(reader)
-        .map_err(|e| ToonError::SerializationError(e.to_string()))?;
+        .map_err(|e| ToonError::DeserializationError(e.to_string()))?;
     super::encode_impl(&JsonValue::from(value), options)
 }
 
@@ -133,7 +133,13 @@ mod tests {
 
     #[test]
     fn test_reader_rejects_invalid_json() {
+        // Malformed input to a reader is a deserialization failure, not a
+        // failure to serialize what was read.
         let input = br#"{"name":"#;
-        assert!(encode_json_reader_default(&input[..]).is_err());
+        let err = encode_json_reader_default(&input[..]).expect_err("malformed JSON must fail");
+        assert!(
+            matches!(err, ToonError::DeserializationError(_)),
+            "unexpected error: {err:?}"
+        );
     }
 }

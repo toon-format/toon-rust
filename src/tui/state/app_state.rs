@@ -199,21 +199,28 @@ impl<'a> AppState<'a> {
     pub fn increase_indent(&mut self) {
         let Indent::Spaces(current) = self.encode_options.indent;
         if current < 8 {
-            self.encode_options = self
-                .encode_options
-                .clone()
-                .with_indent(Indent::Spaces(current + 1));
+            self.set_indent(current + 1);
         }
     }
 
     pub fn decrease_indent(&mut self) {
         let Indent::Spaces(current) = self.encode_options.indent;
         if current > 1 {
-            self.encode_options = self
-                .encode_options
-                .clone()
-                .with_indent(Indent::Spaces(current - 1));
+            self.set_indent(current - 1);
         }
+    }
+
+    /// Keep the encode and decode indent in sync so round-trip conversions
+    /// re-read what was just written.
+    fn set_indent(&mut self, spaces: usize) {
+        self.encode_options = self
+            .encode_options
+            .clone()
+            .with_indent(Indent::Spaces(spaces));
+        self.decode_options = self
+            .decode_options
+            .clone()
+            .with_indent(Indent::Spaces(spaces));
     }
 
     pub fn toggle_strict(&mut self) {

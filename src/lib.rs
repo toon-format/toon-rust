@@ -49,7 +49,6 @@ pub use encode::json_stream::{
     encode_json_reader_default,
     encode_json_stream,
     encode_json_stream_default,
-    StreamingEncodeOptions,
 };
 pub use encode::{
     encode,

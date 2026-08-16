@@ -54,13 +54,9 @@ pub fn unescape_string(s: &str) -> Result<String, String> {
             Some('u') => {
                 let mut code = 0u32;
                 for _ in 0..4 {
-                    let digit = chars
-                        .next()
-                        .and_then(|c| c.to_digit(16))
-                        .ok_or_else(|| {
-                            "Invalid escape sequence: \\u must be followed by 4 hex digits"
-                                .to_string()
-                        })?;
+                    let digit = chars.next().and_then(|c| c.to_digit(16)).ok_or_else(|| {
+                        "Invalid escape sequence: \\u must be followed by 4 hex digits".to_string()
+                    })?;
                     code = code * 16 + digit;
                 }
                 if (0xD800..=0xDFFF).contains(&code) {

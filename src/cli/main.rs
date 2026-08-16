@@ -25,6 +25,8 @@ use clap::Parser;
 use comfy_table::Table;
 use serde::Serialize;
 use tiktoken_rs::cl100k_base;
+#[cfg(feature = "json_stream")]
+use toon_format::encode_json_stream;
 use toon_format::{
     decode,
     encode,
@@ -34,11 +36,6 @@ use toon_format::{
         EncodeOptions,
         Indent,
     },
-};
-#[cfg(feature = "json_stream")]
-use toon_format::{
-    encode_json_stream,
-    StreamingEncodeOptions,
 };
 
 #[derive(Parser, Debug)]
@@ -89,10 +86,6 @@ struct Cli {
 
     #[arg(long, help = "Indent output JSON with N spaces")]
     json_indent: Option<usize>,
-
-    #[cfg(feature = "json_stream")]
-    #[arg(long, help = "Streaming traversal depth for JSON encode (default: 2)")]
-    streaming_depth: Option<usize>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -190,7 +183,6 @@ fn run_encode(cli: &Cli, input: &str) -> Result<()> {
         opts = opts.with_indent(Indent::Spaces(i));
     }
 
-
     let toon_str = encode(&json_value, &opts).context("Failed to encode to TOON")?;
 
     write_output(cli.output.clone(), &toon_str)?;
@@ -246,10 +238,7 @@ fn run_encode_streaming(cli: &Cli) -> Result<()> {
         opts = opts.with_indent(Indent::Spaces(i));
     }
 
-    let streaming_options =
-        StreamingEncodeOptions::new().with_streaming_depth(cli.streaming_depth.unwrap_or(2));
-
-    encode_json_stream(reader, &mut writer, &opts, &streaming_options)
+    encode_json_stream(reader, &mut writer, &opts)
         .context("Failed to encode JSON to TOON with streaming")?;
 
     if cli.output.is_none() {
@@ -360,10 +349,6 @@ fn validate_flags(cli: &Cli, operation: &Operation) -> Result<()> {
             }
             if cli.indent.is_some() {
                 bail!("--indent is only valid for encode mode");
-            }
-            #[cfg(feature = "json_stream")]
-            if cli.streaming_depth.is_some() {
-                bail!("--streaming-depth is only valid for encode mode");
             }
         }
     }

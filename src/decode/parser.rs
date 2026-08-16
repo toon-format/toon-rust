@@ -231,8 +231,8 @@ fn parse_key_token(content: &str) -> Result<(String, usize), String> {
         }
         Ok((key, after + 1))
     } else {
-        let colon =
-            find_unquoted_char(content, b':', 0).ok_or_else(|| "Missing colon after key".to_string())?;
+        let colon = find_unquoted_char(content, b':', 0)
+            .ok_or_else(|| "Missing colon after key".to_string())?;
         Ok((trim_spaces(&content[..colon]).to_string(), colon + 1))
     }
 }
@@ -466,7 +466,10 @@ fn parse_bracket_segment(seg: &str) -> Result<(usize, Delimiter, bool), String> 
 
 /// Parses the content of a field list into field entries, recursively
 /// descending into nested field groups (`field{sub1,sub2}`).
-fn parse_field_entries(fields_content: &str, delimiter: Delimiter) -> Result<Vec<FieldNode>, String> {
+fn parse_field_entries(
+    fields_content: &str,
+    delimiter: Delimiter,
+) -> Result<Vec<FieldNode>, String> {
     split_field_entries(fields_content, delimiter)
         .into_iter()
         .map(|entry| {
@@ -1004,11 +1007,7 @@ impl<'s> Parser<'s> {
         let mut map = Map::new();
         self.decode_key_value_into(&first, 0, &mut map)?;
 
-        loop {
-            let Some(line) = self.reader.peek()? else {
-                break;
-            };
-
+        while let Some(line) = self.reader.peek()? {
             if line.depth != 0 {
                 if self.strict {
                     return Err(over_indented_error(line, 0));
@@ -1050,7 +1049,10 @@ impl<'s> Parser<'s> {
                 None => {
                     if self.strict {
                         return Err(if resolved.header.keyed {
-                            err_at(line, "Keyless keyed header is only valid at the document root")
+                            err_at(
+                                line,
+                                "Keyless keyed header is only valid at the document root",
+                            )
                         } else {
                             err_at(
                                 line,
@@ -1096,10 +1098,7 @@ impl<'s> Parser<'s> {
         let mut computed_depth: Option<usize> = None;
         let mut map = Map::new();
 
-        loop {
-            let Some(line) = self.reader.peek()? else {
-                break;
-            };
+        while let Some(line) = self.reader.peek()? {
             if line.depth < base_depth {
                 break;
             }
@@ -1183,7 +1182,10 @@ impl<'s> Parser<'s> {
         header_line: &ParsedLine,
     ) -> ToonResult<Value> {
         let entry_depth = base_depth + 1;
-        let fields = header.fields.as_deref().expect("keyed header carries a field list");
+        let fields = header
+            .fields
+            .as_deref()
+            .expect("keyed header carries a field list");
         let leaf_field_count = count_leaf_fields(fields);
 
         let mut map = Map::new();
@@ -1193,19 +1195,17 @@ impl<'s> Parser<'s> {
 
         // A keyed scope ends only by dedent or end of input, so every line at
         // entry depth carrying an unquoted colon is an entry row.
-        loop {
-            let Some(line) = self.reader.peek()? else {
-                break;
-            };
+        while let Some(line) = self.reader.peek()? {
             if line.depth <= base_depth {
                 break;
             }
 
             if line.depth > entry_depth {
                 if self.strict {
-                    return Err(
-                        err_at(line, "Unexpected indentation inside keyed tabular object")
-                    );
+                    return Err(err_at(
+                        line,
+                        "Unexpected indentation inside keyed tabular object",
+                    ));
                 }
                 self.reader.next()?;
                 continue;
@@ -1213,9 +1213,10 @@ impl<'s> Parser<'s> {
 
             if find_unquoted_char(&line.content, b':', 0).is_none() {
                 if self.strict {
-                    return Err(
-                        err_at(line, "Expected entry row inside keyed tabular object")
-                    );
+                    return Err(err_at(
+                        line,
+                        "Expected entry row inside keyed tabular object",
+                    ));
                 }
                 self.reader.next()?;
                 continue;
@@ -1264,7 +1265,10 @@ impl<'s> Parser<'s> {
         header_line: &ParsedLine,
     ) -> ToonResult<Value> {
         let row_depth = base_depth + 1;
-        let fields = header.fields.as_deref().expect("tabular header carries a field list");
+        let fields = header
+            .fields
+            .as_deref()
+            .expect("tabular header carries a field list");
         let leaf_field_count = count_leaf_fields(fields);
 
         let mut rows = Vec::new();
@@ -1354,7 +1358,12 @@ impl<'s> Parser<'s> {
             last_item_line = self.reader.last_consumed_line;
         }
 
-        self.assert_expected_count(items.len(), header.length, "list-form items", last_item_line)?;
+        self.assert_expected_count(
+            items.len(),
+            header.length,
+            "list-form items",
+            last_item_line,
+        )?;
         self.assert_no_blank_lines_in_span(start_line, last_item_line, "list-form array")?;
 
         if self.strict {
@@ -1456,10 +1465,7 @@ impl<'s> Parser<'s> {
         follow_depth: usize,
         map: &mut Map<String, Value>,
     ) -> ToonResult<()> {
-        loop {
-            let Some(line) = self.reader.peek()? else {
-                break;
-            };
+        while let Some(line) = self.reader.peek()? {
             if line.depth != follow_depth || line.content.starts_with("- ") {
                 break;
             }

@@ -87,7 +87,6 @@ impl SettingsPanel {
             Span::styled("  [+/- to adjust]", theme.line_number_style()),
         ])));
 
-
         items.push(ListItem::new(Line::from("")));
 
         items.push(ListItem::new(Line::from(Span::styled(
@@ -107,7 +106,6 @@ impl SettingsPanel {
             ),
             Span::styled("  [Press 's' to toggle]", theme.line_number_style()),
         ])));
-
 
         let list = List::new(items);
         f.render_widget(list, chunks[1]);

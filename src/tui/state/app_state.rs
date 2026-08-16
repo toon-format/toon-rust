@@ -216,12 +216,10 @@ impl<'a> AppState<'a> {
         }
     }
 
-
     pub fn toggle_strict(&mut self) {
         let strict = !self.decode_options.strict;
         self.decode_options = self.decode_options.clone().with_strict(strict);
     }
-
 }
 
 impl<'a> Default for AppState<'a> {

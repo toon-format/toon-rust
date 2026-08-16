@@ -16,7 +16,6 @@ pub const DEFAULT_DELIMITER: Delimiter = Delimiter::Comma;
 /// Maximum nesting depth to prevent stack overflow.
 pub const MAX_DEPTH: usize = 256;
 
-
 #[inline]
 pub fn is_structural_char(ch: char) -> bool {
     STRUCTURAL_CHARS.contains(&ch)

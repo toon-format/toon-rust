@@ -33,22 +33,17 @@ fn test_invalid_syntax_errors() {
         }
     }
 
-    let invalid_cases = vec![
-        ("items[2: a,b", "Expected ']'"),
-        ("items[abc]: 1,2", "Expected array length"),
-    ];
+    // An unterminated bracket segment is not a header; the line falls
+    // through to the key-value class (SPEC 5.2) in both modes.
+    let result: Value = decode_default("items[2: a,b").unwrap();
+    assert_eq!(result, json!({"items[2": "a,b"}));
 
-    for (input, expected_msg) in invalid_cases {
-        let result = decode_default::<Value>(input);
-        assert!(result.is_err(), "Expected error for input: {input}");
-
-        let err = result.unwrap_err();
-        let err_str = err.to_string();
-        assert!(
-            err_str.contains(expected_msg) || err_str.contains("Parse error"),
-            "Expected error containing '{expected_msg}' but got: {err_str}"
-        );
-    }
+    // A malformed bracket length is a strict-mode header error (SPEC 14.2).
+    let result = decode_default::<Value>("items[abc]: 1,2");
+    assert!(
+        result.is_err(),
+        "Expected error for malformed bracket length"
+    );
 }
 
 #[test]
@@ -250,42 +245,31 @@ fn test_multiple_errors_in_input() {
 }
 
 #[test]
-fn test_coercion_errors() {
-    let opts = DecodeOptions::new().with_coerce_types(true);
-
-    let result = decode::<Value>("value: 123", &opts);
-    assert!(result.is_ok());
-
-    let result = decode::<Value>("value: true", &opts);
-    assert!(result.is_ok());
-
-    let result = decode::<Value>("value: 3.14", &opts);
-    assert!(result.is_ok());
-}
-
-#[test]
-fn test_no_coercion_preserves_strings() {
-    let opts = DecodeOptions::new().with_coerce_types(false);
-
-    let result = decode::<Value>("value: hello", &opts).unwrap();
-    assert!(result["value"].is_string());
-    assert_eq!(result["value"], json!("hello"));
-
-    let result = decode::<Value>(r#"value: "123""#, &opts).unwrap();
-    assert!(result["value"].is_string());
-    assert_eq!(result["value"], json!("123"));
-
-    let result = decode::<Value>(r#"value: "true""#, &opts).unwrap();
-    assert!(result["value"].is_string());
-    assert_eq!(result["value"], json!("true"));
+fn test_unquoted_token_typing() {
+    let opts = DecodeOptions::new();
 
     let result = decode::<Value>("value: 123", &opts).unwrap();
-    assert!(result["value"].is_number());
     assert_eq!(result["value"], json!(123));
 
     let result = decode::<Value>("value: true", &opts).unwrap();
-    assert!(result["value"].is_boolean());
     assert_eq!(result["value"], json!(true));
+
+    let result = decode::<Value>("value: 2.5", &opts).unwrap();
+    assert_eq!(result["value"], json!(2.5));
+}
+
+#[test]
+fn test_quoted_tokens_stay_strings() {
+    let opts = DecodeOptions::new();
+
+    let result = decode::<Value>("value: hello", &opts).unwrap();
+    assert_eq!(result["value"], json!("hello"));
+
+    let result = decode::<Value>(r#"value: "123""#, &opts).unwrap();
+    assert_eq!(result["value"], json!("123"));
+
+    let result = decode::<Value>(r#"value: "true""#, &opts).unwrap();
+    assert_eq!(result["value"], json!("true"));
 }
 
 #[test]
@@ -400,9 +384,21 @@ fn test_tabular_array_field_count_mismatch() {
 
 #[test]
 fn test_invalid_array_header_syntax() {
+    // Not headers under SPEC 5.2: a single bare token decodes as the root
+    // primitive, and a colon-bearing line falls through to key-value.
+    let result: Value = decode_default("items[").unwrap();
+    assert_eq!(result, json!("items["));
+
+    let result: Value = decode_default("items[: a,b").unwrap();
+    assert_eq!(result, json!({"items[": "a,b"}));
+
+    // Malformed bracket lengths and keyed markers are strict errors (SPEC 14.2).
     let cases = vec![
-        ("items[", "Expected array length"),
-        ("items[: a,b", "Expected array length"),
+        ("items[03]: 1,2,3", "Invalid array length"),
+        (
+            "items[2|:]{a,b}:\n  x: 1,2\n  y: 3,4",
+            "Invalid array length",
+        ),
     ];
 
     for (input, expected_msg) in cases {

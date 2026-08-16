@@ -1,3 +1,10 @@
+//! Line-based TOON decoder implementing spec v4.1.
+//!
+//! Lines are classified per §5.2 on the comment-stripped sequence (§5.1);
+//! headers are parsed per §6, including keyed tabular headers and nested
+//! field groups; tokens follow the normative number grammar of §4 and the
+//! key/quoted-token rules of §7.4.
+
 use serde_json::{
     Map,
     Number,
@@ -5,78 +12,770 @@ use serde_json::{
 };
 
 use crate::{
-    constants::{
-        KEYWORDS,
-        MAX_DEPTH,
-        QUOTED_KEY_MARKER,
-    },
-    decode::{
-        scanner::{
-            Scanner,
-            Token,
-        },
-        validation,
+    constants::MAX_DEPTH,
+    decode::line::{
+        LineReader,
+        ParsedLine,
     },
     types::{
         DecodeOptions,
         Delimiter,
         ErrorContext,
+        FieldNode,
         ToonError,
         ToonResult,
     },
-    utils::validation::validate_depth,
-};
-#[cfg(feature = "layout")]
-use crate::{
-    decode::layout_builder::LayoutBuilder,
-    layout::{
-        FieldDescriptor,
-        Layout,
-        NodeLayout,
+    utils::{
+        unescape_string,
+        validation::validate_depth,
     },
 };
 
-/// Context for parsing arrays to determine correct indentation depth.
+// #region String scanning helpers
+//
+// All scans are byte-based: every target is ASCII, and ASCII bytes never
+// occur inside a multi-byte UTF-8 sequence, so byte positions are always
+// char boundaries.
+
+/// Trims surrounding ASCII spaces (exactly U+0020, §12) from a token.
+fn trim_spaces(value: &str) -> &str {
+    value.trim_matches(' ')
+}
+
+/// Finds the byte index of the closing double quote for the quote at
+/// `start`, accounting for escape sequences.
+fn find_closing_quote(content: &str, start: usize) -> Option<usize> {
+    let bytes = content.as_bytes();
+    let mut i = start + 1;
+    while i < bytes.len() {
+        match bytes[i] {
+            b'\\' if i + 1 < bytes.len() => i += 2,
+            b'"' => return Some(i),
+            _ => i += 1,
+        }
+    }
+    None
+}
+
+/// Finds the byte index of an ASCII character outside of quoted sections.
+fn find_unquoted_char(content: &str, target: u8, start: usize) -> Option<usize> {
+    let bytes = content.as_bytes();
+    let mut in_quotes = false;
+    let mut i = start;
+    while i < bytes.len() {
+        let b = bytes[i];
+        if b == b'\\' && in_quotes && i + 1 < bytes.len() {
+            i += 2;
+            continue;
+        }
+        if b == b'"' {
+            in_quotes = !in_quotes;
+            i += 1;
+            continue;
+        }
+        if b == target && !in_quotes {
+            return Some(i);
+        }
+        i += 1;
+    }
+    None
+}
+
+// #endregion
+
+// #region Literal parsing (§4)
+
+fn is_boolean_or_null_literal(token: &str) -> bool {
+    matches!(token, "true" | "false" | "null")
+}
+
+/// The normative decoder number grammar (§4):
+/// `/^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:e[+-]?\d+)?$/i` with ASCII digits only.
+fn is_numeric_literal(token: &str) -> bool {
+    let bytes = token.as_bytes();
+    let mut i = 0;
+    if bytes.first() == Some(&b'-') {
+        i = 1;
+    }
+
+    let int_start = i;
+    while i < bytes.len() && bytes[i].is_ascii_digit() {
+        i += 1;
+    }
+    if i == int_start {
+        return false;
+    }
+    // Forbidden leading zeros in the integer part.
+    if bytes[int_start] == b'0' && i - int_start > 1 {
+        return false;
+    }
+
+    if i < bytes.len() && bytes[i] == b'.' {
+        i += 1;
+        let frac_start = i;
+        while i < bytes.len() && bytes[i].is_ascii_digit() {
+            i += 1;
+        }
+        if i == frac_start {
+            return false;
+        }
+    }
+
+    if i < bytes.len() && (bytes[i] == b'e' || bytes[i] == b'E') {
+        i += 1;
+        if i < bytes.len() && (bytes[i] == b'+' || bytes[i] == b'-') {
+            i += 1;
+        }
+        let exp_start = i;
+        while i < bytes.len() && bytes[i].is_ascii_digit() {
+            i += 1;
+        }
+        if i == exp_start {
+            return false;
+        }
+    }
+
+    i == bytes.len()
+}
+
+/// Decodes a numeric token to a JSON number.
 ///
-/// Arrays as the first field of list-item objects require special indentation:
-/// their content (rows for tabular, items for non-uniform) appears at depth +2
-/// relative to the hyphen line, while arrays in other contexts use depth +1.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum ArrayParseContext {
-    /// Normal array parsing context (content at depth +1)
-    Normal,
+/// Integral tokens preserve full `i64`/`u64` precision. Fractional and
+/// exponent forms parse as `f64`; an integer-valued result inside the
+/// `i64`/`u64` domain normalizes to that integer, so `-1E+03` decodes as
+/// `-1000` and `1e19` as `10000000000000000000` – the same values the plain
+/// integer spelling yields (§2 JSON-model equality). A token whose value is
+/// not finite in `f64` (e.g. `1e999`) decodes as a string, per the documented
+/// out-of-range policy.
+fn parse_number_token(token: &str) -> Value {
+    /// 2^64, the first `f64` above the `u64` domain. `u64::MAX as f64` rounds
+    /// up to this value, so a `<=` comparison against it would let `f as u64`
+    /// saturate and silently return the wrong integer.
+    const TWO_POW_64: f64 = 18_446_744_073_709_551_616.0;
 
-    /// Array as first field of list-item object
-    /// (content at depth +2 relative to hyphen line)
-    ListItemFirstField,
+    if !token.contains(['.', 'e', 'E']) {
+        if let Ok(i) = token.parse::<i64>() {
+            return Value::Number(Number::from(i));
+        }
+        if let Ok(u) = token.parse::<u64>() {
+            return Value::Number(Number::from(u));
+        }
+    }
+
+    match token.parse::<f64>() {
+        Ok(f) if f.is_finite() => {
+            if f == 0.0 {
+                // -0 decodes to 0 (§4).
+                Value::Number(Number::from(0u64))
+            } else if f.fract() == 0.0 && f > 0.0 && f < TWO_POW_64 {
+                Value::Number(Number::from(f as u64))
+            } else if f.fract() == 0.0 && f < 0.0 && f >= i64::MIN as f64 {
+                Value::Number(Number::from(f as i64))
+            } else {
+                Number::from_f64(f).map_or_else(|| Value::String(token.to_string()), Value::Number)
+            }
+        }
+        _ => Value::String(token.to_string()),
+    }
 }
 
-/// Parser that builds JSON values from a sequence of tokens.
-#[allow(unused)]
-pub struct Parser<'a> {
-    scanner: Scanner,
-    current_token: Token,
-    options: DecodeOptions,
-    delimiter: Option<Delimiter>,
-    input: &'a str,
+/// Parses a quoted or unquoted token as a string, enforcing the
+/// quoted-token boundary rule of §7.4.
+fn parse_string_literal(token: &str) -> Result<String, String> {
+    let trimmed = trim_spaces(token);
+
+    if trimmed.starts_with('"') {
+        let closing = find_closing_quote(trimmed, 0)
+            .ok_or_else(|| "Unterminated string: missing closing quote".to_string())?;
+        if closing != trimmed.len() - 1 {
+            return Err("Unexpected characters after closing quote".to_string());
+        }
+        return unescape_string(&trimmed[1..closing]);
+    }
+
+    Ok(trimmed.to_string())
+}
+
+/// Parses one primitive token per §4: quoted strings, `true`/`false`/`null`,
+/// the normative number grammar, and the string fallback.
+fn parse_primitive_token(token: &str) -> Result<Value, String> {
+    let trimmed = trim_spaces(token);
+
+    if trimmed.is_empty() {
+        return Ok(Value::String(String::new()));
+    }
+
+    if trimmed.starts_with('"') {
+        return parse_string_literal(trimmed).map(Value::String);
+    }
+
+    if is_boolean_or_null_literal(trimmed) {
+        return Ok(match trimmed {
+            "true" => Value::Bool(true),
+            "false" => Value::Bool(false),
+            _ => Value::Null,
+        });
+    }
+
+    if is_numeric_literal(trimmed) {
+        return Ok(parse_number_token(trimmed));
+    }
+
+    Ok(Value::String(trimmed.to_string()))
+}
+
+// #endregion
+
+// #region Key parsing (§7.4)
+
+/// Parses the key of a key-value line or entry row starting at byte 0.
+/// Returns the decoded key and the byte offset just past the colon.
+fn parse_key_token(content: &str) -> Result<(String, usize), String> {
+    if content.as_bytes().first() == Some(&b'"') {
+        let closing =
+            find_closing_quote(content, 0).ok_or_else(|| "Unterminated quoted key".to_string())?;
+        let key = unescape_string(&content[1..closing])?;
+        let after = closing + 1;
+        if content.as_bytes().get(after) != Some(&b':') {
+            return Err("Missing colon after key".to_string());
+        }
+        Ok((key, after + 1))
+    } else {
+        let colon = find_unquoted_char(content, b':', 0)
+            .ok_or_else(|| "Missing colon after key".to_string())?;
+        Ok((trim_spaces(&content[..colon]).to_string(), colon + 1))
+    }
+}
+
+// #endregion
+
+// #region Header parsing (§6)
+
+#[derive(Debug, Clone)]
+pub(crate) struct ArrayHeaderInfo {
+    pub key: Option<String>,
+    pub length: usize,
+    pub delimiter: Delimiter,
+    pub fields: Option<Vec<FieldNode>>,
+    /// Keyed tabular header `[N:<delim?>]` – N declares the entry count (§9.5).
+    pub keyed: bool,
+}
+
+enum HeaderParse {
+    Header {
+        header: ArrayHeaderInfo,
+        inline_values: Option<String>,
+        strict_error: Option<String>,
+    },
+    NotHeader,
+    Invalid(String),
+}
+
+/// Detects and parses an array-header line, staying free of strict-mode
+/// policy: callers decide how to treat `Invalid` and `strict_error`.
+fn parse_array_header_line(content: &str) -> HeaderParse {
+    let trimmed = content.trim_start();
+
+    let bracket_start = if trimmed.starts_with('"') {
+        let Some(closing) = find_closing_quote(trimmed, 0) else {
+            return HeaderParse::NotHeader;
+        };
+        if trimmed.as_bytes().get(closing + 1) != Some(&b'[') {
+            return HeaderParse::NotHeader;
+        }
+        let leading = content.len() - trimmed.len();
+        leading + closing + 1
+    } else {
+        match find_unquoted_char(content, b'[', 0) {
+            Some(i) => i,
+            None => return HeaderParse::NotHeader,
+        }
+    };
+
+    // A header key can't contain an unquoted colon, so this is a key-value line.
+    if let Some(colon) = find_unquoted_char(content, b':', 0) {
+        if colon < bracket_start {
+            return HeaderParse::NotHeader;
+        }
+    }
+
+    let Some(bracket_end) = find_unquoted_char(content, b']', bracket_start) else {
+        return HeaderParse::NotHeader;
+    };
+
+    let mut brace_end = bracket_end + 1;
+    let brace_start = find_unquoted_char(content, b'{', bracket_end);
+    if let Some(brace_start) = brace_start {
+        let colon_after_bracket = find_unquoted_char(content, b':', bracket_end);
+        if colon_after_bracket.is_some_and(|c| brace_start < c) {
+            let gap = &content[bracket_end + 1..brace_start];
+            if !gap.is_empty() {
+                let trimmed_gap = gap.trim();
+                return HeaderParse::Invalid(if trimmed_gap.is_empty() {
+                    "Unexpected whitespace between bracket segment and field list".to_string()
+                } else {
+                    format!(
+                        "Unexpected content \"{trimmed_gap}\" between bracket segment and field \
+                         list"
+                    )
+                });
+            }
+
+            if let Some(found) = find_matching_brace(content, brace_start) {
+                brace_end = found + 1;
+            }
+        }
+    }
+
+    let Some(colon_index) = find_unquoted_char(content, b':', bracket_end.max(brace_end)) else {
+        return HeaderParse::NotHeader;
+    };
+
+    let gap_start = (bracket_end + 1).max(brace_end);
+    let gap = &content[gap_start..colon_index];
+    if !gap.is_empty() {
+        let trimmed_gap = gap.trim();
+        return HeaderParse::Invalid(if trimmed_gap.is_empty() {
+            "Unexpected whitespace between bracket segment and colon".to_string()
+        } else {
+            format!("Unexpected content \"{trimmed_gap}\" between bracket segment and colon")
+        });
+    }
+
+    let key = if bracket_start > 0 {
+        let raw_key = &content[..bracket_start];
+        // Trimming here would silently turn `foo [2]:` into a header with key `foo`.
+        if raw_key != raw_key.trim_end() {
+            return HeaderParse::Invalid(
+                "Unexpected whitespace between key and bracket segment".to_string(),
+            );
+        }
+        match parse_string_literal(raw_key) {
+            Ok(key) => Some(key),
+            Err(reason) => return HeaderParse::Invalid(reason),
+        }
+    } else {
+        None
+    };
+
+    let after_colon = trim_spaces(&content[colon_index + 1..]);
+    let bracket_content = &content[bracket_start + 1..bracket_end];
+
+    let (length, delimiter, keyed) = match parse_bracket_segment(bracket_content) {
+        Ok(parsed) => parsed,
+        Err(reason) => return HeaderParse::Invalid(reason),
+    };
+
+    let mut fields = None;
+    if let Some(brace_start) = brace_start {
+        if brace_start < colon_index {
+            if let Some(found) = find_matching_brace(content, brace_start) {
+                if found < colon_index {
+                    let fields_content = &content[brace_start + 1..found];
+
+                    if let Some(mismatched) =
+                        find_unquoted_mismatched_delimiter(fields_content, delimiter)
+                    {
+                        return HeaderParse::Invalid(format!(
+                            "Header delimiter mismatch: bracket declares \"{}\" but field list \
+                             contains unquoted \"{}\"",
+                            format_delimiter(delimiter),
+                            format_delimiter(mismatched)
+                        ));
+                    }
+
+                    match parse_field_entries(fields_content, delimiter, 0) {
+                        Ok(parsed) => fields = Some(parsed),
+                        Err(reason) => return HeaderParse::Invalid(reason),
+                    }
+                }
+            }
+        }
+    }
+
+    // Duplicate field names are strict-only – non-strict resolves them via
+    // LWW – so the reason rides along on an otherwise-valid header.
+    let strict_error = fields
+        .as_deref()
+        .and_then(find_duplicate_field_name)
+        .map(|name| format!("Duplicate field name \"{name}\" in field list"));
+
+    if keyed && fields.is_none() {
+        return HeaderParse::Invalid("Keyed header requires a field list".to_string());
+    }
+
+    // A fields-bearing header, keyed or not, carries no inline content.
+    if fields.is_some() && !after_colon.is_empty() {
+        return HeaderParse::Invalid(strict_error.unwrap_or_else(|| {
+            "Unexpected content after fields-bearing header colon".to_string()
+        }));
+    }
+
+    HeaderParse::Header {
+        header: ArrayHeaderInfo {
+            key,
+            length,
+            delimiter,
+            fields,
+            keyed,
+        },
+        inline_values: if after_colon.is_empty() {
+            None
+        } else {
+            Some(after_colon.to_string())
+        },
+        strict_error,
+    }
+}
+
+/// Parses a bracket segment `N`, `N<delim>`, `N:`, or `N:<delim>` (§6).
+fn parse_bracket_segment(seg: &str) -> Result<(usize, Delimiter, bool), String> {
+    let mut content = seg;
+
+    let mut delimiter = Delimiter::Comma;
+    if let Some(rest) = content.strip_suffix('\t') {
+        delimiter = Delimiter::Tab;
+        content = rest;
+    } else if let Some(rest) = content.strip_suffix('|') {
+        delimiter = Delimiter::Pipe;
+        content = rest;
+    }
+
+    // Only a colon between the length and the optional delimiter symbol marks
+    // a keyed header; any other placement fails the length check below.
+    let mut keyed = false;
+    if let Some(rest) = content.strip_suffix(':') {
+        keyed = true;
+        content = rest;
+    }
+
+    let valid_length = !content.is_empty()
+        && content.bytes().all(|b| b.is_ascii_digit())
+        && (content == "0" || !content.starts_with('0'));
+    if !valid_length {
+        return Err(format!(
+            "Invalid array length: \"{seg}\" (expected non-negative integer with no leading zeros)"
+        ));
+    }
+
+    let length = content
+        .parse::<usize>()
+        .map_err(|_| format!("Invalid array length: \"{seg}\" (value out of range)"))?;
+
+    Ok((length, delimiter, keyed))
+}
+
+/// Parses the content of a field list into field entries, recursively
+/// descending into nested field groups (`field{sub1,sub2}`).
+///
+/// `depth` is the current field-group nesting level. Nesting is bounded by
+/// [`MAX_DEPTH`]: the recursion here follows brace nesting on a single line,
+/// which is otherwise unbounded by indentation and would abort the process on
+/// a stack overflow.
+fn parse_field_entries(
+    fields_content: &str,
+    delimiter: Delimiter,
+    depth: usize,
+) -> Result<Vec<FieldNode>, String> {
+    if depth > MAX_DEPTH {
+        return Err(format!(
+            "Field group nesting exceeds maximum depth of {MAX_DEPTH}"
+        ));
+    }
+
+    split_field_entries(fields_content, delimiter)
+        .into_iter()
+        .map(|entry| {
+            let trimmed = trim_spaces(&entry);
+            if trimmed.is_empty() {
+                return Err("Empty field name in field list".to_string());
+            }
+
+            let Some(group_start) = find_unquoted_char(trimmed, b'{', 0) else {
+                return Ok(FieldNode {
+                    name: parse_string_literal(trimmed)?,
+                    children: None,
+                });
+            };
+
+            let name_part = trim_spaces(&trimmed[..group_start]);
+            if name_part.is_empty() {
+                return Err("Missing field name before nested field group".to_string());
+            }
+
+            let group_end = find_matching_brace(trimmed, group_start)
+                .ok_or_else(|| "Unmatched brace in field list".to_string())?;
+            if group_end != trimmed.len() - 1 {
+                return Err("Unexpected content after nested field group".to_string());
+            }
+
+            let children =
+                parse_field_entries(&trimmed[group_start + 1..group_end], delimiter, depth + 1)?;
+            Ok(FieldNode {
+                name: parse_string_literal(name_part)?,
+                children: Some(children),
+            })
+        })
+        .collect()
+}
+
+/// Splits a field list on the active delimiter at brace depth zero,
+/// respecting quoted names and escape sequences.
+fn split_field_entries(content: &str, delimiter: Delimiter) -> Vec<String> {
+    let delim = delimiter.as_char() as u8;
+    let bytes = content.as_bytes();
+    let mut entries = Vec::new();
+    let mut entry_start = 0;
+    let mut in_quotes = false;
+    let mut brace_depth = 0usize;
+    let mut i = 0;
+
+    while i < bytes.len() {
+        let b = bytes[i];
+        if b == b'\\' && in_quotes && i + 1 < bytes.len() {
+            i += 2;
+            continue;
+        }
+        if b == b'"' {
+            in_quotes = !in_quotes;
+            i += 1;
+            continue;
+        }
+        if !in_quotes {
+            if b == b'{' {
+                brace_depth += 1;
+            } else if b == b'}' {
+                brace_depth = brace_depth.saturating_sub(1);
+            } else if b == delim && brace_depth == 0 {
+                entries.push(content[entry_start..i].to_string());
+                entry_start = i + 1;
+                i += 1;
+                continue;
+            }
+        }
+        i += 1;
+    }
+
+    entries.push(content[entry_start..].to_string());
+    entries
+}
+
+/// Finds the byte index of the closing brace matching the opening brace at
+/// `brace_start`, ignoring braces inside quoted names.
+fn find_matching_brace(content: &str, brace_start: usize) -> Option<usize> {
+    let bytes = content.as_bytes();
+    let mut in_quotes = false;
+    let mut brace_depth = 0usize;
+    let mut i = brace_start;
+
+    while i < bytes.len() {
+        let b = bytes[i];
+        if b == b'\\' && in_quotes && i + 1 < bytes.len() {
+            i += 2;
+            continue;
+        }
+        if b == b'"' {
+            in_quotes = !in_quotes;
+            i += 1;
+            continue;
+        }
+        if !in_quotes {
+            if b == b'{' {
+                brace_depth += 1;
+            } else if b == b'}' {
+                brace_depth -= 1;
+                if brace_depth == 0 {
+                    return Some(i);
+                }
+            }
+        }
+        i += 1;
+    }
+
+    None
+}
+
+fn find_duplicate_field_name(fields: &[FieldNode]) -> Option<String> {
+    let mut seen = std::collections::HashSet::new();
+    for field in fields {
+        if !seen.insert(field.name.as_str()) {
+            return Some(field.name.clone());
+        }
+        if let Some(children) = &field.children {
+            if let Some(nested) = find_duplicate_field_name(children) {
+                return Some(nested);
+            }
+        }
+    }
+    None
+}
+
+/// Counts the leaf fields of a field list: the number of cells each row
+/// carries, via a depth-first walk of nested field groups.
+fn count_leaf_fields(fields: &[FieldNode]) -> usize {
+    fields
+        .iter()
+        .map(|field| field.children.as_deref().map_or(1, count_leaf_fields))
+        .sum()
+}
+
+fn find_unquoted_mismatched_delimiter(
+    content: &str,
+    active_delimiter: Delimiter,
+) -> Option<Delimiter> {
+    [Delimiter::Comma, Delimiter::Tab, Delimiter::Pipe]
+        .into_iter()
+        .filter(|candidate| *candidate != active_delimiter)
+        .find(|candidate| find_unquoted_char(content, candidate.as_char() as u8, 0).is_some())
+}
+
+fn format_delimiter(delimiter: Delimiter) -> &'static str {
+    match delimiter {
+        Delimiter::Comma => ",",
+        Delimiter::Tab => "\\t",
+        Delimiter::Pipe => "|",
+    }
+}
+
+// #endregion
+
+// #region Delimited value parsing (§11.2)
+
+/// Parses a delimited cell sequence into raw value tokens, respecting quoted
+/// strings and escape sequences; each token is space-trimmed.
+fn parse_delimited_values(input: &str, delimiter: Delimiter) -> Vec<String> {
+    let delim = delimiter.as_char() as u8;
+    let bytes = input.as_bytes();
+    let mut values = Vec::new();
+    let mut value_start = 0;
+    let mut in_quotes = false;
+    let mut i = 0;
+
+    while i < bytes.len() {
+        let b = bytes[i];
+        if b == b'\\' && in_quotes && i + 1 < bytes.len() {
+            i += 2;
+            continue;
+        }
+        if b == b'"' {
+            in_quotes = !in_quotes;
+            i += 1;
+            continue;
+        }
+        if b == delim && !in_quotes {
+            values.push(trim_spaces(&input[value_start..i]).to_string());
+            value_start = i + 1;
+            i += 1;
+            continue;
+        }
+        i += 1;
+    }
+
+    let last = trim_spaces(&input[value_start..]);
+    if !last.is_empty() || !values.is_empty() {
+        values.push(last.to_string());
+    }
+
+    values
+}
+
+// #endregion
+
+// #region Line classification helpers
+
+fn is_list_item_content(content: &str) -> bool {
+    content == "-" || content.starts_with("- ")
+}
+
+fn is_array_header_content(content: &str) -> bool {
+    content.trim().starts_with('[') && find_unquoted_char(content, b':', 0).is_some()
+}
+
+fn is_key_value_content(content: &str) -> bool {
+    find_unquoted_char(content, b':', 0).is_some()
+}
+
+/// Root-form key-value check (§5): quoted keys look past the closing quote.
+fn is_key_value_line(content: &str) -> bool {
+    if content.starts_with('"') {
+        match find_closing_quote(content, 0) {
+            Some(closing) => content[closing + 1..].contains(':'),
+            None => false,
+        }
+    } else {
+        content.contains(':')
+    }
+}
+
+/// Row/key-value disambiguation at row depth (§9.3): first unquoted
+/// delimiter vs first unquoted colon.
+fn is_data_row(content: &str, delimiter: Delimiter) -> bool {
+    let Some(colon_pos) = find_unquoted_char(content, b':', 0) else {
+        return true;
+    };
+    match find_unquoted_char(content, delimiter.as_char() as u8, 0) {
+        Some(delim_pos) => delim_pos < colon_pos,
+        None => false,
+    }
+}
+
+// #endregion
+
+// #region Parser
+
+/// Attaches line context to an error message.
+fn err_at(line: &ParsedLine, message: impl Into<String>) -> ToonError {
+    ToonError::parse_error(line.line_number, 1, message)
+        .with_context(ErrorContext::new(line.raw.clone()))
+}
+
+fn over_indented_error(line: &ParsedLine, expected_depth: usize) -> ToonError {
+    err_at(
+        line,
+        format!(
+            "Over-indented line: expected depth {expected_depth}, but found {}",
+            line.depth
+        ),
+    )
+}
+
+/// Both modes reject a bare token outside root primitive position (§5.2),
+/// so it must not reach the non-strict paths that drop an over-indented
+/// line.
+fn assert_not_scalar_line(line: &ParsedLine) -> ToonResult<()> {
+    if is_list_item_content(&line.content) || is_key_value_content(&line.content) {
+        return Ok(());
+    }
+    Err(err_at(
+        line,
+        "Unexpected bare token line outside root primitive position",
+    ))
+}
+
+struct ResolvedHeader {
+    header: ArrayHeaderInfo,
+    inline_values: Option<String>,
+}
+
+pub struct Parser<'s> {
+    reader: LineReader<'s>,
+    strict: bool,
     #[cfg(feature = "layout")]
-    layout: Option<LayoutBuilder>,
+    layout: Option<crate::decode::layout_builder::LayoutBuilder>,
 }
 
-impl<'a> Parser<'a> {
-    /// Create a new parser with the given input and options.
-    pub fn new(input: &'a str, options: DecodeOptions) -> ToonResult<Self> {
-        let mut scanner = Scanner::new(input);
-        let chosen_delim = options.delimiter;
-        scanner.set_active_delimiter(chosen_delim);
-        let current_token = scanner.scan_token()?;
+impl<'s> Parser<'s> {
+    pub fn new(input: &'s str, options: DecodeOptions) -> ToonResult<Self> {
+        let indent_size = options.indent.get_spaces();
+        if indent_size == 0 {
+            return Err(ToonError::InvalidInput(
+                "indentSize must be at least 1".to_string(),
+            ));
+        }
 
         Ok(Self {
-            scanner,
-            current_token,
-            delimiter: chosen_delim,
-            options,
-            input,
+            reader: LineReader::new(input, indent_size, options.strict),
+            strict: options.strict,
             #[cfg(feature = "layout")]
             layout: None,
         })
@@ -84,1898 +783,771 @@ impl<'a> Parser<'a> {
 
     #[cfg(feature = "layout")]
     pub fn with_layout(mut self) -> Self {
-        self.layout = Some(LayoutBuilder::new());
+        self.layout = Some(crate::decode::layout_builder::LayoutBuilder::new());
         self
     }
 
     #[cfg(feature = "layout")]
-    pub fn take_layout(&mut self) -> Option<Layout> {
-        self.layout.take().map(LayoutBuilder::finish)
+    pub fn take_layout(&mut self) -> Option<crate::layout::Layout> {
+        self.layout.take().map(|builder| builder.finish())
     }
 
-    fn layout_push(&mut self, segment: &str) {
-        #[cfg(feature = "layout")]
-        if let Some(b) = self.layout.as_mut() {
-            b.push(segment.to_string());
-        }
-        #[cfg(not(feature = "layout"))]
-        let _ = segment;
-    }
-
-    fn layout_pop(&mut self) {
-        #[cfg(feature = "layout")]
-        if let Some(b) = self.layout.as_mut() {
-            b.pop();
-        }
-    }
-
-    fn layout_record_tabular(&mut self, length: usize, fields: &[String], delimiter: Delimiter) {
-        #[cfg(feature = "layout")]
-        if let Some(b) = self.layout.as_mut() {
-            let descriptors: Vec<FieldDescriptor> =
-                fields.iter().map(FieldDescriptor::leaf).collect();
-            b.record(NodeLayout::Tabular {
-                declared_len: length,
-                fields: descriptors,
-                delimiter,
-            });
-        }
-        #[cfg(not(feature = "layout"))]
-        let _ = (length, fields, delimiter);
-    }
-
-    fn layout_record_list(&mut self, length: usize) {
-        #[cfg(feature = "layout")]
-        if let Some(b) = self.layout.as_mut() {
-            b.record(NodeLayout::List {
-                declared_len: length,
-            });
-        }
-        #[cfg(not(feature = "layout"))]
-        let _ = length;
-    }
-
-    fn layout_record_inline_array(&mut self, length: usize, delimiter: Delimiter) {
-        #[cfg(feature = "layout")]
-        if let Some(b) = self.layout.as_mut() {
-            b.record(NodeLayout::InlineArray {
-                declared_len: length,
-                delimiter,
-            });
-        }
-        #[cfg(not(feature = "layout"))]
-        let _ = (length, delimiter);
-    }
-
-    /// Parse the input into a JSON value.
     pub fn parse(&mut self) -> ToonResult<Value> {
-        if self.options.strict {
-            self.validate_indentation(self.scanner.get_last_line_indent())?;
-        }
-        let value = self.parse_value()?;
-
-        // In strict mode, check for trailing content at root level
-        if self.options.strict {
-            self.skip_newlines()?;
-            if !matches!(self.current_token, Token::Eof) {
-                return Err(self
-                    .parse_error_with_context(
-                        "Multiple values at root level are not allowed in strict mode",
-                    )
-                    .with_suggestion("Wrap multiple values in an object or array"));
-            }
-        }
-
-        Ok(value)
+        self.decode_document()
     }
 
-    fn advance(&mut self) -> ToonResult<()> {
-        self.current_token = self.scanner.scan_token()?;
-        Ok(())
-    }
+    // #region Layout hooks
 
-    fn skip_newlines(&mut self) -> ToonResult<()> {
-        while matches!(self.current_token, Token::Newline) {
-            self.advance()?;
-        }
-        Ok(())
-    }
-
-    fn parse_value(&mut self) -> ToonResult<Value> {
-        self.parse_value_with_depth(0)
-    }
-
-    fn parse_value_with_depth(&mut self, depth: usize) -> ToonResult<Value> {
-        validate_depth(depth, MAX_DEPTH)?;
-
-        let had_newline = matches!(self.current_token, Token::Newline);
-        self.skip_newlines()?;
-
-        match &self.current_token {
-            Token::Null => {
-                // Peek ahead to see if this is a key (followed by ':') or a value
-                let next_char_is_colon = matches!(self.scanner.peek(), Some(':'));
-                if next_char_is_colon {
-                    let key = KEYWORDS[0].to_string();
-                    self.advance()?;
-                    self.parse_object_with_initial_key(key, depth)
-                } else {
-                    self.advance()?;
-                    Ok(Value::Null)
-                }
-            }
-            Token::Bool(b) => {
-                let next_char_is_colon = matches!(self.scanner.peek(), Some(':'));
-                if next_char_is_colon {
-                    let key = if *b {
-                        KEYWORDS[1].to_string()
-                    } else {
-                        KEYWORDS[2].to_string()
-                    };
-                    self.advance()?;
-                    self.parse_object_with_initial_key(key, depth)
-                } else {
-                    let val = *b;
-                    self.advance()?;
-                    Ok(Value::Bool(val))
-                }
-            }
-            Token::SignedInteger(i) => {
-                let next_char_is_colon = matches!(self.scanner.peek(), Some(':'));
-                if next_char_is_colon {
-                    let key = i.to_string();
-                    self.advance()?;
-                    self.parse_object_with_initial_key(key, depth)
-                } else {
-                    let first_text = self.scanner.last_token_text().to_string();
-                    let val = *i;
-                    self.advance()?;
-                    // Check if followed by more value tokens on the same line
-                    match &self.current_token {
-                        Token::String(..)
-                        | Token::SignedInteger(..)
-                        | Token::UnsignedInteger(..)
-                        | Token::Number(..)
-                        | Token::Bool(..)
-                        | Token::Null => {
-                            let mut accumulated = first_text;
-                            while let Token::String(..)
-                            | Token::SignedInteger(..)
-                            | Token::UnsignedInteger(..)
-                            | Token::Number(..)
-                            | Token::Bool(..)
-                            | Token::Null = &self.current_token
-                            {
-                                let ws = self.scanner.last_whitespace_count().max(1);
-                                for _ in 0..ws {
-                                    accumulated.push(' ');
-                                }
-                                accumulated.push_str(self.scanner.last_token_text());
-                                self.advance()?;
-                            }
-                            Ok(Value::String(accumulated))
-                        }
-                        _ => Ok(serde_json::Number::from(val).into()),
-                    }
-                }
-            }
-            Token::UnsignedInteger(i) => {
-                let next_char_is_colon = matches!(self.scanner.peek(), Some(':'));
-                if next_char_is_colon {
-                    let key = i.to_string();
-                    self.advance()?;
-                    self.parse_object_with_initial_key(key, depth)
-                } else {
-                    let first_text = self.scanner.last_token_text().to_string();
-                    let val = *i;
-                    self.advance()?;
-                    // Check if followed by more value tokens on the same line
-                    match &self.current_token {
-                        Token::String(..)
-                        | Token::SignedInteger(..)
-                        | Token::UnsignedInteger(..)
-                        | Token::Number(..)
-                        | Token::Bool(..)
-                        | Token::Null => {
-                            let mut accumulated = first_text;
-                            while let Token::String(..)
-                            | Token::SignedInteger(..)
-                            | Token::UnsignedInteger(..)
-                            | Token::Number(..)
-                            | Token::Bool(..)
-                            | Token::Null = &self.current_token
-                            {
-                                let ws = self.scanner.last_whitespace_count().max(1);
-                                for _ in 0..ws {
-                                    accumulated.push(' ');
-                                }
-                                accumulated.push_str(self.scanner.last_token_text());
-                                self.advance()?;
-                            }
-                            Ok(Value::String(accumulated))
-                        }
-                        _ => Ok(serde_json::Number::from(val).into()),
-                    }
-                }
-            }
-            Token::Number(n) => {
-                let next_char_is_colon = matches!(self.scanner.peek(), Some(':'));
-                if next_char_is_colon {
-                    let key = n.to_string();
-                    self.advance()?;
-                    self.parse_object_with_initial_key(key, depth)
-                } else {
-                    let first_text = self.scanner.last_token_text().to_string();
-                    let val = *n;
-                    self.advance()?;
-                    // Check if followed by more value tokens on the same line
-                    match &self.current_token {
-                        Token::String(..)
-                        | Token::SignedInteger(..)
-                        | Token::UnsignedInteger(..)
-                        | Token::Number(..)
-                        | Token::Bool(..)
-                        | Token::Null => {
-                            let mut accumulated = first_text;
-                            while let Token::String(..)
-                            | Token::SignedInteger(..)
-                            | Token::UnsignedInteger(..)
-                            | Token::Number(..)
-                            | Token::Bool(..)
-                            | Token::Null = &self.current_token
-                            {
-                                let ws = self.scanner.last_whitespace_count().max(1);
-                                for _ in 0..ws {
-                                    accumulated.push(' ');
-                                }
-                                accumulated.push_str(self.scanner.last_token_text());
-                                self.advance()?;
-                            }
-                            Ok(Value::String(accumulated))
-                        }
-                        _ => {
-                            // Normalize floats that are actually integers
-                            if val.is_finite() && val.fract() == 0.0 && val.abs() <= i64::MAX as f64
-                            {
-                                Ok(serde_json::Number::from(val as i64).into())
-                            } else {
-                                Ok(serde_json::Number::from_f64(val)
-                                    .ok_or_else(|| {
-                                        ToonError::InvalidInput(format!("Invalid number: {val}"))
-                                    })?
-                                    .into())
-                            }
-                        }
-                    }
-                }
-            }
-            Token::String(s, _) => {
-                let first = s.clone();
-                self.advance()?;
-
-                match &self.current_token {
-                    Token::Colon | Token::LeftBracket => {
-                        self.parse_object_with_initial_key(first, depth)
-                    }
-                    _ => {
-                        // Strings on new indented lines could be missing colons (keys) or values
-                        // Only error in strict mode when we know it's a new line
-                        if self.options.strict && depth > 0 && had_newline {
-                            return Err(self
-                                .parse_error_with_context(format!(
-                                    "Expected ':' after '{first}' in object context"
-                                ))
-                                .with_suggestion(
-                                    "Add ':' after the key, or place the value on the same line \
-                                     as the parent key",
-                                ));
-                        }
-
-                        if matches!(self.current_token, Token::Newline | Token::Eof) {
-                            return Ok(Value::String(first));
-                        }
-                        // Root-level string value - join consecutive tokens with exact spacing
-                        let mut accumulated = first;
-                        while let Token::String(..)
-                        | Token::SignedInteger(..)
-                        | Token::UnsignedInteger(..)
-                        | Token::Number(..)
-                        | Token::Bool(..)
-                        | Token::Null = &self.current_token
-                        {
-                            let ws = self.scanner.last_whitespace_count().max(1);
-                            for _ in 0..ws {
-                                accumulated.push(' ');
-                            }
-                            accumulated.push_str(self.scanner.last_token_text());
-                            self.advance()?;
-                        }
-                        Ok(Value::String(accumulated))
-                    }
-                }
-            }
-            Token::LeftBracket => self.parse_root_array(depth),
-            Token::Eof => Ok(Value::Object(Map::new())),
-            _ => self.parse_object(depth),
+    #[cfg(feature = "layout")]
+    fn layout_push(&mut self, segment: &str) {
+        if let Some(builder) = &mut self.layout {
+            builder.push(segment);
         }
     }
 
-    fn parse_object(&mut self, depth: usize) -> ToonResult<Value> {
-        validate_depth(depth, MAX_DEPTH)?;
+    #[cfg(not(feature = "layout"))]
+    fn layout_push(&mut self, _segment: &str) {}
 
-        let mut obj = Map::new();
-        // Track the indentation of the first key to ensure all keys align
-        let mut base_indent: Option<usize> = None;
+    #[cfg(feature = "layout")]
+    fn layout_pop(&mut self) {
+        if let Some(builder) = &mut self.layout {
+            builder.pop();
+        }
+    }
 
-        loop {
-            while matches!(self.current_token, Token::Newline) {
-                self.advance()?;
-            }
+    #[cfg(not(feature = "layout"))]
+    fn layout_pop(&mut self) {}
 
-            if matches!(self.current_token, Token::Eof) {
-                break;
-            }
+    #[cfg(feature = "layout")]
+    fn layout_record_array(&mut self, header: &ArrayHeaderInfo, inline: bool) {
+        use crate::layout::NodeLayout;
 
-            let current_indent = self.scanner.get_last_line_indent();
+        let Some(builder) = &mut self.layout else {
+            return;
+        };
 
-            if self.options.strict {
-                self.validate_indentation(current_indent)?;
-            }
-
-            // Once we've seen the first key, all subsequent keys must match its indent
-            if let Some(expected) = base_indent {
-                if current_indent != expected {
-                    break;
+        let node = if let Some(fields) = &header.fields {
+            let descriptors = layout_field_descriptors(fields);
+            if header.keyed {
+                NodeLayout::KeyedTabular {
+                    declared_len: header.length,
+                    fields: descriptors,
+                    delimiter: header.delimiter,
                 }
             } else {
-                base_indent = Some(current_indent);
+                NodeLayout::Tabular {
+                    declared_len: header.length,
+                    fields: descriptors,
+                    delimiter: header.delimiter,
+                }
             }
-
-            let key = match &self.current_token {
-                Token::String(s, was_quoted) => {
-                    // Mark quoted keys containing dots with a special prefix
-                    // so path expansion can skip them
-                    if *was_quoted && s.contains('.') {
-                        format!("{QUOTED_KEY_MARKER}{s}")
-                    } else {
-                        s.clone()
-                    }
-                }
-                _ => {
-                    return Err(self
-                        .parse_error_with_context(format!(
-                            "Expected key, found {:?}",
-                            self.current_token
-                        ))
-                        .with_suggestion("Object keys must be strings"));
-                }
-            };
-            self.advance()?;
-
-            self.layout_push(&key);
-            let value = if matches!(self.current_token, Token::LeftBracket) {
-                self.parse_array(depth)?
-            } else {
-                if !matches!(self.current_token, Token::Colon) {
-                    return Err(self
-                        .parse_error_with_context(format!(
-                            "Expected ':' or '[', found {:?}",
-                            self.current_token
-                        ))
-                        .with_suggestion("Use ':' for object values or '[' for arrays"));
-                }
-                self.advance()?;
-                self.parse_field_value(depth)?
-            };
-            self.layout_pop();
-
-            obj.insert(key, value);
-        }
-
-        Ok(Value::Object(obj))
-    }
-
-    fn parse_object_with_initial_key(&mut self, key: String, depth: usize) -> ToonResult<Value> {
-        validate_depth(depth, MAX_DEPTH)?;
-
-        let mut obj = Map::new();
-        let mut base_indent: Option<usize> = None;
-
-        // Validate indentation for the initial key if in strict mode
-        if self.options.strict {
-            let current_indent = self.scanner.get_last_line_indent();
-            self.validate_indentation(current_indent)?;
-        }
-
-        self.layout_push(&key);
-        if matches!(self.current_token, Token::LeftBracket) {
-            let value = self.parse_array(depth)?;
-            self.layout_pop();
-            obj.insert(key, value);
+        } else if inline {
+            NodeLayout::InlineArray {
+                declared_len: header.length,
+                delimiter: header.delimiter,
+            }
         } else {
-            if !matches!(self.current_token, Token::Colon) {
-                return Err(self.parse_error_with_context(format!(
-                    "Expected ':', found {:?}",
-                    self.current_token
-                )));
+            NodeLayout::List {
+                declared_len: header.length,
             }
-            self.advance()?;
+        };
+        builder.record(node);
+    }
 
-            let value = self.parse_field_value(depth)?;
-            self.layout_pop();
-            obj.insert(key, value);
+    #[cfg(not(feature = "layout"))]
+    fn layout_record_array(&mut self, _header: &ArrayHeaderInfo, _inline: bool) {}
+
+    // #endregion
+
+    // #region Error helpers
+
+    fn assert_no_depth_jump(&self, nested: &ParsedLine, parent_depth: usize) -> ToonResult<()> {
+        if self.strict && nested.depth > parent_depth + 1 {
+            return Err(err_at(
+                nested,
+                format!(
+                    "Indentation depth jump: expected depth {}, but found {}",
+                    parent_depth + 1,
+                    nested.depth
+                ),
+            ));
+        }
+        Ok(())
+    }
+
+    fn assert_expected_count(
+        &self,
+        actual: usize,
+        expected: usize,
+        item_type: &str,
+        line_number: usize,
+    ) -> ToonResult<()> {
+        if self.strict && actual != expected {
+            return Err(ToonError::parse_error(
+                line_number,
+                1,
+                format!("Expected {expected} {item_type}, but got {actual}"),
+            ));
+        }
+        Ok(())
+    }
+
+    /// Strict decoding never silently discards input, so a line after the
+    /// root form is an error (§5).
+    fn assert_fully_consumed(&mut self) -> ToonResult<()> {
+        if !self.strict {
+            return Ok(());
+        }
+        if let Some(line) = self.reader.peek()? {
+            let err = err_at(line, "Unexpected content after the document root");
+            return Err(err);
+        }
+        Ok(())
+    }
+
+    fn assert_no_blank_lines_in_span(
+        &self,
+        start_line: Option<usize>,
+        end_line: usize,
+        context: &str,
+    ) -> ToonResult<()> {
+        let Some(start_line) = start_line else {
+            return Ok(());
+        };
+        if !self.strict {
+            return Ok(());
+        }
+        // `blank_lines` is appended in line order, so the first entry past
+        // `start_line` is the candidate. A linear scan here is quadratic in
+        // the number of arrays for a document that separates them by blank
+        // lines.
+        let first_past_start = self
+            .reader
+            .blank_lines
+            .partition_point(|n| *n <= start_line);
+        if let Some(blank) = self
+            .reader
+            .blank_lines
+            .get(first_past_start)
+            .filter(|n| **n < end_line)
+        {
+            return Err(ToonError::parse_error(
+                *blank,
+                1,
+                format!("Blank lines inside {context} are not allowed in strict mode"),
+            ));
+        }
+        Ok(())
+    }
+
+    fn insert_entry(
+        &self,
+        map: &mut Map<String, Value>,
+        key: String,
+        value: Value,
+        line: &ParsedLine,
+    ) -> ToonResult<()> {
+        if self.strict && map.contains_key(&key) {
+            return Err(err_at(line, format!("Duplicate sibling key \"{key}\"")));
+        }
+        // Non-strict duplicates resolve via last-write-wins (§14.3).
+        map.insert(key, value);
+        Ok(())
+    }
+
+    // #endregion
+
+    /// Resolves a header parse result under the current mode: strict throws
+    /// on `Invalid` and on strict-only defects; non-strict falls through to
+    /// key-value parsing.
+    fn resolve_array_header(
+        &self,
+        content: &str,
+        line: &ParsedLine,
+    ) -> ToonResult<Option<ResolvedHeader>> {
+        match parse_array_header_line(content) {
+            HeaderParse::NotHeader => Ok(None),
+            HeaderParse::Invalid(reason) => {
+                if self.strict {
+                    Err(err_at(line, reason))
+                } else {
+                    Ok(None)
+                }
+            }
+            HeaderParse::Header {
+                header,
+                inline_values,
+                strict_error,
+            } => {
+                if self.strict {
+                    if let Some(reason) = strict_error {
+                        return Err(err_at(line, reason));
+                    }
+                }
+                Ok(Some(ResolvedHeader {
+                    header,
+                    inline_values,
+                }))
+            }
+        }
+    }
+
+    // #region Document dispatch (§5)
+
+    fn decode_document(&mut self) -> ToonResult<Value> {
+        let Some(first) = self.reader.peek()? else {
+            return Ok(Value::Object(Map::new()));
+        };
+        let first = first.clone();
+
+        if trim_spaces(&first.content) == "[]" {
+            self.reader.next()?;
+            self.assert_fully_consumed()?;
+            return Ok(Value::Array(Vec::new()));
         }
 
-        loop {
-            // Skip newlines and check if the next line belongs to this object
-            while matches!(self.current_token, Token::Newline) {
-                self.advance()?;
+        if is_array_header_content(&first.content) {
+            if let Some(resolved) = self.resolve_array_header(&first.content, &first)? {
+                self.reader.next()?;
+                let value = self.decode_array_from_header(resolved, 0, &first)?;
+                self.assert_fully_consumed()?;
+                return Ok(value);
+            }
+        }
 
-                if !self.options.strict {
-                    while matches!(self.current_token, Token::Newline) {
-                        self.advance()?;
-                    }
+        self.reader.next()?;
+        let following_depth = self.reader.peek()?.map(|line| line.depth);
+
+        if following_depth.is_none() && !is_key_value_line(&first.content) {
+            return parse_primitive_token(&first.content).map_err(|e| err_at(&first, e));
+        }
+
+        if !is_key_value_line(&first.content) && following_depth == Some(0) {
+            return Err(err_at(
+                &first,
+                "Top-level document must start with a key-value or array-header line",
+            ));
+        }
+
+        let mut map = Map::new();
+        self.decode_key_value_into(&first, 0, &mut map)?;
+
+        while let Some(line) = self.reader.peek()? {
+            if line.depth != 0 {
+                if self.strict {
+                    return Err(over_indented_error(line, 0));
                 }
-
-                if matches!(self.current_token, Token::Newline) {
-                    continue;
-                }
-
-                let next_indent = self.scanner.get_last_line_indent();
-
-                // Check if the next line is at the right indentation level
-                let should_continue = if let Some(expected) = base_indent {
-                    next_indent == expected
-                } else {
-                    // First field: use depth-based expected indent
-                    let current_depth_indent = self.options.indent.get_spaces() * depth;
-                    next_indent == current_depth_indent
-                };
-
-                if !should_continue {
-                    break;
-                }
+                assert_not_scalar_line(line)?;
+                self.reader.next()?;
+                continue;
             }
 
-            if matches!(self.current_token, Token::Eof) {
-                break;
-            }
+            let line = self.reader.next()?.expect("peeked line exists");
+            self.decode_key_value_into(&line, 0, &mut map)?;
+        }
 
-            if !matches!(self.current_token, Token::String(_, _)) {
-                break;
-            }
+        Ok(Value::Object(map))
+    }
 
-            if matches!(self.current_token, Token::Eof) {
-                break;
-            }
+    // #endregion
 
-            let current_indent = self.scanner.get_last_line_indent();
+    // #region Decode rules
 
-            if let Some(expected) = base_indent {
-                if current_indent != expected {
-                    break;
-                }
-            } else {
-                // verify first additional field matches expected depth
-                let expected_depth_indent = self.options.indent.get_spaces() * depth;
-                if current_indent != expected_depth_indent {
-                    break;
-                }
-            }
+    /// Decodes one key-value line (§5.2 class 3/4) into `map`.
+    fn decode_key_value_into(
+        &mut self,
+        line: &ParsedLine,
+        base_depth: usize,
+        map: &mut Map<String, Value>,
+    ) -> ToonResult<()> {
+        validate_depth(base_depth, MAX_DEPTH)?;
+        let content = &line.content;
 
-            if self.options.strict {
-                self.validate_indentation(current_indent)?;
-            }
-
-            if base_indent.is_none() {
-                base_indent = Some(current_indent);
-            }
-
-            let key = match &self.current_token {
-                Token::String(s, was_quoted) => {
-                    // Mark quoted keys containing dots with a special prefix
-                    // so path expansion can skip them
-                    if *was_quoted && s.contains('.') {
-                        format!("{QUOTED_KEY_MARKER}{s}")
-                    } else {
-                        s.clone()
-                    }
-                }
-                _ => break,
-            };
-            self.advance()?;
-
-            self.layout_push(&key);
-            let value = if matches!(self.current_token, Token::LeftBracket) {
-                self.parse_array(depth)?
-            } else {
-                if !matches!(self.current_token, Token::Colon) {
+        if let Some(resolved) = self.resolve_array_header(content, line)? {
+            match resolved.header.key.clone() {
+                Some(key) => {
+                    self.layout_push(&key);
+                    let value = self.decode_array_from_header(resolved, base_depth, line);
                     self.layout_pop();
-                    break;
+                    return self.insert_entry(map, key, value?, line);
                 }
-                self.advance()?;
-                self.parse_field_value(depth)?
-            };
-            self.layout_pop();
-
-            obj.insert(key, value);
-        }
-
-        Ok(Value::Object(obj))
-    }
-
-    fn parse_field_value(&mut self, depth: usize) -> ToonResult<Value> {
-        validate_depth(depth, MAX_DEPTH)?;
-
-        if matches!(self.current_token, Token::Newline | Token::Eof) {
-            let has_children = if matches!(self.current_token, Token::Newline) {
-                let current_depth_indent = self.options.indent.get_spaces() * (depth + 1);
-                let next_indent = self.scanner.count_leading_spaces();
-                next_indent >= current_depth_indent
-            } else {
-                false
-            };
-
-            if has_children {
-                self.parse_value_with_depth(depth + 1)
-            } else {
-                Ok(Value::Object(Map::new()))
-            }
-        } else if matches!(self.current_token, Token::LeftBracket) {
-            self.parse_value_with_depth(depth + 1)
-        } else {
-            // Check if there's more content after the current token
-            let token_text = self.scanner.last_token_text().to_string();
-            let (rest, space_count) = self.scanner.read_rest_of_line_with_space_info();
-
-            let result = if rest.is_empty() && space_count == 0 {
-                // Single token - convert directly to avoid redundant parsing
-                match &self.current_token {
-                    Token::String(s, _) => Ok(Value::String(s.clone())),
-                    Token::SignedInteger(i) => Ok(serde_json::Number::from(*i).into()),
-                    Token::UnsignedInteger(i) => Ok(serde_json::Number::from(*i).into()),
-                    Token::Number(n) => {
-                        let val = *n;
-                        if val.is_finite() && val.fract() == 0.0 && val.abs() <= i64::MAX as f64 {
-                            Ok(serde_json::Number::from(val as i64).into())
+                None => {
+                    if self.strict {
+                        return Err(if resolved.header.keyed {
+                            err_at(
+                                line,
+                                "Keyless keyed header is only valid at the document root",
+                            )
                         } else {
-                            Ok(serde_json::Number::from_f64(val)
-                                .ok_or_else(|| {
-                                    ToonError::InvalidInput(format!("Invalid number: {val}"))
-                                })?
-                                .into())
-                        }
-                    }
-                    Token::Bool(b) => Ok(Value::Bool(*b)),
-                    Token::Null => Ok(Value::Null),
-                    _ => Err(self.parse_error_with_context("Unexpected token after colon")),
-                }
-            } else {
-                // Multi-token value - reconstruct using original token text and re-parse
-                let mut value_str = match &self.current_token {
-                    Token::String(_, true) => {
-                        // Quoted strings: use last_token_text which includes quotes
-                        token_text.clone()
-                    }
-                    Token::String(_, false)
-                    | Token::SignedInteger(_)
-                    | Token::UnsignedInteger(_)
-                    | Token::Number(_)
-                    | Token::Bool(_)
-                    | Token::Null => token_text.clone(),
-                    _ => {
-                        return Err(self.parse_error_with_context("Unexpected token after colon"));
-                    }
-                };
-
-                // Preserve exact spacing from the original input
-                for _ in 0..space_count {
-                    value_str.push(' ');
-                }
-                value_str.push_str(&rest);
-
-                let token = self.scanner.parse_value_string(&value_str)?;
-                match token {
-                    Token::String(s, _) => Ok(Value::String(s)),
-                    Token::SignedInteger(i) => Ok(serde_json::Number::from(i).into()),
-                    Token::UnsignedInteger(i) => Ok(serde_json::Number::from(i).into()),
-                    Token::Number(n) => {
-                        if n.is_finite() && n.fract() == 0.0 && n.abs() <= i64::MAX as f64 {
-                            Ok(serde_json::Number::from(n as i64).into())
-                        } else {
-                            Ok(serde_json::Number::from_f64(n)
-                                .ok_or_else(|| {
-                                    ToonError::InvalidInput(format!("Invalid number: {n}"))
-                                })?
-                                .into())
-                        }
-                    }
-                    Token::Bool(b) => Ok(Value::Bool(b)),
-                    Token::Null => Ok(Value::Null),
-                    _ => Err(ToonError::InvalidInput("Unexpected token type".to_string())),
-                }
-            }?;
-
-            self.current_token = self.scanner.scan_token()?;
-            Ok(result)
-        }
-    }
-
-    fn parse_root_array(&mut self, depth: usize) -> ToonResult<Value> {
-        validate_depth(depth, MAX_DEPTH)?;
-
-        if !matches!(self.current_token, Token::LeftBracket) {
-            return Err(self.parse_error_with_context("Expected '[' at the start of root array"));
-        }
-
-        self.parse_array(depth)
-    }
-
-    fn parse_array_header(
-        &mut self,
-    ) -> ToonResult<(usize, Option<Delimiter>, Option<Vec<String>>)> {
-        if !matches!(self.current_token, Token::LeftBracket) {
-            return Err(self.parse_error_with_context("Expected '['"));
-        }
-        self.advance()?;
-
-        // Parse array length (plain integer only)
-        // Supports formats: [N], [N|], [N\t] (no # marker)
-        let length = if let Token::SignedInteger(n) = &self.current_token {
-            *n as usize
-        } else if let Token::UnsignedInteger(n) = &self.current_token {
-            *n as usize
-        } else if let Token::String(s, _) = &self.current_token {
-            // Check if string starts with # - this marker is not supported
-            if s.starts_with('#') {
-                return Err(self
-                    .parse_error_with_context(
-                        "Length marker '#' is not supported. Use [N] format instead of [#N]",
-                    )
-                    .with_suggestion("Remove the '#' prefix from the array length"));
-            }
-
-            // Plain string that's a number: "3"
-            s.parse::<usize>().map_err(|_| {
-                self.parse_error_with_context(format!("Expected array length, found: {s}"))
-            })?
-        } else {
-            return Err(self.parse_error_with_context(format!(
-                "Expected array length, found {:?}",
-                self.current_token
-            )));
-        };
-
-        self.advance()?;
-
-        // Check for optional delimiter after length
-        let detected_delim = match &self.current_token {
-            Token::Delimiter(d) => {
-                let delim = *d;
-                self.advance()?;
-                Some(delim)
-            }
-            Token::String(s, _) if s == "," => {
-                self.advance()?;
-                Some(Delimiter::Comma)
-            }
-            Token::String(s, _) if s == "|" => {
-                self.advance()?;
-                Some(Delimiter::Pipe)
-            }
-            Token::String(s, _) if s == "\t" => {
-                self.advance()?;
-                Some(Delimiter::Tab)
-            }
-            _ => None,
-        };
-
-        // Default to comma if no delimiter specified
-        let active_delim = detected_delim.or(Some(Delimiter::Comma));
-
-        self.scanner.set_active_delimiter(active_delim);
-
-        if !matches!(self.current_token, Token::RightBracket) {
-            return Err(self.parse_error_with_context(format!(
-                "Expected ']', found {:?}",
-                self.current_token
-            )));
-        }
-        self.advance()?;
-
-        let fields = if matches!(self.current_token, Token::LeftBrace) {
-            self.advance()?;
-            let mut fields = Vec::new();
-
-            loop {
-                match &self.current_token {
-                    Token::String(s, _) => {
-                        fields.push(s.clone());
-                        self.advance()?;
-
-                        if matches!(self.current_token, Token::RightBrace) {
-                            break;
-                        }
-
-                        if matches!(self.current_token, Token::Delimiter(_)) {
-                            self.advance()?;
-                        } else {
-                            return Err(self.parse_error_with_context(format!(
-                                "Expected delimiter or '}}', found {:?}",
-                                self.current_token
-                            )));
-                        }
-                    }
-                    Token::RightBrace => break,
-                    _ => {
-                        return Err(self.parse_error_with_context(format!(
-                            "Expected field name, found {:?}",
-                            self.current_token
-                        )))
+                            err_at(
+                                line,
+                                "Keyless array header is only valid at the document root or as a \
+                                 list item",
+                            )
+                        });
                     }
                 }
             }
-
-            self.advance()?;
-            Some(fields)
-        } else {
-            None
-        };
-
-        if !matches!(self.current_token, Token::Colon) {
-            return Err(self.parse_error_with_context("Expected ':' after array header"));
         }
-        self.advance()?;
 
-        Ok((length, detected_delim, fields))
-    }
+        let (key, end) = parse_key_token(content).map_err(|e| err_at(line, e))?;
+        let rest = trim_spaces(&content[end..]);
 
-    fn parse_array(&mut self, depth: usize) -> ToonResult<Value> {
-        self.parse_array_with_context(depth, ArrayParseContext::Normal)
-    }
-
-    fn parse_array_with_context(
-        &mut self,
-        depth: usize,
-        context: ArrayParseContext,
-    ) -> ToonResult<Value> {
-        validate_depth(depth, MAX_DEPTH)?;
-
-        let (length, detected_delim, fields) = self.parse_array_header()?;
-        let delim = detected_delim.unwrap_or(Delimiter::Comma);
-
-        if let Some(fields) = fields {
-            validation::validate_field_list(&fields)?;
-            self.layout_record_tabular(length, &fields, delim);
-            self.parse_tabular_array(length, &fields, depth, context)
-        } else {
-            // Non-tabular arrays as first field of list items require depth adjustment
-            // (items at depth +2 relative to hyphen, not the usual +1)
-            let adjusted_depth = match context {
-                ArrayParseContext::Normal => depth,
-                ArrayParseContext::ListItemFirstField => depth + 1,
+        if rest.is_empty() {
+            let nested = match self.reader.peek()? {
+                Some(next) if next.depth > base_depth => Some(next.clone()),
+                _ => None,
             };
-            if length == 0 || matches!(self.current_token, Token::Newline) {
-                self.layout_record_list(length);
+            let value = if let Some(next) = nested {
+                self.assert_no_depth_jump(&next, base_depth)?;
+                self.layout_push(&key);
+                let fields = self.decode_object_fields(base_depth + 1);
+                self.layout_pop();
+                Value::Object(fields?)
             } else {
-                self.layout_record_inline_array(length, delim);
-            }
-            self.parse_regular_array(length, adjusted_depth)
+                Value::Object(Map::new())
+            };
+            return self.insert_entry(map, key, value, line);
         }
+
+        if rest == "[]" {
+            return self.insert_entry(map, key, Value::Array(Vec::new()), line);
+        }
+
+        let value = parse_primitive_token(rest).map_err(|e| err_at(line, e))?;
+        self.insert_entry(map, key, value, line)
     }
 
-    fn parse_tabular_array(
-        &mut self,
-        length: usize,
-        fields: &[String],
-        depth: usize,
-        context: ArrayParseContext,
-    ) -> ToonResult<Value> {
-        let mut rows = Vec::new();
+    /// Decodes the fields of a nested object scope (§8).
+    fn decode_object_fields(&mut self, base_depth: usize) -> ToonResult<Map<String, Value>> {
+        let mut computed_depth: Option<usize> = None;
+        let mut map = Map::new();
 
-        if !matches!(self.current_token, Token::Newline) {
-            return Err(self
-                .parse_error_with_context("Expected newline after tabular array header")
-                .with_suggestion("Tabular arrays must have rows on separate lines"));
-        }
-        self.skip_newlines()?;
-
-        for row_index in 0..length {
-            if matches!(self.current_token, Token::Eof) {
-                if self.options.strict {
-                    return Err(self.parse_error_with_context(format!(
-                        "Expected {} rows, but got {} before EOF",
-                        length,
-                        rows.len()
-                    )));
-                }
+        while let Some(line) = self.reader.peek()? {
+            if line.depth < base_depth {
                 break;
             }
 
-            let current_indent = self.scanner.get_last_line_indent();
+            let depth = *computed_depth.get_or_insert(line.depth);
 
-            // Tabular arrays as first field of list-item objects require rows at depth +2
-            // (relative to hyphen), while normal tabular arrays use depth +1
-            let row_depth_offset = match context {
-                ArrayParseContext::Normal => 1,
-                ArrayParseContext::ListItemFirstField => 2,
-            };
-            let expected_indent = self.options.indent.get_spaces() * (depth + row_depth_offset);
-
-            if self.options.strict {
-                self.validate_indentation(current_indent)?;
-
-                if current_indent != expected_indent {
-                    return Err(self.parse_error_with_context(format!(
-                        "Invalid indentation for tabular row: expected {expected_indent} spaces, \
-                         found {current_indent}"
-                    )));
+            if line.depth == depth {
+                let line = self.reader.next()?.expect("peeked line exists");
+                self.decode_key_value_into(&line, depth, &mut map)?;
+            } else if line.depth > depth {
+                if self.strict {
+                    return Err(over_indented_error(line, depth));
                 }
+                assert_not_scalar_line(line)?;
+                self.reader.next()?;
+            } else {
+                break;
             }
+        }
 
-            let mut row = Map::new();
+        Ok(map)
+    }
 
-            for (field_index, field) in fields.iter().enumerate() {
-                // Skip delimiter before each field except the first
-                if field_index > 0 {
-                    if matches!(self.current_token, Token::Delimiter(_)) {
-                        self.advance()?;
-                    } else {
-                        return Err(self
-                            .parse_error_with_context(format!(
-                                "Expected delimiter, found {:?}",
-                                self.current_token
-                            ))
-                            .with_suggestion(format!(
-                                "Tabular row {} field {} needs a delimiter",
-                                row_index + 1,
-                                field_index + 1
-                            )));
-                    }
-                }
+    fn decode_array_from_header(
+        &mut self,
+        resolved: ResolvedHeader,
+        base_depth: usize,
+        header_line: &ParsedLine,
+    ) -> ToonResult<Value> {
+        validate_depth(base_depth, MAX_DEPTH)?;
+        let ResolvedHeader {
+            header,
+            inline_values,
+        } = resolved;
 
-                // Empty values show up as delimiters or newlines
-                let value = if matches!(self.current_token, Token::Delimiter(_))
-                    || matches!(self.current_token, Token::Newline | Token::Eof)
-                {
-                    Value::String(String::new())
-                } else {
-                    self.parse_tabular_field_value()?
-                };
+        // A keyed tabular header decodes to an object, not an array (§9.5).
+        if header.keyed {
+            self.layout_record_array(&header, false);
+            return self.decode_keyed_object(&header, base_depth, header_line);
+        }
 
-                row.insert(field.clone(), value);
+        if let Some(inline) = inline_values {
+            self.layout_record_array(&header, true);
+            return self.decode_inline_primitive_array(&header, &inline, header_line);
+        }
 
-                // Validate row completeness
-                if field_index < fields.len() - 1 {
-                    // Not the last field - shouldn't hit newline yet
-                    if matches!(self.current_token, Token::Newline | Token::Eof) {
-                        if self.options.strict {
-                            return Err(self
-                                .parse_error_with_context(format!(
-                                    "Tabular row {}: expected {} values, but found only {}",
-                                    row_index + 1,
-                                    fields.len(),
-                                    field_index + 1
-                                ))
-                                .with_suggestion(format!(
-                                    "Row {} should have exactly {} values",
-                                    row_index + 1,
-                                    fields.len()
-                                )));
-                        } else {
-                            // Fill remaining fields with null in non-strict mode
-                            for field in fields.iter().skip(field_index + 1) {
-                                row.insert(field.clone(), Value::Null);
-                            }
-                            break;
-                        }
-                    }
-                } else if !matches!(self.current_token, Token::Newline | Token::Eof)
-                    && matches!(self.current_token, Token::Delimiter(_))
-                {
-                    // Last field but there's another delimiter - too many values
-                    return Err(self
-                        .parse_error_with_context(format!(
-                            "Tabular row {}: expected {} values, but found extra values",
-                            row_index + 1,
-                            fields.len()
-                        ))
-                        .with_suggestion(format!(
-                            "Row {} should have exactly {} values",
-                            row_index + 1,
-                            fields.len()
-                        )));
-                }
-            }
+        if header.fields.is_some() {
+            self.layout_record_array(&header, false);
+            return self.decode_tabular_array(&header, base_depth, header_line);
+        }
 
-            if !self.options.strict && row.len() < fields.len() {
-                for field in fields.iter().skip(row.len()) {
-                    row.insert(field.clone(), Value::Null);
-                }
-            }
+        self.layout_record_array(&header, false);
+        self.decode_list_array(&header, base_depth, header_line)
+    }
 
-            rows.push(Value::Object(row));
+    fn decode_inline_primitive_array(
+        &mut self,
+        header: &ArrayHeaderInfo,
+        inline_values: &str,
+        header_line: &ParsedLine,
+    ) -> ToonResult<Value> {
+        let values = parse_delimited_values(inline_values, header.delimiter);
+        self.assert_expected_count(
+            values.len(),
+            header.length,
+            "inline-form values",
+            header_line.line_number,
+        )?;
 
-            if matches!(self.current_token, Token::Eof) {
+        values
+            .iter()
+            .map(|token| parse_primitive_token(token).map_err(|e| err_at(header_line, e)))
+            .collect::<ToonResult<Vec<Value>>>()
+            .map(Value::Array)
+    }
+
+    /// Decodes a keyed tabular object (§9.5).
+    fn decode_keyed_object(
+        &mut self,
+        header: &ArrayHeaderInfo,
+        base_depth: usize,
+        header_line: &ParsedLine,
+    ) -> ToonResult<Value> {
+        let entry_depth = base_depth + 1;
+        let fields = header
+            .fields
+            .as_deref()
+            .expect("keyed header carries a field list");
+        let leaf_field_count = count_leaf_fields(fields);
+
+        let mut map = Map::new();
+        let mut entry_count = 0usize;
+        let mut start_line: Option<usize> = None;
+        let mut last_entry_line = header_line.line_number;
+
+        // A keyed scope ends only by dedent or end of input, so every line at
+        // entry depth carrying an unquoted colon is an entry row.
+        while let Some(line) = self.reader.peek()? {
+            if line.depth <= base_depth {
                 break;
             }
 
-            if !matches!(self.current_token, Token::Newline) {
-                if !self.options.strict {
-                    while !matches!(self.current_token, Token::Newline | Token::Eof) {
-                        self.advance()?;
-                    }
-                    if matches!(self.current_token, Token::Eof) {
-                        break;
-                    }
-                } else {
-                    return Err(self.parse_error_with_context(format!(
-                        "Expected newline after tabular row {}",
-                        row_index + 1
-                    )));
-                }
-            }
-
-            if row_index + 1 < length {
-                self.advance()?;
-                if self.options.strict && matches!(self.current_token, Token::Newline) {
-                    return Err(self.parse_error_with_context(
-                        "Blank lines are not allowed inside tabular arrays in strict mode",
+            if line.depth > entry_depth {
+                if self.strict {
+                    return Err(err_at(
+                        line,
+                        "Unexpected indentation inside keyed tabular object",
                     ));
                 }
+                self.reader.next()?;
+                continue;
+            }
 
-                self.skip_newlines()?;
-            } else if matches!(self.current_token, Token::Newline) {
-                // After the last row, check if there are extra rows
-                self.advance()?;
-                self.skip_newlines()?;
+            if find_unquoted_char(&line.content, b':', 0).is_none() {
+                if self.strict {
+                    return Err(err_at(
+                        line,
+                        "Expected entry row inside keyed tabular object",
+                    ));
+                }
+                self.reader.next()?;
+                continue;
+            }
 
-                let expected_indent = self.options.indent.get_spaces() * (depth + 1);
-                let actual_indent = self.scanner.get_last_line_indent();
+            let line = self.reader.next()?.expect("peeked line exists");
+            start_line.get_or_insert(line.line_number);
+            last_entry_line = line.line_number;
 
-                // If something at the same indent level, it might be a new row (error)
-                // unless it's a key-value pair (which belongs to parent)
-                if actual_indent == expected_indent && !matches!(self.current_token, Token::Eof) {
-                    let is_key_value = matches!(self.current_token, Token::String(_, _))
-                        && matches!(self.scanner.peek(), Some(':'));
+            let (key, end) = parse_key_token(&line.content).map_err(|e| err_at(&line, e))?;
 
-                    if !is_key_value {
-                        return Err(self.parse_error_with_context(format!(
-                            "Array length mismatch: expected {length} rows, but more rows found",
-                        )));
-                    }
+            let cells_content = trim_spaces(&line.content[end..]);
+            let values = if cells_content.is_empty() {
+                Vec::new()
+            } else {
+                parse_delimited_values(cells_content, header.delimiter)
+            };
+            self.assert_expected_count(
+                values.len(),
+                leaf_field_count,
+                "keyed entry cells",
+                line.line_number,
+            )?;
+
+            let primitives = values
+                .iter()
+                .map(|token| parse_primitive_token(token).map_err(|e| err_at(&line, e)))
+                .collect::<ToonResult<Vec<Value>>>()?;
+            let value = object_from_fields(fields, &primitives);
+
+            self.insert_entry(&mut map, key, value, &line)?;
+            entry_count += 1;
+        }
+
+        self.assert_expected_count(entry_count, header.length, "keyed entries", last_entry_line)?;
+        self.assert_no_blank_lines_in_span(start_line, last_entry_line, "keyed tabular object")?;
+
+        Ok(Value::Object(map))
+    }
+
+    /// Decodes a tabular array (§9.3).
+    fn decode_tabular_array(
+        &mut self,
+        header: &ArrayHeaderInfo,
+        base_depth: usize,
+        header_line: &ParsedLine,
+    ) -> ToonResult<Value> {
+        let row_depth = base_depth + 1;
+        let fields = header
+            .fields
+            .as_deref()
+            .expect("tabular header carries a field list");
+        let leaf_field_count = count_leaf_fields(fields);
+
+        let mut rows = Vec::new();
+        let mut start_line: Option<usize> = None;
+        let mut last_row_line = header_line.line_number;
+
+        // Only strict stops at N, leaving the surplus to the extra-rows check
+        // below; non-strict reads on so a declared [N] never truncates (§14.1).
+        while !self.strict || rows.len() < header.length {
+            let Some(line) = self.reader.peek()? else {
+                break;
+            };
+            if line.depth != row_depth || !is_data_row(&line.content, header.delimiter) {
+                break;
+            }
+
+            let line = self.reader.next()?.expect("peeked line exists");
+            start_line.get_or_insert(line.line_number);
+            last_row_line = line.line_number;
+
+            let values = parse_delimited_values(&line.content, header.delimiter);
+            self.assert_expected_count(
+                values.len(),
+                leaf_field_count,
+                "tabular row values",
+                line.line_number,
+            )?;
+
+            let primitives = values
+                .iter()
+                .map(|token| parse_primitive_token(token).map_err(|e| err_at(&line, e)))
+                .collect::<ToonResult<Vec<Value>>>()?;
+            rows.push(object_from_fields(fields, &primitives));
+        }
+
+        self.assert_expected_count(rows.len(), header.length, "tabular rows", last_row_line)?;
+        self.assert_no_blank_lines_in_span(start_line, last_row_line, "tabular array")?;
+
+        if self.strict {
+            if let Some(next) = self.reader.peek()? {
+                if next.depth == row_depth
+                    && !next.content.starts_with("- ")
+                    && is_data_row(&next.content, header.delimiter)
+                {
+                    let err = err_at(
+                        next,
+                        format!("Expected {} tabular rows, but found more", header.length),
+                    );
+                    return Err(err);
                 }
             }
         }
-
-        validation::validate_array_length(length, rows.len())?;
 
         Ok(Value::Array(rows))
     }
 
-    fn parse_regular_array(&mut self, length: usize, depth: usize) -> ToonResult<Value> {
+    /// Decodes an array in list form (§9.2, §9.4).
+    fn decode_list_array(
+        &mut self,
+        header: &ArrayHeaderInfo,
+        base_depth: usize,
+        header_line: &ParsedLine,
+    ) -> ToonResult<Value> {
+        let item_depth = base_depth + 1;
         let mut items = Vec::new();
+        let mut start_line: Option<usize> = None;
+        let mut last_item_line = header_line.line_number;
 
-        // Empty arrays: return immediately without consuming the trailing newline,
-        // so the caller's field-parsing loop can correctly check indentation.
-        if length == 0 {
-            return Ok(Value::Array(items));
+        // Only strict stops at N, leaving the surplus to the extra-items check
+        // below; non-strict reads on so a declared [N] never truncates (§14.1).
+        while !self.strict || items.len() < header.length {
+            let Some(line) = self.reader.peek()? else {
+                break;
+            };
+            if line.depth != item_depth || !is_list_item_content(&line.content) {
+                break;
+            }
+
+            start_line.get_or_insert(line.line_number);
+
+            let index = items.len().to_string();
+            self.layout_push(&index);
+            let item = self.decode_list_item(item_depth);
+            self.layout_pop();
+            items.push(item?);
+
+            last_item_line = self.reader.last_consumed_line;
         }
 
-        match &self.current_token {
-            Token::Newline => {
-                self.skip_newlines()?;
+        self.assert_expected_count(
+            items.len(),
+            header.length,
+            "list-form items",
+            last_item_line,
+        )?;
+        self.assert_no_blank_lines_in_span(start_line, last_item_line, "list-form array")?;
 
-                let expected_indent = self.options.indent.get_spaces() * (depth + 1);
-
-                for i in 0..length {
-                    let current_indent = self.scanner.get_last_line_indent();
-                    if self.options.strict {
-                        self.validate_indentation(current_indent)?;
-
-                        if current_indent != expected_indent {
-                            return Err(self.parse_error_with_context(format!(
-                                "Invalid indentation for list item: expected {expected_indent} \
-                                 spaces, found {current_indent}"
-                            )));
-                        }
-                    }
-                    if !matches!(self.current_token, Token::Dash) {
-                        return Err(self
-                            .parse_error_with_context(format!(
-                                "Expected '-' for list item, found {:?}",
-                                self.current_token
-                            ))
-                            .with_suggestion(format!(
-                                "List arrays need '-' prefix for each item (item {} of {})",
-                                i + 1,
-                                length
-                            )));
-                    }
-                    self.advance()?;
-
-                    let item_path = i.to_string();
-                    self.layout_push(&item_path);
-
-                    let value = if matches!(self.current_token, Token::Newline | Token::Eof) {
-                        Value::Object(Map::new())
-                    } else if matches!(self.current_token, Token::LeftBracket) {
-                        self.parse_array(depth + 1)?
-                    } else if let Token::String(s, _) = &self.current_token {
-                        let key = s.clone();
-                        self.advance()?;
-
-                        if matches!(self.current_token, Token::Colon | Token::LeftBracket) {
-                            // This is an object: key followed by colon or array bracket
-                            // First field of list-item object may be an array requiring special
-                            // indentation
-                            self.layout_push(&key);
-                            let first_value = if matches!(self.current_token, Token::LeftBracket) {
-                                // Array directly after key (e.g., "- key[N]:")
-                                // Use ListItemFirstField context to apply correct indentation
-                                self.parse_array_with_context(
-                                    depth + 1,
-                                    ArrayParseContext::ListItemFirstField,
-                                )?
-                            } else {
-                                self.advance()?;
-                                // Handle nested arrays: "key: [2]: ..."
-                                if matches!(self.current_token, Token::LeftBracket) {
-                                    // Array after colon - not directly on hyphen line, use normal
-                                    // context
-                                    self.parse_array(depth + 2)?
-                                } else {
-                                    self.parse_field_value(depth + 2)?
-                                }
-                            };
-                            self.layout_pop();
-
-                            let mut obj = Map::new();
-                            obj.insert(key, first_value);
-
-                            let field_indent = self.options.indent.get_spaces() * (depth + 2);
-
-                            // Check if there are more fields at the same indentation level
-                            let should_parse_more_fields =
-                                if matches!(self.current_token, Token::Newline) {
-                                    let next_indent = self.scanner.count_leading_spaces();
-
-                                    if next_indent < field_indent {
-                                        false
-                                    } else {
-                                        self.advance()?;
-
-                                        if !self.options.strict {
-                                            self.skip_newlines()?;
-                                        }
-                                        true
-                                    }
-                                } else if matches!(self.current_token, Token::String(_, _)) {
-                                    // When already positioned at a field key, check its indent
-                                    let current_indent = self.scanner.get_last_line_indent();
-                                    current_indent == field_indent
-                                } else {
-                                    false
-                                };
-
-                            // Parse additional fields if they're at the right indentation
-                            if should_parse_more_fields {
-                                while !matches!(self.current_token, Token::Eof) {
-                                    let current_indent = self.scanner.get_last_line_indent();
-
-                                    if current_indent < field_indent {
-                                        break;
-                                    }
-
-                                    if current_indent != field_indent && self.options.strict {
-                                        break;
-                                    }
-
-                                    // Stop if we hit the next list item
-                                    if matches!(self.current_token, Token::Dash) {
-                                        break;
-                                    }
-
-                                    let field_key = match &self.current_token {
-                                        Token::String(s, _) => s.clone(),
-                                        _ => break,
-                                    };
-                                    self.advance()?;
-
-                                    self.layout_push(&field_key);
-                                    let field_value =
-                                        if matches!(self.current_token, Token::LeftBracket) {
-                                            self.parse_array(depth + 2)?
-                                        } else if matches!(self.current_token, Token::Colon) {
-                                            self.advance()?;
-                                            if matches!(self.current_token, Token::LeftBracket) {
-                                                self.parse_array(depth + 2)?
-                                            } else {
-                                                self.parse_field_value(depth + 2)?
-                                            }
-                                        } else {
-                                            self.layout_pop();
-                                            break;
-                                        };
-                                    self.layout_pop();
-
-                                    obj.insert(field_key, field_value);
-
-                                    if matches!(self.current_token, Token::Newline) {
-                                        let next_indent = self.scanner.count_leading_spaces();
-                                        if next_indent < field_indent {
-                                            break;
-                                        }
-                                        self.advance()?;
-                                        if !self.options.strict {
-                                            self.skip_newlines()?;
-                                        }
-                                    } else if matches!(self.current_token, Token::String(_, _)) {
-                                        // Tabular array parser already consumed the newline
-                                        // and advanced to the next token — check indent
-                                        let current_indent = self.scanner.get_last_line_indent();
-                                        if current_indent != field_indent {
-                                            break;
-                                        }
-                                    } else {
-                                        break;
-                                    }
-                                }
-                            }
-
-                            Value::Object(obj)
-                        } else if matches!(self.current_token, Token::LeftBracket) {
-                            // Array as object value: "key[2]: ..."
-                            let array_value = self.parse_array(depth + 1)?;
-                            let mut obj = Map::new();
-                            obj.insert(key, array_value);
-                            Value::Object(obj)
-                        } else {
-                            // Plain string value
-                            Value::String(key)
-                        }
-                    } else {
-                        self.parse_primitive()?
-                    };
-
-                    self.layout_pop();
-                    items.push(value);
-
-                    if items.len() < length {
-                        if matches!(self.current_token, Token::Newline) {
-                            self.advance()?;
-
-                            if self.options.strict && matches!(self.current_token, Token::Newline) {
-                                return Err(self.parse_error_with_context(
-                                    "Blank lines are not allowed inside list arrays in strict mode",
-                                ));
-                            }
-
-                            self.skip_newlines()?;
-                        } else if !matches!(self.current_token, Token::Dash) {
-                            return Err(self.parse_error_with_context(format!(
-                                "Expected newline or next list item after list item {}",
-                                i + 1
-                            )));
-                        }
-                    } else if matches!(self.current_token, Token::Newline) {
-                        // After the last item, check for extra items
-                        self.advance()?;
-                        self.skip_newlines()?;
-
-                        let list_indent = self.options.indent.get_spaces() * (depth + 1);
-                        let actual_indent = self.scanner.get_last_line_indent();
-                        // If we see another dash at the same indent, there are too many items
-                        if actual_indent == list_indent && matches!(self.current_token, Token::Dash)
-                        {
-                            return Err(self.parse_error_with_context(format!(
-                                "Array length mismatch: expected {length} items, but more items \
-                                 found",
-                            )));
-                        }
-                    }
+        if self.strict {
+            if let Some(next) = self.reader.peek()? {
+                if next.depth == item_depth && next.content.starts_with("- ") {
+                    let err = err_at(
+                        next,
+                        format!("Expected {} list-form items, but found more", header.length),
+                    );
+                    return Err(err);
                 }
             }
-            _ => {
-                for i in 0..length {
-                    if i > 0 {
-                        if matches!(self.current_token, Token::Delimiter(_)) {
-                            self.advance()?;
-                        } else {
-                            return Err(self
-                                .parse_error_with_context(format!(
-                                    "Expected delimiter, found {:?}",
-                                    self.current_token
-                                ))
-                                .with_suggestion(format!(
-                                    "Expected delimiter between items (item {} of {})",
-                                    i + 1,
-                                    length
-                                )));
-                        }
-                    }
-
-                    let value = if matches!(self.current_token, Token::Delimiter(_))
-                        || (matches!(self.current_token, Token::Eof | Token::Newline) && i < length)
-                    {
-                        Value::String(String::new())
-                    } else if matches!(self.current_token, Token::LeftBracket) {
-                        self.parse_array(depth + 1)?
-                    } else {
-                        self.parse_tabular_field_value()?
-                    };
-
-                    items.push(value);
-                }
-            }
-        }
-
-        validation::validate_array_length(length, items.len())?;
-
-        if self.options.strict && matches!(self.current_token, Token::Delimiter(_)) {
-            return Err(self.parse_error_with_context(format!(
-                "Array length mismatch: expected {length} items, but more items found",
-            )));
         }
 
         Ok(Value::Array(items))
     }
 
-    fn parse_tabular_field_value(&mut self) -> ToonResult<Value> {
-        // Get the original text of the current token
-        let token_text = self.scanner.last_token_text().to_string();
+    /// Decodes one list item (§9.2, §9.4, §10).
+    fn decode_list_item(&mut self, base_depth: usize) -> ToonResult<Value> {
+        let line = self.reader.next()?.expect("caller peeked a list item");
 
-        // Read remaining text until delimiter/newline/EOF
-        let (rest, space_count) = self.scanner.read_until_delimiter_with_space_info();
-
-        if rest.is_empty() && space_count == 0 {
-            // Single token — handle as primitive directly
-            let result = match &self.current_token {
-                Token::Null => Ok(Value::Null),
-                Token::Bool(b) => Ok(Value::Bool(*b)),
-                Token::SignedInteger(i) => Ok(Number::from(*i).into()),
-                Token::UnsignedInteger(i) => Ok(Number::from(*i).into()),
-                Token::Number(n) => {
-                    let val = *n;
-                    if val.is_finite() && val.fract() == 0.0 && val.abs() <= i64::MAX as f64 {
-                        Ok(Number::from(val as i64).into())
-                    } else {
-                        Ok(Number::from_f64(val)
-                            .ok_or_else(|| {
-                                ToonError::InvalidInput(format!("Invalid number: {val}"))
-                            })?
-                            .into())
-                    }
-                }
-                Token::String(s, _) => Ok(Value::String(s.clone())),
-                _ => Err(self.parse_error_with_context(format!(
-                    "Expected primitive value, found {:?}",
-                    self.current_token
-                ))),
-            };
-            self.advance()?;
-            result
-        } else {
-            // Multiple tokens — combine original text + spaces + rest, then type-infer
-            let mut value_str = token_text;
-            for _ in 0..space_count {
-                value_str.push(' ');
-            }
-            value_str.push_str(&rest);
-
-            let token = self.scanner.parse_value_string(&value_str)?;
-            // Rescan so current_token is positioned at the next delimiter/newline
-            self.current_token = self.scanner.scan_token()?;
-            match token {
-                Token::String(s, _) => Ok(Value::String(s)),
-                Token::SignedInteger(i) => Ok(Number::from(i).into()),
-                Token::UnsignedInteger(i) => Ok(Number::from(i).into()),
-                Token::Number(n) => {
-                    if n.is_finite() && n.fract() == 0.0 && n.abs() <= i64::MAX as f64 {
-                        Ok(Number::from(n as i64).into())
-                    } else {
-                        Ok(Number::from_f64(n)
-                            .ok_or_else(|| ToonError::InvalidInput(format!("Invalid number: {n}")))?
-                            .into())
-                    }
-                }
-                Token::Bool(b) => Ok(Value::Bool(b)),
-                Token::Null => Ok(Value::Null),
-                _ => Err(ToonError::InvalidInput("Unexpected token type".to_string())),
-            }
+        if line.content == "-" {
+            return Ok(Value::Object(Map::new()));
         }
-    }
+        let after_hyphen = &line.content[2..];
+        let after_trimmed = trim_spaces(after_hyphen);
 
-    fn parse_primitive(&mut self) -> ToonResult<Value> {
-        match &self.current_token {
-            Token::Null => {
-                self.advance()?;
-                Ok(Value::Null)
-            }
-            Token::Bool(b) => {
-                let val = *b;
-                self.advance()?;
-                Ok(Value::Bool(val))
-            }
-            Token::SignedInteger(i) => {
-                let val = *i;
-                self.advance()?;
-                Ok(Number::from(val).into())
-            }
-            Token::UnsignedInteger(i) => {
-                let val = *i;
-                self.advance()?;
-                Ok(Number::from(val).into())
-            }
-            Token::Number(n) => {
-                let val = *n;
-                self.advance()?;
+        if after_trimmed.is_empty() {
+            return Ok(Value::Object(Map::new()));
+        }
 
-                if val.is_finite() && val.fract() == 0.0 && val.abs() <= i64::MAX as f64 {
-                    Ok(Number::from(val as i64).into())
+        if after_trimmed == "[]" {
+            return Ok(Value::Array(Vec::new()));
+        }
+
+        let item_line = ParsedLine {
+            raw: line.raw.clone(),
+            content: after_hyphen.to_string(),
+            depth: line.depth,
+            line_number: line.line_number,
+        };
+
+        // Keyless header forms: `- [M]:` is the list item itself (§9.4);
+        // there is no keyless keyed or fields-bearing list-item form.
+        if is_array_header_content(after_hyphen) {
+            if let Some(resolved) = self.resolve_array_header(after_hyphen, &item_line)? {
+                if resolved.header.keyed || resolved.header.fields.is_some() {
+                    if self.strict {
+                        return Err(if resolved.header.keyed {
+                            err_at(
+                                &item_line,
+                                "Keyless keyed header is only valid at the document root",
+                            )
+                        } else {
+                            err_at(
+                                &item_line,
+                                "Keyless header with a field list is only valid at the document \
+                                 root",
+                            )
+                        });
+                    }
                 } else {
-                    Ok(Number::from_f64(val)
-                        .ok_or_else(|| ToonError::InvalidInput(format!("Invalid number: {val}")))?
-                        .into())
+                    return self.decode_array_from_header(resolved, base_depth, &item_line);
                 }
             }
-            Token::String(s, _) => {
-                let val = s.clone();
-                self.advance()?;
-                Ok(Value::String(val))
+        }
+
+        // A tabular array or keyed tabular object as the first field sits on
+        // the hyphen line with rows at depth +2 (§10).
+        if let Some(resolved) = self.resolve_array_header(after_hyphen, &item_line)? {
+            if resolved.header.key.is_some() && resolved.header.fields.is_some() {
+                let key = resolved.header.key.clone().expect("checked above");
+                let mut map = Map::new();
+
+                self.layout_push(&key);
+                let value = self.decode_array_from_header(resolved, base_depth + 1, &item_line);
+                self.layout_pop();
+                self.insert_entry(&mut map, key, value?, &item_line)?;
+
+                self.follow_sibling_fields(base_depth + 1, &mut map)?;
+                return Ok(Value::Object(map));
             }
-            _ => Err(self.parse_error_with_context(format!(
-                "Expected primitive value, found {:?}",
-                self.current_token
-            ))),
         }
+
+        if is_key_value_content(after_hyphen) {
+            let mut map = Map::new();
+            self.decode_key_value_into(&item_line, base_depth + 1, &mut map)?;
+            self.follow_sibling_fields(base_depth + 1, &mut map)?;
+            return Ok(Value::Object(map));
+        }
+
+        parse_primitive_token(after_hyphen).map_err(|e| err_at(&item_line, e))
     }
 
-    fn parse_error_with_context(&self, message: impl Into<String>) -> ToonError {
-        let (line, column) = self.scanner.current_position();
-        let message = message.into();
+    /// Decodes the remaining fields of a list-item object at depth +1 under
+    /// the hyphen line (§10).
+    fn follow_sibling_fields(
+        &mut self,
+        follow_depth: usize,
+        map: &mut Map<String, Value>,
+    ) -> ToonResult<()> {
+        while let Some(line) = self.reader.peek()? {
+            if line.depth != follow_depth || line.content.starts_with("- ") {
+                break;
+            }
 
-        let context = self.get_error_context(line, column);
-
-        ToonError::ParseError {
-            line,
-            column,
-            message,
-            context: Some(Box::new(context)),
+            let line = self.reader.next()?.expect("peeked line exists");
+            self.decode_key_value_into(&line, follow_depth, map)?;
         }
+        Ok(())
     }
 
-    fn get_error_context(&self, line: usize, column: usize) -> ErrorContext {
-        let lines: Vec<&str> = self.input.lines().collect();
-
-        let source_line = if line > 0 && line <= lines.len() {
-            lines[line - 1].to_string()
-        } else {
-            String::new()
-        };
-
-        let preceding_lines: Vec<String> = if line > 1 {
-            lines[line.saturating_sub(3)..line - 1]
-                .iter()
-                .map(|s| s.to_string())
-                .collect()
-        } else {
-            Vec::new()
-        };
-
-        let following_lines: Vec<String> = if line < lines.len() {
-            lines[line..line.saturating_add(2).min(lines.len())]
-                .iter()
-                .map(|s| s.to_string())
-                .collect()
-        } else {
-            Vec::new()
-        };
-
-        let indicator = if column > 0 {
-            Some(format!("{:width$}^", "", width = column - 1))
-        } else {
-            None
-        };
-
-        ErrorContext {
-            source_line,
-            preceding_lines,
-            following_lines,
-            suggestion: None,
-            indicator,
-        }
-    }
-
-    fn validate_indentation(&self, indent_amount: usize) -> ToonResult<()> {
-        if !self.options.strict {
-            return Ok(());
-        }
-
-        let indent_size = self.options.indent.get_spaces();
-        // In strict mode, indentation must be a multiple of the configured indent size
-        if indent_size > 0 && indent_amount > 0 && !indent_amount.is_multiple_of(indent_size) {
-            Err(self.parse_error_with_context(format!(
-                "Invalid indentation: found {indent_amount} spaces, but must be a multiple of \
-                 {indent_size}"
-            )))
-        } else {
-            Ok(())
-        }
-    }
+    // #endregion
 }
 
-#[cfg(test)]
-mod tests {
-    use std::f64;
-
-    use serde_json::json;
-
-    use super::*;
-
-    fn parse(input: &str) -> ToonResult<Value> {
-        let mut parser = Parser::new(input, DecodeOptions::default())?;
-        parser.parse()
-    }
-
-    #[test]
-    fn test_parse_primitives() {
-        assert_eq!(parse("null").unwrap(), json!(null));
-        assert_eq!(parse("true").unwrap(), json!(true));
-        assert_eq!(parse("false").unwrap(), json!(false));
-        assert_eq!(parse("42").unwrap(), json!(42));
-        assert_eq!(parse("3.141592653589793").unwrap(), json!(f64::consts::PI));
-        assert_eq!(parse("hello").unwrap(), json!("hello"));
-    }
-
-    #[test]
-    fn test_parse_simple_object() {
-        let result = parse("name: Alice\nage: 30").unwrap();
-        assert_eq!(result["name"], json!("Alice"));
-        assert_eq!(result["age"], json!(30));
-    }
-
-    #[test]
-    fn test_parse_primitive_array() {
-        let result = parse("tags[3]: a,b,c").unwrap();
-        assert_eq!(result["tags"], json!(["a", "b", "c"]));
-    }
-
-    #[test]
-    fn test_parse_empty_array() {
-        let result = parse("items[0]:").unwrap();
-        assert_eq!(result["items"], json!([]));
-    }
-
-    #[test]
-    fn test_parse_tabular_array() {
-        let result = parse("users[2]{id,name}:\n  1,Alice\n  2,Bob").unwrap();
-        assert_eq!(
-            result["users"],
-            json!([
-                {"id": 1, "name": "Alice"},
-                {"id": 2, "name": "Bob"}
-            ])
-        );
-    }
-
-    #[test]
-    fn test_empty_tokens() {
-        let result = parse("items[3]: a,,c").unwrap();
-        assert_eq!(result["items"], json!(["a", "", "c"]));
-    }
-
-    #[test]
-    fn test_empty_nested_object() {
-        let result = parse("user:").unwrap();
-        assert_eq!(result, json!({"user": {}}));
-    }
-
-    #[test]
-    fn test_list_item_object() {
-        let result =
-            parse("items[2]:\n  - id: 1\n    name: First\n  - id: 2\n    name: Second").unwrap();
-        assert_eq!(
-            result["items"],
-            json!([
-                {"id": 1, "name": "First"},
-                {"id": 2, "name": "Second"}
-            ])
-        );
-    }
-
-    #[test]
-    fn test_nested_array_in_list_item() {
-        let result = parse("items[1]:\n  - tags[3]: a,b,c").unwrap();
-        assert_eq!(result["items"], json!([{"tags": ["a", "b", "c"]}]));
-    }
-
-    #[test]
-    fn test_two_level_siblings() {
-        let input = "x:\n  y: 1\n  z: 2";
-        let opts = DecodeOptions::default();
-        let mut parser = Parser::new(input, opts).unwrap();
-        let result = parser.parse().unwrap();
-
-        let x = result.as_object().unwrap().get("x").unwrap();
-        let x_obj = x.as_object().unwrap();
-
-        assert_eq!(x_obj.len(), 2, "x should have 2 keys");
-        assert_eq!(x_obj.get("y").unwrap(), &serde_json::json!(1));
-        assert_eq!(x_obj.get("z").unwrap(), &serde_json::json!(2));
-    }
-
-    #[test]
-    fn test_nested_object_with_sibling() {
-        let input = "a:\n  b:\n    c: 1\n  d: 2";
-        let opts = DecodeOptions::default();
-        let mut parser = Parser::new(input, opts).unwrap();
-        let result = parser.parse().unwrap();
-
-        let a = result.as_object().unwrap().get("a").unwrap();
-        let a_obj = a.as_object().unwrap();
-
-        assert_eq!(a_obj.len(), 2, "a should have 2 keys (b and d)");
-        assert!(a_obj.contains_key("b"), "a should have key 'b'");
-        assert!(a_obj.contains_key("d"), "a should have key 'd'");
-
-        let b = a_obj.get("b").unwrap().as_object().unwrap();
-        assert_eq!(b.len(), 1, "b should have only 1 key (c)");
-        assert!(b.contains_key("c"), "b should have key 'c'");
-        assert!(!b.contains_key("d"), "b should NOT have key 'd'");
-    }
-
-    #[test]
-    fn test_field_value_with_parentheses() {
-        let result = parse("msg: Mostly Functions (3 of 3)").unwrap();
-        assert_eq!(result, json!({"msg": "Mostly Functions (3 of 3)"}));
-
-        let result = parse("val: (hello)").unwrap();
-        assert_eq!(result, json!({"val": "(hello)"}));
-
-        let result = parse("test: a (b) c (d)").unwrap();
-        assert_eq!(result, json!({"test": "a (b) c (d)"}));
-    }
-
-    #[test]
-    fn test_field_value_number_with_parentheses() {
-        let result = parse("code: 0(f)").unwrap();
-        assert_eq!(result, json!({"code": "0(f)"}));
-
-        let result = parse("val: 5(test)").unwrap();
-        assert_eq!(result, json!({"val": "5(test)"}));
-
-        let result = parse("msg: test 123)").unwrap();
-        assert_eq!(result, json!({"msg": "test 123)"}));
-    }
-
-    #[test]
-    fn test_field_value_single_token_optimization() {
-        let result = parse("name: hello").unwrap();
-        assert_eq!(result, json!({"name": "hello"}));
-
-        let result = parse("age: 42").unwrap();
-        assert_eq!(result, json!({"age": 42}));
-
-        let result = parse("active: true").unwrap();
-        assert_eq!(result, json!({"active": true}));
-
-        let result = parse("value: null").unwrap();
-        assert_eq!(result, json!({"value": null}));
-    }
-
-    #[test]
-    fn test_field_value_multi_token() {
-        let result = parse("msg: hello world").unwrap();
-        assert_eq!(result, json!({"msg": "hello world"}));
-
-        let result = parse("msg: test 123 end").unwrap();
-        assert_eq!(result, json!({"msg": "test 123 end"}));
-    }
-
-    #[test]
-    fn test_field_value_spacing_preserved() {
-        let result = parse("val: hello world").unwrap();
-        assert_eq!(result, json!({"val": "hello world"}));
-
-        let result = parse("val: 0(f)").unwrap();
-        assert_eq!(result, json!({"val": "0(f)"}));
-    }
-
-    #[test]
-    fn test_round_trip_parentheses() {
-        use crate::{
-            decode::decode_default,
-            encode::encode_default,
-        };
-
-        let original = json!({
-            "message": "Mostly Functions (3 of 3)",
-            "code": "0(f)",
-            "simple": "(hello)",
-            "mixed": "test 123)"
-        });
-
-        let encoded = encode_default(&original).unwrap();
-        let decoded: Value = decode_default(&encoded).unwrap();
-
-        assert_eq!(original, decoded);
-    }
-
-    #[test]
-    fn test_multiple_fields_with_edge_cases() {
-        let input = r#"message: Mostly Functions (3 of 3)
-sone: (hello)
-hello: 0(f)"#;
-
-        let result = parse(input).unwrap();
-        assert_eq!(
-            result,
-            json!({
-                "message": "Mostly Functions (3 of 3)",
-                "sone": "(hello)",
-                "hello": "0(f)"
-            })
-        );
-    }
-
-    #[test]
-    fn test_decode_list_item_tabular_array_v3() {
-        // Tabular arrays as first field of list items
-        // Rows must be at depth +2 relative to hyphen (6 spaces from root)
-        let input = r#"items[1]:
-  - users[2]{id,name}:
-      1,Ada
-      2,Bob
-    status: active"#;
-
-        let result = parse(input).unwrap();
-
-        assert_eq!(
-            result,
-            json!({
-                "items": [
-                    {
-                        "users": [
-                            {"id": 1, "name": "Ada"},
-                            {"id": 2, "name": "Bob"}
-                        ],
-                        "status": "active"
-                    }
-                ]
-            })
-        );
-    }
-
-    #[test]
-    fn test_decode_list_item_tabular_array_multiple_items() {
-        // Multiple list items each with tabular array as first field
-        let input = r#"data[2]:
-  - records[1]{id,val}:
-      1,x
-    count: 1
-  - records[1]{id,val}:
-      2,y
-    count: 1"#;
-
-        let result = parse(input).unwrap();
-
-        assert_eq!(
-            result,
-            json!({
-                "data": [
-                    {
-                        "records": [{"id": 1, "val": "x"}],
-                        "count": 1
-                    },
-                    {
-                        "records": [{"id": 2, "val": "y"}],
-                        "count": 1
-                    }
-                ]
-            })
-        );
-    }
-
-    #[test]
-    fn test_decode_list_item_tabular_array_with_multiple_fields() {
-        // List item with tabular array first and multiple sibling fields
-        let input = r#"entries[1]:
-  - people[2]{name,age}:
-      Alice,30
-      Bob,25
-    total: 2
-    category: staff"#;
-
-        let result = parse(input).unwrap();
-
-        assert_eq!(
-            result,
-            json!({
-                "entries": [
-                    {
-                        "people": [
-                            {"name": "Alice", "age": 30},
-                            {"name": "Bob", "age": 25}
-                        ],
-                        "total": 2,
-                        "category": "staff"
-                    }
-                ]
-            })
-        );
-    }
-
-    #[test]
-    fn test_decode_list_item_non_tabular_array_unchanged() {
-        // Non-tabular arrays as first field should work normally
-        let input = r#"items[1]:
-  - tags[3]: a,b,c
-    name: test"#;
-
-        let result = parse(input).unwrap();
-
-        assert_eq!(
-            result,
-            json!({
-                "items": [
-                    {
-                        "tags": ["a", "b", "c"],
-                        "name": "test"
-                    }
-                ]
-            })
-        );
-    }
-
-    #[test]
-    fn test_decode_strict_rejects_v2_tabular_indent() {
-        use crate::decode::decode_strict;
-
-        // Old format: rows at depth +1 (4 spaces from root)
-        // Strict mode should reject this incorrect indentation
-        let input_v2 = r#"items[1]:
-  - users[2]{id,name}:
-    1,Ada
-    2,Bob"#;
-
-        let result = decode_strict::<Value>(input_v2);
-
-        // Should error due to incorrect indentation
-        assert!(
-            result.is_err(),
-            "Old format with incorrect indentation should be rejected in strict mode"
-        );
-        let err_msg = result.unwrap_err().to_string();
-        assert!(
-            err_msg.contains("indentation") || err_msg.contains("Invalid indentation"),
-            "Error should mention indentation. Got: {}",
-            err_msg
-        );
-    }
-
-    #[test]
-    fn test_decode_tabular_array_not_in_list_item_unchanged() {
-        // Regular tabular arrays (not in list items) should still use depth +1
-        let input = r#"users[2]{id,name}:
-  1,Ada
-  2,Bob"#;
-
-        let result = parse(input).unwrap();
-
-        assert_eq!(
-            result,
-            json!({
-                "users": [
-                    {"id": 1, "name": "Ada"},
-                    {"id": 2, "name": "Bob"}
-                ]
-            })
-        );
-    }
-
-    #[test]
-    fn test_decode_nested_tabular_not_first_field() {
-        // Tabular array as a subsequent field (not first) should use normal depth
-        let input = r#"items[1]:
-  - name: test
-    data[2]{id,val}:
-      1,x
-      2,y"#;
-
-        let result = parse(input).unwrap();
-
-        assert_eq!(
-            result,
-            json!({
-                "items": [
-                    {
-                        "name": "test",
-                        "data": [
-                            {"id": 1, "val": "x"},
-                            {"id": 2, "val": "y"}
-                        ]
-                    }
-                ]
-            })
-        );
-    }
-
-    #[test]
-    fn test_array_element_number_followed_by_string() {
-        // Issue #56: Array elements starting with a number should be parsed as string
-        // when followed by non-numeric text
-        let result = parse("version1[1]: 1.0 something").unwrap();
-        assert_eq!(result["version1"], json!(["1.0 something"]));
-
-        let result = parse("data[1]: 42 units").unwrap();
-        assert_eq!(result["data"], json!(["42 units"]));
-
-        // Pure numbers should still be parsed as numbers
-        let result = parse("nums[1]: 42").unwrap();
-        assert_eq!(result["nums"], json!([42]));
-
-        let result = parse("nums[1]: 2.75").unwrap();
-        assert_eq!(result["nums"], json!([2.75]));
-    }
-
-    #[test]
-    fn test_issue_59_multiple_spaces_preserved() {
-        // Issue #59: Multiple spaces between words should be preserved
-        // Field value context
-        let result = parse("key: a   b").unwrap();
-        assert_eq!(result["key"], json!("a   b"));
-
-        // Tabular cell context
-        let result = parse("data[2]: a   b, c   d").unwrap();
-        assert_eq!(result["data"], json!(["a   b", "c   d"]));
-
-        // Root-level value
-        let result = parse("a   b").unwrap();
-        assert_eq!(result, json!("a   b"));
-    }
-
-    #[test]
-    fn test_issue_60_mixed_type_tokens_as_string() {
-        // Issue #60: "1 null" and "a 1" should parse as strings in tabular rows
-        // Tabular cell context
-        let result = parse("data[2]: 1 null, a 1").unwrap();
-        assert_eq!(result["data"], json!(["1 null", "a 1"]));
-
-        // Root-level value
-        let result = parse("1 null").unwrap();
-        assert_eq!(result, json!("1 null"));
-
-        let result = parse("a 1").unwrap();
-        assert_eq!(result, json!("a 1"));
-
-        // Field value context
-        let result = parse("key: 1 null").unwrap();
-        assert_eq!(result["key"], json!("1 null"));
-
-        let result = parse("key: a 1").unwrap();
-        assert_eq!(result["key"], json!("a 1"));
-    }
-
-    #[test]
-    fn test_issue_61_number_format_preserved() {
-        // Issue #61: "1.0 b" should preserve "1.0", not become "1 b"
-        // Tabular cell context
-        let result = parse("data[2]: 1.0 b, 1e1 b").unwrap();
-        assert_eq!(result["data"], json!(["1.0 b", "1e1 b"]));
-
-        // Field value context
-        let result = parse("key: 1.0 b").unwrap();
-        assert_eq!(result["key"], json!("1.0 b"));
-
-        let result = parse("key: 1e1 b").unwrap();
-        assert_eq!(result["key"], json!("1e1 b"));
-
-        // Root-level value
-        let result = parse("1.0 b").unwrap();
-        assert_eq!(result, json!("1.0 b"));
-
-        let result = parse("1e1 b").unwrap();
-        assert_eq!(result, json!("1e1 b"));
-    }
+/// Maps a header's field list to layout descriptors, preserving nested
+/// field groups.
+#[cfg(feature = "layout")]
+fn layout_field_descriptors(fields: &[FieldNode]) -> Vec<crate::layout::FieldDescriptor> {
+    use crate::layout::FieldDescriptor;
+
+    fields
+        .iter()
+        .map(|field| match &field.children {
+            Some(children) => {
+                FieldDescriptor::group(field.name.clone(), layout_field_descriptors(children))
+            }
+            None => FieldDescriptor::leaf(field.name.clone()),
+        })
+        .collect()
 }
+
+/// Materializes one row's object by walking the field list in header order:
+/// a leaf field takes the next cell; a nested field group materializes an
+/// object from its subfields, applied recursively (§9.3).
+fn object_from_fields(fields: &[FieldNode], primitives: &[Value]) -> Value {
+    fn walk(fields: &[FieldNode], primitives: &[Value], cell_index: &mut usize) -> Value {
+        let mut map = Map::new();
+        for field in fields {
+            match &field.children {
+                Some(children) => {
+                    map.insert(field.name.clone(), walk(children, primitives, cell_index));
+                }
+                None => {
+                    // A non-strict width mismatch leaves trailing leaf fields
+                    // with no cell; they are absent, not null (§14.1).
+                    if *cell_index < primitives.len() {
+                        map.insert(field.name.clone(), primitives[*cell_index].clone());
+                        *cell_index += 1;
+                    }
+                }
+            }
+        }
+        Value::Object(map)
+    }
+
+    let mut cell_index = 0;
+    walk(fields, primitives, &mut cell_index)
+}
+
+// #endregion

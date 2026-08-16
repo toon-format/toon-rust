@@ -1,26 +1,40 @@
 //! Encoder Implementation
-pub mod folding;
+//!
+//! Emits TOON per spec v4.1: the form follows from the value's shape and
+//! position (§1.4, §9), tabular and keyed tabular forms are mandatory
+//! wherever detection succeeds and the position permits them, empty arrays
+//! use the `key: []` / `[]` forms, and every header declares the document
+//! delimiter (§11.1).
 #[cfg(feature = "json_stream")]
 pub mod json_stream;
-pub mod primitives;
-pub mod writer;
+pub(crate) mod tabular;
+
 use indexmap::IndexMap;
+use tabular::{
+    collect_row_leaves,
+    extract_keyed_tabular_fields,
+    extract_tabular_fields,
+    is_primitive,
+};
 
 use crate::{
     constants::MAX_DEPTH,
     types::{
+        Delimiter,
         EncodeOptions,
+        FieldNode,
         IntoJsonValue,
         JsonValue as Value,
-        KeyFoldingMode,
         ToonError,
         ToonResult,
     },
     utils::{
         format_canonical_number,
+        is_valid_unquoted_key,
+        needs_quoting,
         normalize,
+        string::quote_string,
         validation::validate_depth,
-        QuotingContext,
     },
 };
 
@@ -74,23 +88,32 @@ pub fn encode<T: serde::Serialize>(value: &T, options: &EncodeOptions) -> ToonRe
     encode_impl(&json_value, options)
 }
 
-fn encode_impl(value: &Value, options: &EncodeOptions) -> ToonResult<String> {
-    let normalized: Value = normalize(value.clone());
-    let mut writer = writer::Writer::new(options.clone());
-
-    match &normalized {
-        Value::Array(arr) => {
-            write_array(&mut writer, None, arr, 0)?;
-        }
-        Value::Object(obj) => {
-            write_object(&mut writer, obj, 0)?;
-        }
-        _ => {
-            write_primitive_value(&mut writer, &normalized, QuotingContext::ObjectValue)?;
-        }
+pub(crate) fn encode_impl(value: &Value, options: &EncodeOptions) -> ToonResult<String> {
+    // Zero spaces per level would emit nesting no decoder can recover; the
+    // decoder rejects the same option at the same boundary.
+    if options.indent.get_spaces() == 0 {
+        return Err(ToonError::InvalidInput(
+            "indentSize must be at least 1".to_string(),
+        ));
     }
 
-    Ok(writer.finish())
+    let normalized: Value = normalize(value.clone());
+    let mut lines = Vec::new();
+
+    match &normalized {
+        Value::Array(arr) => encode_array_lines(None, arr, 0, options, &mut lines)?,
+        Value::Object(obj) => {
+            // A keyed-eligible root object uses the keyless keyed header (§9.5).
+            if let Some(fields) = extract_keyed_tabular_fields(obj) {
+                encode_keyed_object_lines(None, obj, &fields, 0, options, &mut lines)?;
+            } else {
+                encode_object_lines(obj, 0, options, &mut lines)?;
+            }
+        }
+        primitive => lines.push(encode_primitive(primitive, options.delimiter)),
+    }
+
+    Ok(lines.join("\n"))
 }
 
 /// Encode with default options (2-space indent, comma delimiter).
@@ -149,7 +172,7 @@ pub fn encode_default<T: serde::Serialize>(value: &T) -> ToonResult<String> {
 /// assert!(toon.contains("name: Alice"));
 ///
 /// // Will error if not an object
-/// assert!(encode_object(&json!(42), &EncodeOptions::default()).is_err());
+/// assert!(encode_object(json!(42), &EncodeOptions::default()).is_err());
 /// # Ok::<(), toon_format::ToonError>(())
 /// ```
 pub fn encode_object<V: IntoJsonValue>(value: V, options: &EncodeOptions) -> ToonResult<String> {
@@ -204,675 +227,630 @@ fn value_type_name(value: &Value) -> &'static str {
     }
 }
 
-fn write_object(
-    writer: &mut writer::Writer,
-    obj: &IndexMap<String, Value>,
-    depth: usize,
-) -> ToonResult<()> {
-    write_object_impl(writer, obj, depth, false)
-}
+// #region Primitive, key, and header formatting (§2, §7)
 
-fn write_object_impl(
-    writer: &mut writer::Writer,
-    obj: &IndexMap<String, Value>,
-    depth: usize,
-    disable_folding: bool,
-) -> ToonResult<()> {
-    validate_depth(depth, MAX_DEPTH)?;
-
-    let keys: Vec<&String> = obj.keys().collect();
-
-    for (i, key) in keys.iter().enumerate() {
-        if i > 0 {
-            writer.write_newline()?;
-        }
-
-        let value = &obj[*key];
-
-        // Check if this key-value pair can be folded (v1.5 feature)
-        // Don't fold if any sibling key is a dotted path starting with this key
-        // (e.g., don't fold inside "data" if "data.meta.items" exists as a sibling)
-        let has_conflicting_sibling = keys
-            .iter()
-            .any(|k| k.starts_with(&format!("{key}.")) || (k.contains('.') && k == key));
-
-        let folded = if !disable_folding
-            && writer.options.key_folding == KeyFoldingMode::Safe
-            && !has_conflicting_sibling
-        {
-            folding::analyze_foldable_chain(key, value, writer.options.flatten_depth, &keys)
-        } else {
-            None
-        };
-
-        if let Some(chain) = folded {
-            // Write folded key-value pair
-            if depth > 0 {
-                writer.write_indent(depth)?;
-            }
-
-            // Write the leaf value
-            match &chain.leaf_value {
-                Value::Array(arr) => {
-                    // For arrays, pass the folded key to write_array so it generates the header
-                    // correctly
-                    write_array(writer, Some(&chain.folded_key), arr, 0)?;
-                }
-                Value::Object(nested_obj) => {
-                    // Write the folded key (e.g., "a.b.c")
-                    writer.write_key(&chain.folded_key)?;
-                    writer.write_char(':')?;
-                    if !nested_obj.is_empty() {
-                        writer.write_newline()?;
-                        // After folding a chain, disable folding for the leaf object
-                        // This respects flattenDepth and prevents over-folding
-                        write_object_impl(writer, nested_obj, depth + 1, true)?;
-                    }
-                }
-                _ => {
-                    // Write the folded key (e.g., "a.b.c")
-                    writer.write_key(&chain.folded_key)?;
-                    writer.write_char(':')?;
-                    writer.write_char(' ')?;
-                    write_primitive_value(writer, &chain.leaf_value, QuotingContext::ObjectValue)?;
-                }
-            }
-        } else {
-            // Standard (non-folded) encoding
-            match value {
-                Value::Array(arr) => {
-                    write_array(writer, Some(key), arr, depth)?;
-                }
-                Value::Object(nested_obj) => {
-                    if depth > 0 {
-                        writer.write_indent(depth)?;
-                    }
-                    writer.write_key(key)?;
-                    writer.write_char(':')?;
-                    if !nested_obj.is_empty() {
-                        writer.write_newline()?;
-                        // If this key has a conflicting sibling, disable folding for its nested
-                        // objects
-                        let nested_disable_folding = disable_folding || has_conflicting_sibling;
-                        write_object_impl(writer, nested_obj, depth + 1, nested_disable_folding)?;
-                    }
-                }
-                _ => {
-                    if depth > 0 {
-                        writer.write_indent(depth)?;
-                    }
-                    writer.write_key(key)?;
-                    writer.write_char(':')?;
-                    writer.write_char(' ')?;
-                    write_primitive_value(writer, value, QuotingContext::ObjectValue)?;
-                }
-            }
+fn encode_primitive(value: &Value, delimiter: Delimiter) -> String {
+    match value {
+        Value::Null => "null".to_string(),
+        Value::Bool(b) => b.to_string(),
+        Value::Number(n) => format_canonical_number(n),
+        Value::String(s) => encode_string_literal(s, delimiter),
+        Value::Array(_) | Value::Object(_) => {
+            unreachable!("encode_primitive is called with primitives only")
         }
     }
+}
 
+fn encode_string_literal(value: &str, delimiter: Delimiter) -> String {
+    if needs_quoting(value, delimiter.as_char()) {
+        quote_string(value)
+    } else {
+        value.to_string()
+    }
+}
+
+fn encode_key(key: &str) -> String {
+    if is_valid_unquoted_key(key) {
+        key.to_string()
+    } else {
+        quote_string(key)
+    }
+}
+
+fn encode_and_join_primitives(values: &[&Value], delimiter: Delimiter) -> String {
+    values
+        .iter()
+        .map(|value| encode_primitive(value, delimiter))
+        .collect::<Vec<_>>()
+        .join(&delimiter.as_char().to_string())
+}
+
+/// Formats a header (§6): `key[N<delim?>]{fields}:`, with the keyed marker
+/// `[N:<delim?>]` when requested. Every header declares the document
+/// delimiter (§11.1); comma is declared by omission.
+fn format_header(
+    length: usize,
+    key: Option<&str>,
+    fields: Option<&[FieldNode]>,
+    keyed: bool,
+    delimiter: Delimiter,
+) -> String {
+    let mut header = String::new();
+
+    if let Some(key) = key {
+        header.push_str(&encode_key(key));
+    }
+
+    header.push('[');
+    header.push_str(&length.to_string());
+    if keyed {
+        header.push(':');
+    }
+    if delimiter != Delimiter::Comma {
+        header.push(delimiter.as_char());
+    }
+    header.push(']');
+
+    if let Some(fields) = fields {
+        header.push('{');
+        format_field_segment(fields, delimiter, &mut header);
+        header.push('}');
+    }
+
+    header.push(':');
+    header
+}
+
+fn format_field_segment(fields: &[FieldNode], delimiter: Delimiter, out: &mut String) {
+    for (i, field) in fields.iter().enumerate() {
+        if i > 0 {
+            out.push(delimiter.as_char());
+        }
+        out.push_str(&encode_key(&field.name));
+        if let Some(children) = &field.children {
+            out.push('{');
+            format_field_segment(children, delimiter, out);
+            out.push('}');
+        }
+    }
+}
+
+// #endregion
+
+// #region Line emission helpers
+
+fn push_line(lines: &mut Vec<String>, depth: usize, content: &str, options: &EncodeOptions) {
+    let mut line = options.indent.get_string(depth);
+    line.push_str(content);
+    lines.push(line);
+}
+
+fn push_list_item(lines: &mut Vec<String>, depth: usize, content: &str, options: &EncodeOptions) {
+    let mut line = options.indent.get_string(depth);
+    line.push_str("- ");
+    line.push_str(content);
+    lines.push(line);
+}
+
+// #endregion
+
+// #region Object encoding (§8)
+
+fn encode_object_lines(
+    obj: &IndexMap<String, Value>,
+    depth: usize,
+    options: &EncodeOptions,
+    lines: &mut Vec<String>,
+) -> ToonResult<()> {
+    validate_depth(depth, MAX_DEPTH)?;
+    for (key, value) in obj {
+        encode_key_value_pair_lines(key, value, depth, options, lines)?;
+    }
     Ok(())
 }
 
-fn write_array(
-    writer: &mut writer::Writer,
+fn encode_key_value_pair_lines(
+    key: &str,
+    value: &Value,
+    depth: usize,
+    options: &EncodeOptions,
+    lines: &mut Vec<String>,
+) -> ToonResult<()> {
+    match value {
+        Value::Array(arr) => encode_array_lines(Some(key), arr, depth, options, lines),
+        Value::Object(obj) => {
+            if let Some(fields) = extract_keyed_tabular_fields(obj) {
+                return encode_keyed_object_lines(Some(key), obj, &fields, depth, options, lines);
+            }
+
+            push_line(lines, depth, &format!("{}:", encode_key(key)), options);
+            if !obj.is_empty() {
+                encode_object_lines(obj, depth + 1, options, lines)?;
+            }
+            Ok(())
+        }
+        primitive => {
+            let content = format!(
+                "{}: {}",
+                encode_key(key),
+                encode_primitive(primitive, options.delimiter)
+            );
+            push_line(lines, depth, &content, options);
+            Ok(())
+        }
+    }
+}
+
+// #endregion
+
+// #region Keyed tabular objects (§9.5)
+
+fn encode_keyed_object_lines(
+    key: Option<&str>,
+    obj: &IndexMap<String, Value>,
+    fields: &[FieldNode],
+    depth: usize,
+    options: &EncodeOptions,
+    lines: &mut Vec<String>,
+) -> ToonResult<()> {
+    let header = format_header(obj.len(), key, Some(fields), true, options.delimiter);
+    push_line(lines, depth, &header, options);
+    encode_keyed_entry_rows(obj, fields, depth + 1, options, lines);
+    Ok(())
+}
+
+fn encode_keyed_entry_rows(
+    obj: &IndexMap<String, Value>,
+    fields: &[FieldNode],
+    depth: usize,
+    options: &EncodeOptions,
+    lines: &mut Vec<String>,
+) {
+    for (entry_key, entry_value) in obj {
+        let Value::Object(entry_obj) = entry_value else {
+            unreachable!("keyed tabular detection guarantees object entries");
+        };
+        let mut leaves = Vec::new();
+        collect_row_leaves(entry_obj, fields, &mut leaves);
+        let content = format!(
+            "{}: {}",
+            encode_key(entry_key),
+            encode_and_join_primitives(&leaves, options.delimiter)
+        );
+        push_line(lines, depth, &content, options);
+    }
+}
+
+// #endregion
+
+// #region Array encoding (§9)
+
+fn encode_array_lines(
     key: Option<&str>,
     arr: &[Value],
     depth: usize,
+    options: &EncodeOptions,
+    lines: &mut Vec<String>,
 ) -> ToonResult<()> {
     validate_depth(depth, MAX_DEPTH)?;
 
+    // Empty arrays: `key: []` in field position, `[]` at the root (§9.1).
     if arr.is_empty() {
-        writer.write_empty_array_with_key(key, depth)?;
+        let content = match key {
+            Some(key) => format!("{}: []", encode_key(key)),
+            None => "[]".to_string(),
+        };
+        push_line(lines, depth, &content, options);
         return Ok(());
     }
 
-    // Select format based on array content: tabular (uniform objects) > inline
-    // primitives > nested list
-    if let Some(keys) = is_tabular_array(arr) {
-        encode_tabular_array(writer, key, arr, &keys, depth)?;
-    } else if is_primitive_array(arr) {
-        encode_primitive_array(writer, key, arr, depth)?;
-    } else {
-        encode_nested_array(writer, key, arr, depth)?;
+    if arr.iter().all(is_primitive) {
+        let content = encode_inline_array_line(&arr.iter().collect::<Vec<_>>(), key, options);
+        push_line(lines, depth, &content, options);
+        return Ok(());
     }
 
-    Ok(())
-}
-
-/// Check if an array can be encoded as tabular format (uniform objects with
-/// primitive values).
-fn is_tabular_array(arr: &[Value]) -> Option<Vec<String>> {
-    if arr.is_empty() {
-        return None;
-    }
-
-    let first = arr.first()?;
-    if !first.is_object() {
-        return None;
-    }
-
-    let first_obj = first.as_object()?;
-    let keys: Vec<String> = first_obj.keys().cloned().collect();
-
-    // First object must have only primitive values
-    for value in first_obj.values() {
-        if !is_primitive(value) {
-            return None;
+    if arr.iter().all(|v| matches!(v, Value::Array(_))) {
+        let all_primitive_arrays = arr.iter().all(|v| {
+            let Value::Array(inner) = v else {
+                unreachable!("checked above");
+            };
+            inner.iter().all(is_primitive)
+        });
+        if all_primitive_arrays {
+            return encode_array_of_arrays_as_list_items(key, arr, depth, options, lines);
         }
     }
 
-    // All remaining objects must match: same keys and all primitive values
-    for val in arr.iter().skip(1) {
-        if let Some(obj) = val.as_object() {
-            if obj.len() != keys.len() {
-                return None;
-            }
-            // Verify all keys from first object exist (order doesn't matter)
-            for key in &keys {
-                if !obj.contains_key(key) {
-                    return None;
-                }
-            }
-            // All values must be primitives
-            for value in obj.values() {
-                if !is_primitive(value) {
-                    return None;
-                }
-            }
-        } else {
-            return None;
+    if arr.iter().all(|v| matches!(v, Value::Object(_))) {
+        if let Some(fields) = extract_tabular_fields(arr) {
+            return encode_tabular_lines(key, arr, &fields, depth, options, lines);
         }
     }
 
-    Some(keys)
+    encode_mixed_array_as_list_items(key, arr, depth, options, lines)
 }
 
-/// Check if a value is a primitive (not array or object).
-fn is_primitive(value: &Value) -> bool {
-    matches!(
-        value,
-        Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_)
+fn encode_inline_array_line(
+    values: &[&Value],
+    key: Option<&str>,
+    options: &EncodeOptions,
+) -> String {
+    let header = format_header(values.len(), key, None, false, options.delimiter);
+    if values.is_empty() {
+        return header;
+    }
+    format!(
+        "{header} {}",
+        encode_and_join_primitives(values, options.delimiter)
     )
 }
 
-/// Check if all array elements are primitives.
-fn is_primitive_array(arr: &[Value]) -> bool {
-    arr.iter().all(is_primitive)
-}
+// #endregion
 
-fn encode_primitive_array(
-    writer: &mut writer::Writer,
+// #region Arrays of primitive arrays – list form (§9.2)
+
+fn encode_array_of_arrays_as_list_items(
     key: Option<&str>,
-    arr: &[Value],
+    values: &[Value],
     depth: usize,
+    options: &EncodeOptions,
+    lines: &mut Vec<String>,
 ) -> ToonResult<()> {
-    writer.write_array_header(key, arr.len(), None, depth)?;
-    writer.write_char(' ')?;
-    // Set delimiter context for array values (affects quoting decisions)
-    writer.push_active_delimiter(writer.options.delimiter);
+    let header = format_header(values.len(), key, None, false, options.delimiter);
+    push_line(lines, depth, &header, options);
 
-    for (i, val) in arr.iter().enumerate() {
-        if i > 0 {
-            writer.write_delimiter()?;
-        }
-        write_primitive_value(writer, val, QuotingContext::ArrayValue)?;
+    for value in values {
+        let Value::Array(inner) = value else {
+            unreachable!("caller checked every element is an array");
+        };
+        let content = encode_inline_array_line(&inner.iter().collect::<Vec<_>>(), None, options);
+        push_list_item(lines, depth + 1, &content, options);
     }
-    writer.pop_active_delimiter();
-
     Ok(())
 }
 
-fn write_primitive_value(
-    writer: &mut writer::Writer,
+// #endregion
+
+// #region Arrays of objects – tabular form (§9.3)
+
+fn encode_tabular_lines(
+    key: Option<&str>,
+    rows: &[Value],
+    fields: &[FieldNode],
+    depth: usize,
+    options: &EncodeOptions,
+    lines: &mut Vec<String>,
+) -> ToonResult<()> {
+    let header = format_header(rows.len(), key, Some(fields), false, options.delimiter);
+    push_line(lines, depth, &header, options);
+    write_tabular_rows(rows, fields, depth + 1, options, lines);
+    Ok(())
+}
+
+fn write_tabular_rows(
+    rows: &[Value],
+    fields: &[FieldNode],
+    depth: usize,
+    options: &EncodeOptions,
+    lines: &mut Vec<String>,
+) {
+    for row in rows {
+        let Value::Object(row_obj) = row else {
+            unreachable!("tabular detection guarantees object rows");
+        };
+        let mut leaves = Vec::new();
+        collect_row_leaves(row_obj, fields, &mut leaves);
+        push_line(
+            lines,
+            depth,
+            &encode_and_join_primitives(&leaves, options.delimiter),
+            options,
+        );
+    }
+}
+
+// #endregion
+
+// #region Mixed and non-uniform arrays – list form (§9.4)
+
+fn encode_mixed_array_as_list_items(
+    key: Option<&str>,
+    items: &[Value],
+    depth: usize,
+    options: &EncodeOptions,
+    lines: &mut Vec<String>,
+) -> ToonResult<()> {
+    let header = format_header(items.len(), key, None, false, options.delimiter);
+    push_line(lines, depth, &header, options);
+
+    for item in items {
+        encode_list_item_value(item, depth + 1, options, lines)?;
+    }
+    Ok(())
+}
+
+fn encode_list_item_value(
     value: &Value,
-    context: QuotingContext,
+    depth: usize,
+    options: &EncodeOptions,
+    lines: &mut Vec<String>,
 ) -> ToonResult<()> {
+    validate_depth(depth, MAX_DEPTH)?;
     match value {
-        Value::Null => writer.write_str("null"),
-        Value::Bool(b) => writer.write_str(&b.to_string()),
-        Value::Number(n) => {
-            // Format in canonical TOON form (no exponents, no trailing zeros)
-            let num_str = format_canonical_number(n);
-            writer.write_str(&num_str)
-        }
-        Value::String(s) => {
-            if writer.needs_quoting(s, context) {
-                writer.write_quoted_string(s)
+        Value::Array(arr) => {
+            if arr.iter().all(is_primitive) {
+                let content =
+                    encode_inline_array_line(&arr.iter().collect::<Vec<_>>(), None, options);
+                push_list_item(lines, depth, &content, options);
             } else {
-                writer.write_str(s)
+                // Tabular form is unavailable in this position: a keyless
+                // fields-bearing header is valid only at the root (§9.4).
+                let header = format_header(arr.len(), None, None, false, options.delimiter);
+                push_list_item(lines, depth, &header, options);
+                for item in arr {
+                    encode_list_item_value(item, depth + 1, options, lines)?;
+                }
             }
+            Ok(())
         }
-        _ => Err(ToonError::InvalidInput(
-            "Expected primitive value".to_string(),
-        )),
+        Value::Object(obj) => encode_object_as_list_item(obj, depth, options, lines),
+        primitive => {
+            push_list_item(
+                lines,
+                depth,
+                &encode_primitive(primitive, options.delimiter),
+                options,
+            );
+            Ok(())
+        }
     }
 }
 
-fn encode_tabular_array(
-    writer: &mut writer::Writer,
-    key: Option<&str>,
-    arr: &[Value],
-    keys: &[String],
+// #endregion
+
+// #region Objects as list items (§10)
+
+fn encode_object_as_list_item(
+    obj: &IndexMap<String, Value>,
     depth: usize,
+    options: &EncodeOptions,
+    lines: &mut Vec<String>,
 ) -> ToonResult<()> {
-    writer.write_array_header(key, arr.len(), Some(keys), depth)?;
-    writer.write_newline()?;
+    if obj.is_empty() {
+        push_line(lines, depth, "-", options);
+        return Ok(());
+    }
 
-    writer.push_active_delimiter(writer.options.delimiter);
+    let (first_key, first_value) = obj.get_index(0).expect("object is non-empty");
 
-    // Write each row with values separated by delimiters
-    for (row_index, obj_val) in arr.iter().enumerate() {
-        if let Some(obj) = obj_val.as_object() {
-            writer.write_indent(depth + 1)?;
+    // A tabular first field sits on the hyphen line with rows at depth +2 (§10).
+    if let Value::Array(arr) = first_value {
+        if !arr.is_empty() && arr.iter().all(|v| matches!(v, Value::Object(_))) {
+            if let Some(fields) = extract_tabular_fields(arr) {
+                let header = format_header(
+                    arr.len(),
+                    Some(first_key),
+                    Some(&fields),
+                    false,
+                    options.delimiter,
+                );
+                push_list_item(lines, depth, &header, options);
+                write_tabular_rows(arr, &fields, depth + 2, options, lines);
 
-            for (i, key) in keys.iter().enumerate() {
-                if i > 0 {
-                    writer.write_delimiter()?;
+                for (key, value) in obj.iter().skip(1) {
+                    encode_key_value_pair_lines(key, value, depth + 1, options, lines)?;
                 }
-
-                // Missing fields become null
-                if let Some(val) = obj.get(key) {
-                    write_primitive_value(writer, val, QuotingContext::ArrayValue)?;
-                } else {
-                    writer.write_str("null")?;
-                }
-            }
-
-            if row_index < arr.len() - 1 {
-                writer.write_newline()?;
+                return Ok(());
             }
         }
     }
 
+    // A keyed tabular first field likewise: header on the hyphen line, entry
+    // rows at depth +2, sibling fields at depth +1 (§10).
+    if let Value::Object(first_obj) = first_value {
+        if let Some(fields) = extract_keyed_tabular_fields(first_obj) {
+            let header = format_header(
+                first_obj.len(),
+                Some(first_key),
+                Some(&fields),
+                true,
+                options.delimiter,
+            );
+            push_list_item(lines, depth, &header, options);
+            encode_keyed_entry_rows(first_obj, &fields, depth + 2, options, lines);
+
+            for (key, value) in obj.iter().skip(1) {
+                encode_key_value_pair_lines(key, value, depth + 1, options, lines)?;
+            }
+            return Ok(());
+        }
+    }
+
+    let encoded_key = encode_key(first_key);
+
+    match first_value {
+        Value::Array(arr) => {
+            if arr.is_empty() {
+                push_list_item(lines, depth, &format!("{encoded_key}: []"), options);
+            } else if arr.iter().all(is_primitive) {
+                let content =
+                    encode_inline_array_line(&arr.iter().collect::<Vec<_>>(), None, options);
+                push_list_item(lines, depth, &format!("{encoded_key}{content}"), options);
+            } else {
+                // Non-inline array items sit at depth +2, below the hyphen line.
+                let header = format_header(arr.len(), None, None, false, options.delimiter);
+                push_list_item(lines, depth, &format!("{encoded_key}{header}"), options);
+                for item in arr {
+                    encode_list_item_value(item, depth + 2, options, lines)?;
+                }
+            }
+        }
+        Value::Object(first_obj) => {
+            push_list_item(lines, depth, &format!("{encoded_key}:"), options);
+            if !first_obj.is_empty() {
+                encode_object_lines(first_obj, depth + 2, options, lines)?;
+            }
+        }
+        primitive => {
+            let content = format!(
+                "{encoded_key}: {}",
+                encode_primitive(primitive, options.delimiter)
+            );
+            push_list_item(lines, depth, &content, options);
+        }
+    }
+
+    for (key, value) in obj.iter().skip(1) {
+        encode_key_value_pair_lines(key, value, depth + 1, options, lines)?;
+    }
     Ok(())
 }
 
-/// Encode a tabular array as the first field of a list-item object.
-///
-/// Tabular rows appear at depth +2 relative to the hyphen line when the array
-/// is the first field of a list-item object. This function handles that special
-/// indentation requirement.
-///
-/// Note: The array header is written separately before calling this function.
-fn encode_list_item_tabular_array(
-    writer: &mut writer::Writer,
-    arr: &[Value],
-    keys: &[String],
-    depth: usize,
-) -> ToonResult<()> {
-    // Write array header without key (key already written on hyphen line)
-    writer.write_char('[')?;
-    writer.write_str(&arr.len().to_string())?;
-
-    if writer.options.delimiter != crate::types::Delimiter::Comma {
-        writer.write_char(writer.options.delimiter.as_char())?;
-    }
-
-    writer.write_char(']')?;
-
-    // Write field list for tabular arrays: {field1,field2}
-    writer.write_char('{')?;
-    for (i, field) in keys.iter().enumerate() {
-        if i > 0 {
-            writer.write_char(writer.options.delimiter.as_char())?;
-        }
-        writer.write_key(field)?;
-    }
-    writer.write_char('}')?;
-    writer.write_char(':')?;
-    writer.write_newline()?;
-
-    writer.push_active_delimiter(writer.options.delimiter);
-
-    // Write rows at depth + 2 (relative to hyphen line)
-    // The hyphen line is at depth, so rows appear at depth + 2
-    for (row_index, obj_val) in arr.iter().enumerate() {
-        if let Some(obj) = obj_val.as_object() {
-            writer.write_indent(depth + 2)?;
-
-            for (i, key) in keys.iter().enumerate() {
-                if i > 0 {
-                    writer.write_delimiter()?;
-                }
-
-                // Missing fields become null
-                if let Some(val) = obj.get(key) {
-                    write_primitive_value(writer, val, QuotingContext::ArrayValue)?;
-                } else {
-                    writer.write_str("null")?;
-                }
-            }
-
-            if row_index < arr.len() - 1 {
-                writer.write_newline()?;
-            }
-        }
-    }
-
-    writer.pop_active_delimiter();
-
-    Ok(())
-}
-
-fn encode_nested_array(
-    writer: &mut writer::Writer,
-    key: Option<&str>,
-    arr: &[Value],
-    depth: usize,
-) -> ToonResult<()> {
-    writer.write_array_header(key, arr.len(), None, depth)?;
-    writer.write_newline()?;
-    writer.push_active_delimiter(writer.options.delimiter);
-
-    for (i, val) in arr.iter().enumerate() {
-        writer.write_indent(depth + 1)?;
-        writer.write_char('-')?;
-
-        match val {
-            Value::Array(inner_arr) => {
-                writer.write_char(' ')?;
-                write_array(writer, None, inner_arr, depth + 1)?;
-            }
-            Value::Object(obj) => {
-                // Objects in list items: first field on same line as "- ", rest indented
-                // For empty objects, write only the hyphen (no space)
-                let keys: Vec<&String> = obj.keys().collect();
-                if let Some(first_key) = keys.first() {
-                    writer.write_char(' ')?;
-                    let first_val = &obj[*first_key];
-
-                    match first_val {
-                        Value::Array(arr) => {
-                            // Arrays as first field of list items require special indentation
-                            // (depth +2 relative to hyphen) for their nested content
-                            // (rows for tabular, items for non-uniform)
-                            writer.write_key(first_key)?;
-
-                            if let Some(keys) = is_tabular_array(arr) {
-                                // Tabular array: write inline with correct indentation
-                                encode_list_item_tabular_array(writer, arr, &keys, depth + 1)?;
-                            } else {
-                                // Non-tabular array: write with depth offset
-                                // (items at depth +2 instead of depth +1)
-                                write_array(writer, None, arr, depth + 2)?;
-                            }
-                        }
-                        Value::Object(nested_obj) => {
-                            writer.write_key(first_key)?;
-                            writer.write_char(':')?;
-                            if !nested_obj.is_empty() {
-                                writer.write_newline()?;
-                                write_object(writer, nested_obj, depth + 3)?;
-                            }
-                        }
-                        _ => {
-                            writer.write_key(first_key)?;
-                            writer.write_char(':')?;
-                            writer.write_char(' ')?;
-                            write_primitive_value(writer, first_val, QuotingContext::ObjectValue)?;
-                        }
-                    }
-
-                    // Remaining fields on separate lines with proper indentation
-                    for key in keys.iter().skip(1) {
-                        writer.write_newline()?;
-                        writer.write_indent(depth + 2)?;
-
-                        let value = &obj[*key];
-                        match value {
-                            Value::Array(arr) => {
-                                writer.write_key(key)?;
-                                write_array(writer, None, arr, depth + 2)?;
-                            }
-                            Value::Object(nested_obj) => {
-                                writer.write_key(key)?;
-                                writer.write_char(':')?;
-                                if !nested_obj.is_empty() {
-                                    writer.write_newline()?;
-                                    write_object(writer, nested_obj, depth + 3)?;
-                                }
-                            }
-                            _ => {
-                                writer.write_key(key)?;
-                                writer.write_char(':')?;
-                                writer.write_char(' ')?;
-                                write_primitive_value(writer, value, QuotingContext::ObjectValue)?;
-                            }
-                        }
-                    }
-                }
-            }
-            _ => {
-                writer.write_char(' ')?;
-                write_primitive_value(writer, val, QuotingContext::ArrayValue)?;
-            }
-        }
-
-        if i < arr.len() - 1 {
-            writer.write_newline()?;
-        }
-    }
-    writer.pop_active_delimiter();
-
-    Ok(())
-}
+// #endregion
 
 #[cfg(test)]
 mod tests {
-    use core::f64;
-
     use serde_json::json;
 
     use super::*;
+    use crate::types::Indent;
 
-    #[test]
-    fn test_encode_null() {
-        let value = json!(null);
-        assert_eq!(encode_default(&value).unwrap(), "null");
-    }
-
-    #[test]
-    fn test_encode_bool() {
-        assert_eq!(encode_default(&json!(true)).unwrap(), "true");
-        assert_eq!(encode_default(&json!(false)).unwrap(), "false");
-    }
-
-    #[test]
-    fn test_encode_number() {
-        assert_eq!(encode_default(&json!(42)).unwrap(), "42");
-        assert_eq!(
-            encode_default(&json!(f64::consts::PI)).unwrap(),
-            "3.141592653589793"
-        );
-        assert_eq!(encode_default(&json!(-5)).unwrap(), "-5");
-    }
-
-    #[test]
-    fn test_encode_string() {
-        assert_eq!(encode_default(&json!("hello")).unwrap(), "hello");
-        assert_eq!(
-            encode_default(&json!("hello world")).unwrap(),
-            "hello world"
-        );
+    fn enc(value: serde_json::Value) -> String {
+        encode(&value, &EncodeOptions::default()).unwrap()
     }
 
     #[test]
     fn test_encode_simple_object() {
-        let obj = json!({"name": "Alice", "age": 30});
-        let result = encode_default(&obj).unwrap();
-        assert!(result.contains("name: Alice"));
-        assert!(result.contains("age: 30"));
-    }
-
-    #[test]
-    fn test_encode_primitive_array() {
-        let obj = json!({"tags": ["reading", "gaming", "coding"]});
-        let result = encode_default(&obj).unwrap();
-        assert_eq!(result, "tags[3]: reading,gaming,coding");
-    }
-
-    #[test]
-    fn test_encode_tabular_array() {
-        let obj = json!({
-            "users": [
-                {"id": 1, "name": "Alice"},
-                {"id": 2, "name": "Bob"}
-            ]
-        });
-        let result = encode_default(&obj).unwrap();
-        assert!(result.contains("users[2]{id,name}:"));
-        assert!(result.contains("1,Alice"));
-        assert!(result.contains("2,Bob"));
-    }
-
-    #[test]
-    fn test_encode_empty_array() {
-        let obj = json!({"items": []});
-        let result = encode_default(&obj).unwrap();
-        assert_eq!(result, "items[0]:");
+        assert_eq!(
+            enc(json!({"name": "Alice", "age": 30})),
+            "name: Alice\nage: 30"
+        );
     }
 
     #[test]
     fn test_encode_nested_object() {
-        let obj = json!({
-            "user": {
-                "name": "Alice",
-                "age": 30
-            }
-        });
-        let result = encode_default(&obj).unwrap();
-        assert!(result.contains("user:"));
-        assert!(result.contains("name: Alice"));
-        assert!(result.contains("age: 30"));
-    }
-
-    #[test]
-    fn test_encode_list_item_tabular_array_v3() {
-        let obj = json!({
-            "items": [
-                {
-                    "users": [
-                        {"id": 1, "name": "Ada"},
-                        {"id": 2, "name": "Bob"}
-                    ],
-                    "status": "active"
-                }
-            ]
-        });
-
-        let result = encode_default(&obj).unwrap();
-
-        assert!(
-            result.contains("  - users[2]{id,name}:"),
-            "Header should be on hyphen line"
-        );
-
-        assert!(
-            result.contains("      1,Ada"),
-            "First row should be at 6 spaces (depth +2 from hyphen). Got:\n{}",
-            result
-        );
-        assert!(
-            result.contains("      2,Bob"),
-            "Second row should be at 6 spaces (depth +2 from hyphen). Got:\n{}",
-            result
-        );
-
-        assert!(
-            result.contains("    status: active"),
-            "Sibling field should be at 4 spaces (depth +1 from hyphen). Got:\n{}",
-            result
+        assert_eq!(
+            enc(json!({"user": {"name": "Alice"}})),
+            "user:\n  name: Alice"
         );
     }
 
     #[test]
-    fn test_encode_list_item_tabular_array_multiple_items() {
-        let obj = json!({
-            "data": [
-                {
-                    "records": [
-                        {"id": 1, "val": "x"}
-                    ],
-                    "count": 1
-                },
-                {
-                    "records": [
-                        {"id": 2, "val": "y"}
-                    ],
-                    "count": 1
-                }
-            ]
-        });
-
-        let result = encode_default(&obj).unwrap();
-
-        let lines: Vec<&str> = result.lines().collect();
-
-        let row_lines: Vec<&str> = lines
-            .iter()
-            .filter(|line| line.trim().starts_with(char::is_numeric))
-            .copied()
-            .collect();
-
-        for row in row_lines {
-            let spaces = row.len() - row.trim_start().len();
-            assert_eq!(
-                spaces, 6,
-                "Tabular rows should be at 6 spaces. Found {} spaces in: {}",
-                spaces, row
-            );
-        }
+    fn test_encode_inline_array() {
+        assert_eq!(enc(json!({"tags": ["a", "b", "c"]})), "tags[3]: a,b,c");
     }
 
     #[test]
-    fn test_encode_list_item_non_tabular_array_unchanged() {
-        let obj = json!({
-            "items": [
-                {
-                    "tags": ["a", "b", "c"],
-                    "name": "test"
-                }
-            ]
-        });
+    fn test_encode_empty_arrays() {
+        assert_eq!(enc(json!({"items": []})), "items: []");
+        assert_eq!(enc(json!([])), "[]");
+    }
 
-        let result = encode_default(&obj).unwrap();
-
-        assert!(
-            result.contains("  - tags[3]: a,b,c"),
-            "Inline array should be on hyphen line. Got:\n{}",
-            result
-        );
-
-        assert!(
-            result.contains("    name: test"),
-            "Sibling field should be at 4 spaces. Got:\n{}",
-            result
+    #[test]
+    fn test_encode_tabular_array() {
+        assert_eq!(
+            enc(json!({"users": [{"id": 1, "name": "Alice"}, {"id": 2, "name": "Bob"}]})),
+            "users[2]{id,name}:\n  1,Alice\n  2,Bob"
         );
     }
 
     #[test]
-    fn test_encode_list_item_tabular_array_with_nested_fields() {
-        let obj = json!({
-            "entries": [
-                {
-                    "people": [
-                        {"name": "Alice", "age": 30},
-                        {"name": "Bob", "age": 25}
-                    ],
-                    "total": 2,
-                    "category": "staff"
-                }
-            ]
-        });
+    fn test_encode_nested_field_groups() {
+        assert_eq!(
+            enc(json!({"orders": [
+                {"id": 1, "customer": {"name": "Ada", "country": "DK"}, "total": 99},
+                {"id": 2, "customer": {"name": "Bob", "country": "UK"}, "total": 149}
+            ]})),
+            "orders[2]{id,customer{name,country},total}:\n  1,Ada,DK,99\n  2,Bob,UK,149"
+        );
+    }
 
-        let result = encode_default(&obj).unwrap();
+    #[test]
+    fn test_encode_keyed_tabular_object() {
+        assert_eq!(
+            enc(json!({"servers": {
+                "alpha": {"host": "a.example.com", "port": 8080},
+                "beta": {"host": "b.example.com", "port": 9090}
+            }})),
+            "servers[2:]{host,port}:\n  alpha: a.example.com,8080\n  beta: b.example.com,9090"
+        );
+    }
 
-        assert!(result.contains("  - people[2]{name,age}:"));
+    #[test]
+    fn test_encode_keyed_tabular_root() {
+        assert_eq!(
+            enc(json!({
+                "alice": {"age": 30, "city": "Berlin"},
+                "bob": {"age": 25, "city": "Oslo"}
+            })),
+            "[2:]{age,city}:\n  alice: 30,Berlin\n  bob: 25,Oslo"
+        );
+    }
 
-        assert!(result.contains("      Alice,30"));
-        assert!(result.contains("      Bob,25"));
+    #[test]
+    fn test_encode_list_form() {
+        assert_eq!(
+            enc(json!({"items": [1, [2, 3], {"a": 1}]})),
+            "items[3]:\n  - 1\n  - [2]: 2,3\n  - a: 1"
+        );
+    }
 
-        assert!(result.contains("    total: 2"));
-        assert!(result.contains("    category: staff"));
+    #[test]
+    fn test_encode_array_of_empty_objects_uses_list_form() {
+        assert_eq!(enc(json!({"items": [{}, {}]})), "items[2]:\n  -\n  -");
+    }
+
+    #[test]
+    fn test_encode_root_primitive() {
+        assert_eq!(enc(json!("hello")), "hello");
+        assert_eq!(enc(json!(42)), "42");
+        assert_eq!(enc(json!(true)), "true");
+        assert_eq!(enc(json!(null)), "null");
+    }
+
+    #[test]
+    fn test_encode_quoting() {
+        assert_eq!(enc(json!("#hello")), "\"#hello\"");
+        assert_eq!(enc(json!("+1")), "\"+1\"");
+        assert_eq!(enc(json!({"café": 1})), "\"café\": 1");
+    }
+
+    #[test]
+    fn test_encode_pipe_delimiter() {
+        let options = EncodeOptions::new().with_delimiter(Delimiter::Pipe);
+        assert_eq!(
+            encode(&json!({"tags": ["a", "b"]}), &options).unwrap(),
+            "tags[2|]: a|b"
+        );
+    }
+
+    #[test]
+    fn test_encode_custom_indent() {
+        let options = EncodeOptions::new().with_indent(Indent::Spaces(4));
+        assert_eq!(
+            encode(&json!({"user": {"name": "Alice"}}), &options).unwrap(),
+            "user:\n    name: Alice"
+        );
+    }
+
+    #[test]
+    fn test_encode_object_and_array_type_guards() {
+        assert!(encode_object(json!(42), &EncodeOptions::default()).is_err());
+        assert!(encode_array(json!({"a": 1}), &EncodeOptions::default()).is_err());
+    }
+
+    #[test]
+    fn test_encode_rejects_zero_indent_size() {
+        let options = EncodeOptions::new().with_spaces(0);
+        assert!(matches!(
+            encode(&json!({"a": {"b": 1}}), &options),
+            Err(ToonError::InvalidInput(_))
+        ));
+    }
+
+    #[test]
+    fn test_encode_normalizes_non_finite_numbers() {
+        assert_eq!(enc(json!({"a": f64::NAN})), "a: null");
     }
 }

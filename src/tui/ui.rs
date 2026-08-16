@@ -33,10 +33,6 @@ use super::{
     state::AppState,
     theme::Theme,
 };
-use crate::types::{
-    KeyFoldingMode,
-    PathExpansionMode,
-};
 
 /// Main render function - orchestrates all UI components.
 pub fn render(f: &mut Frame, app: &mut AppState, file_browser: &mut FileBrowser) {
@@ -155,33 +151,12 @@ fn render_header(f: &mut Frame, area: Rect, app: &AppState) {
                 crate::Indent::Spaces(n) => format!("{n}sp"),
             };
 
-            let mut spans = vec![
+            vec![
                 Span::styled("Delim:", theme.line_number_style()),
                 Span::styled(format!(" {delimiter}"), theme.info_style()),
                 Span::styled(" | Indent:", theme.line_number_style()),
                 Span::styled(format!(" {indent}"), theme.info_style()),
-            ];
-
-            // Show folding depth only when folding is enabled
-            match app.encode_options.key_folding {
-                KeyFoldingMode::Off => {}
-                KeyFoldingMode::Safe => {
-                    spans.push(Span::styled(" | fold:", theme.line_number_style()));
-                    spans.push(Span::styled("on", theme.info_style()));
-
-                    // ∞ for unlimited, number for specific depth
-                    let depth_str = if app.encode_options.flatten_depth == usize::MAX {
-                        "∞".to_string()
-                    } else {
-                        format!("{}", app.encode_options.flatten_depth)
-                    };
-                    spans.push(Span::styled(" (", theme.line_number_style()));
-                    spans.push(Span::styled(depth_str, theme.info_style()));
-                    spans.push(Span::styled(")", theme.line_number_style()));
-                }
-            }
-
-            spans
+            ]
         }
         crate::tui::state::app_state::Mode::Decode => {
             let strict = if app.decode_options.strict {
@@ -189,22 +164,10 @@ fn render_header(f: &mut Frame, area: Rect, app: &AppState) {
             } else {
                 "off"
             };
-            let coerce = if app.decode_options.coerce_types {
-                "on"
-            } else {
-                "off"
-            };
-            let expand = match app.decode_options.expand_paths {
-                PathExpansionMode::Off => "",
-                PathExpansionMode::Safe => " | expand:on",
-            };
 
             vec![
                 Span::styled("Strict:", theme.line_number_style()),
                 Span::styled(format!(" {strict}"), theme.info_style()),
-                Span::styled(" | Coerce:", theme.line_number_style()),
-                Span::styled(format!(" {coerce}"), theme.info_style()),
-                Span::styled(expand, theme.line_number_style()),
             ]
         }
     };

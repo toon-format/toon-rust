@@ -40,13 +40,9 @@ Configure encoding and decoding options on-the-fly:
 **Encode Settings:**
 - **Delimiter**: Comma (`,`), Tab (`\t`), or Pipe (`|`) - Press `d` to cycle
 - **Indentation**: Adjust spaces with `+` / `-` keys
-- **Key Folding**: Toggle with `f` - Collapses `{a:{b:1}}` → `a.b: 1`
-- **Flatten Depth**: Control folding depth with `[` / `]` keys, `u` for unlimited
 
 **Decode Settings:**
 - **Strict Mode**: Toggle with `s` - Enforce spec compliance
-- **Type Coercion**: Toggle with `c` - Auto-convert strings to types
-- **Path Expansion**: Toggle with `p` - Expand `a.b:1` → `{"a":{"b":1}}`
 
 ### File Browser (`Ctrl+F`)
 - Visual file navigation
@@ -145,12 +141,7 @@ Configure encoding and decoding options on-the-fly:
 | `d` | Cycle delimiter (Comma → Tab → Pipe) |
 | `+` / `=` | Increase indentation |
 | `-` / `_` | Decrease indentation |
-| `f` | Toggle key folding |
-| `[` / `]` | Adjust flatten depth |
-| `u` | Toggle unlimited flatten depth |
-| `p` | Toggle path expansion |
 | `s` | Toggle strict mode |
-| `c` | Toggle type coercion |
 
 ### File Browser (when `Ctrl+F` is active)
 | Shortcut | Action |
@@ -191,7 +182,7 @@ Configure encoding and decoding options on-the-fly:
 2. **Paste JSON** into input panel (left side)
 3. **See TOON output** instantly (right side)
 4. **View statistics** at the bottom (tokens saved, bytes saved)
-5. **Adjust settings** with `Ctrl+P` (try enabling key folding!)
+5. **Adjust settings** with `Ctrl+P` (try a different delimiter!)
 6. **Save output** with `Ctrl+S`
 7. **Test round-trip** with `Ctrl+B` to verify data fidelity
 8. **Switch to decode mode** with `Ctrl+E` for manual testing

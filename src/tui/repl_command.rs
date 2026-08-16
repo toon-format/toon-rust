@@ -127,9 +127,9 @@ mod tests {
 
     #[test]
     fn test_with_flags() {
-        let cmd = ReplCommand::parse(r#"encode {"test": true} --fold-keys"#).unwrap();
+        let cmd = ReplCommand::parse(r#"encode {"test": true} --stats"#).unwrap();
         assert_eq!(cmd.name, "encode");
         assert!(cmd.inline_data.is_some());
-        assert!(cmd.has_flag("--fold-keys"));
+        assert!(cmd.has_flag("--stats"));
     }
 }

@@ -4,23 +4,45 @@
 //! designed for passing structured data to Large Language Models with
 //! significantly reduced token usage.
 //!
-//! This crate reserves the `toon-format` namespace for the official Rust
-//! implementation. Full implementation coming soon!
+//! This crate is the official Rust implementation of TOON, targeting
+//! specification v4.1 (`toon-spec: 4.1`).
+//!
+//! Documented implementation-defined behavior:
+//! - Numeric out-of-range policy (§4): integral tokens preserve full
+//!   `i64`/`u64` precision; fractional and exponent forms parse as `f64`, with
+//!   integer-valued results normalized to integers (`-1E+03` decodes as the
+//!   integer `-1000`). A token whose value is not finite in `f64` decodes as a
+//!   string.
+//! - Host-type normalization (§3) follows `serde::Serialize`; Rust strings are
+//!   always well-formed UTF-8, so unpaired surrogates cannot occur.
+//! - Decoded objects preserve document key order (`serde_json` with
+//!   `preserve_order`), and every key — including `__proto__`, `constructor`,
+//!   and `prototype` — is an ordinary map entry (§15).
+//! - Nesting depth limit (§15): encoding and decoding recurse over nesting, so
+//!   both impose the documented limit of 256 levels — including nested field
+//!   groups in headers — and report exceeding it as an error rather than
+//!   exhausting the host stack.
+//! - Non-strict tab indentation (§12): strict mode rejects tabs in indentation;
+//!   non-strict mode accepts them, counting each leading tab as one depth level
+//!   and each run of `indentSize` leading spaces as one.
 //!
 //! ## Resources
 //!
-//! - [TOON Specification](https://github.com/johannschopplich/toon/blob/main/SPEC.md)
-//! - [Main Repository](https://github.com/johannschopplich/toon)
-//! - [Other Implementations](https://github.com/johannschopplich/toon#other-implementations)
+//! - [TOON Specification](https://github.com/toon-format/spec/blob/main/SPEC.md)
+//! - [Reference Implementation (JS/TS)](https://github.com/toon-format/toon)
 //!
-//! ## Example Usage (Future)
+//! ## Example Usage
 //!
-//! ```ignore
-//! use toon_format::{encode, decode};
+//! ```
+//! use serde_json::{json, Value};
+//! use toon_format::{encode_default, decode_default};
 //!
-//! let data = json!({"name": "Alice", "age": 30});
-//! let toon_string = encode(&data)?;
-//! let decoded = decode(&toon_string)?;
+//! let data = json!({"users": [{"id": 1, "name": "Alice"}, {"id": 2, "name": "Bob"}]});
+//! let toon = encode_default(&data)?;
+//! assert_eq!(toon, "users[2]{id,name}:\n  1,Alice\n  2,Bob");
+//!
+//! let decoded: Value = decode_default(&toon)?;
+//! assert_eq!(decoded, data);
 //! # Ok::<(), toon_format::ToonError>(())
 //! ```
 #![warn(rustdoc::missing_crate_level_docs)]
@@ -40,8 +62,6 @@ pub use decode::decode_with_layout;
 pub use decode::{
     decode,
     decode_default,
-    decode_no_coerce,
-    decode_no_coerce_with_options,
     decode_strict,
     decode_strict_with_options,
 };
@@ -51,7 +71,6 @@ pub use encode::json_stream::{
     encode_json_reader_default,
     encode_json_stream,
     encode_json_stream_default,
-    StreamingEncodeOptions,
 };
 pub use encode::{
     encode,
@@ -82,6 +101,7 @@ pub use utils::{
         escape_string,
         is_valid_unquoted_key,
         needs_quoting,
+        unescape_string,
     },
 };
 

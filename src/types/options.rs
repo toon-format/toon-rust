@@ -1,10 +1,9 @@
 use crate::{
-    constants::DEFAULT_INDENT,
-    types::{
-        Delimiter,
-        KeyFoldingMode,
-        PathExpansionMode,
+    constants::{
+        DEFAULT_DELIMITER,
+        DEFAULT_INDENT,
     },
+    types::Delimiter,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -47,17 +46,13 @@ impl Indent {
 pub struct EncodeOptions {
     pub delimiter: Delimiter,
     pub indent: Indent,
-    pub key_folding: KeyFoldingMode,
-    pub flatten_depth: usize,
 }
 
 impl Default for EncodeOptions {
     fn default() -> Self {
         Self {
-            delimiter: Delimiter::Comma,
+            delimiter: DEFAULT_DELIMITER,
             indent: Indent::default(),
-            key_folding: KeyFoldingMode::Off,
-            flatten_depth: usize::MAX,
         }
     }
 }
@@ -85,48 +80,21 @@ impl EncodeOptions {
         self.indent = Indent::Spaces(count);
         self
     }
-
-    /// Enable key folding (v1.5 feature).
-    ///
-    /// When set to `Safe`, single-key object chains will be folded into
-    /// dotted-path notation if all safety requirements are met.
-    ///
-    /// Default: `Off`
-    pub fn with_key_folding(mut self, mode: KeyFoldingMode) -> Self {
-        self.key_folding = mode;
-        self
-    }
-
-    /// Set maximum depth for key folding.
-    ///
-    /// Controls how many segments will be folded. A value of 2 folds
-    /// only two-segment chains: `{a: {b: val}}` → `a.b: val`.
-    ///
-    /// Default: `usize::MAX` (fold entire eligible chains)
-    pub fn with_flatten_depth(mut self, depth: usize) -> Self {
-        self.flatten_depth = depth;
-        self
-    }
 }
 
-/// Options for decoding TOON format to JSON values.
+/// Options for decoding TOON format to JSON values (§13: `strict` and
+/// `indentSize`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DecodeOptions {
-    pub delimiter: Option<Delimiter>,
     pub strict: bool,
-    pub coerce_types: bool,
     pub indent: Indent,
-    pub expand_paths: PathExpansionMode,
 }
 
 impl Default for DecodeOptions {
     fn default() -> Self {
         Self {
-            delimiter: None,
             strict: true,
-            coerce_types: true,
             indent: Indent::default(),
-            expand_paths: PathExpansionMode::Off,
         }
     }
 }
@@ -144,35 +112,9 @@ impl DecodeOptions {
         self
     }
 
-    /// Set the expected delimiter (auto-detected if None).
-    pub fn with_delimiter(mut self, delimiter: Delimiter) -> Self {
-        self.delimiter = Some(delimiter);
-        self
-    }
-
-    /// Enable or disable type coercion (strings like "123" -> numbers).
-    pub fn with_coerce_types(mut self, coerce: bool) -> Self {
-        self.coerce_types = coerce;
-        self
-    }
-
+    /// Set the number of spaces per indentation level.
     pub fn with_indent(mut self, style: Indent) -> Self {
         self.indent = style;
-        self
-    }
-
-    /// Enable path expansion (v1.5 feature).
-    ///
-    /// When set to `Safe`, dotted keys will be expanded into nested objects
-    /// if all segments are IdentifierSegments.
-    ///
-    /// Conflict handling:
-    /// - `strict=true`: Errors on conflicts
-    /// - `strict=false`: Last-write-wins
-    ///
-    /// Default: `Off`
-    pub fn with_expand_paths(mut self, mode: PathExpansionMode) -> Self {
-        self.expand_paths = mode;
         self
     }
 }
@@ -191,14 +133,12 @@ mod tests {
     }
 
     #[test]
-    fn test_decode_options_coerce_types() {
+    fn test_decode_options_defaults() {
         let opts = DecodeOptions::new();
-        assert!(opts.coerce_types);
+        assert!(opts.strict);
+        assert_eq!(opts.indent, Indent::Spaces(2));
 
-        let opts = DecodeOptions::new().with_coerce_types(false);
-        assert!(!opts.coerce_types);
-
-        let opts = DecodeOptions::new().with_coerce_types(true);
-        assert!(opts.coerce_types);
+        let opts = DecodeOptions::new().with_strict(false);
+        assert!(!opts.strict);
     }
 }

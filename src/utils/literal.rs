@@ -1,6 +1,6 @@
 use crate::constants;
 
-/// Check if a string looks like a keyword or number (needs quoting).
+/// Check if a string looks like a keyword or number (needs quoting, §7.2).
 pub fn is_literal_like(s: &str) -> bool {
     is_keyword(s) || is_numeric_like(s)
 }
@@ -10,41 +10,53 @@ pub fn is_keyword(s: &str) -> bool {
     constants::is_keyword(s)
 }
 
-#[inline]
-pub fn is_structural_char(ch: char) -> bool {
-    constants::is_structural_char(ch)
-}
-
-/// Check if a string looks like a number (starts with digit, no leading zeros).
+/// The §7.2 numeric-like quoting trigger:
+/// `/^[+-]?[0-9]+(?:\.[0-9]+)?(?:e[+-]?[0-9]+)?$/i` (ASCII digits only).
+///
+/// Unlike the decoder number grammar (§4), this covers leading-plus forms
+/// and leading zeros ("+1", "05"), so such strings are emitted quoted.
 pub fn is_numeric_like(s: &str) -> bool {
-    if s.is_empty() {
-        return false;
-    }
-
-    let chars: Vec<char> = s.chars().collect();
+    let bytes = s.as_bytes();
     let mut i = 0;
 
-    if chars[i] == '-' {
+    if matches!(bytes.first(), Some(b'+' | b'-')) {
+        i = 1;
+    }
+
+    let int_start = i;
+    while i < bytes.len() && bytes[i].is_ascii_digit() {
         i += 1;
     }
-
-    if i >= chars.len() {
+    if i == int_start {
         return false;
     }
 
-    if !chars[i].is_ascii_digit() {
-        return false;
+    if i < bytes.len() && bytes[i] == b'.' {
+        i += 1;
+        let frac_start = i;
+        while i < bytes.len() && bytes[i].is_ascii_digit() {
+            i += 1;
+        }
+        if i == frac_start {
+            return false;
+        }
     }
 
-    if chars[i] == '0' && i + 1 < chars.len() && chars[i + 1].is_ascii_digit() {
-        return false;
+    if i < bytes.len() && (bytes[i] == b'e' || bytes[i] == b'E') {
+        i += 1;
+        if i < bytes.len() && matches!(bytes[i], b'+' | b'-') {
+            i += 1;
+        }
+        let exp_start = i;
+        while i < bytes.len() && bytes[i].is_ascii_digit() {
+            i += 1;
+        }
+        if i == exp_start {
+            return false;
+        }
     }
 
-    let has_valid_chars = chars[i..].iter().all(|c| {
-        c.is_ascii_digit() || *c == '.' || *c == 'e' || *c == 'E' || *c == '+' || *c == '-'
-    });
-
-    has_valid_chars
+    i == bytes.len()
 }
 
 #[cfg(test)]
@@ -73,14 +85,6 @@ mod tests {
     }
 
     #[test]
-    fn test_is_structural_char() {
-        assert!(is_structural_char('['));
-        assert!(is_structural_char('{'));
-        assert!(is_structural_char(':'));
-        assert!(!is_structural_char('a'));
-    }
-
-    #[test]
     fn test_is_numeric_like() {
         assert!(is_numeric_like("123"));
         assert!(is_numeric_like("-456"));
@@ -88,11 +92,22 @@ mod tests {
         assert!(is_numeric_like("3.14"));
         assert!(is_numeric_like("1e10"));
         assert!(is_numeric_like("1.5e-3"));
+        assert!(is_numeric_like("1E+9"));
+
+        // Leading-plus forms and leading zeros are numeric-like (§7.2),
+        // so encoders quote them.
+        assert!(is_numeric_like("+1"));
+        assert!(is_numeric_like("05"));
+        assert!(is_numeric_like("01"));
+        assert!(is_numeric_like("00"));
 
         assert!(!is_numeric_like(""));
         assert!(!is_numeric_like("-"));
+        assert!(!is_numeric_like("+"));
         assert!(!is_numeric_like("abc"));
-        assert!(!is_numeric_like("01"));
-        assert!(!is_numeric_like("00"));
+        assert!(!is_numeric_like("1."));
+        assert!(!is_numeric_like(".5"));
+        assert!(!is_numeric_like("1e"));
+        assert!(!is_numeric_like("1_000"));
     }
 }

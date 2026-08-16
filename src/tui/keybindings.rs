@@ -14,7 +14,6 @@ pub enum Action {
     SwitchPanel,
     OpenFile,
     SaveFile,
-    Refresh,
     ToggleSettings,
     ToggleHelp,
     ToggleFileBrowser,

@@ -2,13 +2,15 @@
 
 [![Crates.io](https://img.shields.io/crates/v/toon-format.svg)](https://crates.io/crates/toon-format)
 [![Documentation](https://docs.rs/toon-format/badge.svg)](https://docs.rs/toon-format)
-[![Spec v3.0](https://img.shields.io/badge/spec-v3.0-brightgreen.svg)](https://github.com/toon-format/spec/blob/main/SPEC.md)
+[![Spec v4.1](https://img.shields.io/badge/spec-v4.1-brightgreen.svg)](https://github.com/toon-format/spec/blob/main/SPEC.md)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 [![Tests](https://img.shields.io/badge/tests-%20passing-success.svg)]()
 
 **Token-Oriented Object Notation (TOON)** is a compact, human-readable format designed for passing structured data to Large Language Models with significantly reduced token usage.
 
-This crate provides the official, **spec-compliant Rust implementation** of TOON v3.0, offering both a library (`toon-format`) and a full-featured command-line tool (`toon`).
+This crate provides the official, **spec-compliant Rust implementation** of TOON, offering both a library (`toon-format`) and a full-featured command-line tool (`toon`).
+
+`toon-spec: 4.1` — this implementation targets [TOON Specification v4.1](https://github.com/toon-format/spec/blob/main/SPEC.md).
 
 ## Quick Example
 
@@ -32,8 +34,7 @@ users[2]{id,name}:
 ## Features
 
 - **Generic API**: Works with any `Serialize`/`Deserialize` type - custom structs, enums, JSON values, and more
-- **Spec-Compliant**: Fully compliant with [TOON Specification v3.0](https://github.com/toon-format/spec/blob/main/SPEC.md)
-- **Key Folding & Path Expansion**: Collapse and expand dotted key paths
+- **Spec-Compliant**: Fully compliant with [TOON Specification v4.1](https://github.com/toon-format/spec/blob/main/SPEC.md), including comment lines, keyed tabular form, and nested field groups
 - **Safe & Performant**: Built with safe, fast Rust
 - **Powerful CLI**: Full-featured command-line tool
 - **Strict Validation**: Enforces all spec rules (configurable)
@@ -173,14 +174,14 @@ let toon = encode(&data, &opts)?;
 | `with_delimiter(d)` | Set delimiter: `Comma`, `Tab`, or `Pipe` | `Comma` |
 | `with_indent(i)` | Set indentation (spaces only) | `Spaces(2)` |
 | `with_spaces(n)` | Shorthand for `Indent::Spaces(n)` | `2` |
-| `with_key_folding(mode)` | Enable key folding (v1.5) | `Off` |
-| `with_flatten_depth(n)` | Set max folding depth | `usize::MAX` |
 
 #### `json_stream` Feature
 
-For large JSON inputs, enable the optional `json_stream` feature to encode
-progressive chunks from a `Read` source to a `Write` target. This dramatically
-reduces both memory usage and execution time.
+The optional `json_stream` feature adds conveniences for encoding JSON from a
+`Read` source to a `Write` target. Spec v4.1 selects the encoded form from a
+value's whole shape (tabular and keyed tabular headers depend on every element
+of their subtree), so the input is parsed in full before encoding; these
+functions are I/O conveniences, not bounded-memory streaming.
 
 ```bash
 cargo add toon-format --features json_stream
@@ -196,9 +197,6 @@ encode_json_stream_default(input, &mut output)?;
 let toon = String::from_utf8(output)?;
 assert!(toon.contains("users[2]{id,name}:"));
 ```
-
-When key folding is enabled, streaming encode falls back to the existing
-encoder because folding depends on whole-document sibling inspection.
 
 ### Decoding
 
@@ -234,12 +232,6 @@ let json: Value = decode(toon, &DecodeOptions::default())?;
 // Non-strict mode (relaxed validation)
 let opts = DecodeOptions::new().with_strict(false);
 let json: Value = decode(toon, &opts)?;
-
-// Disable type coercion
-let opts = DecodeOptions::new().with_coerce_types(false);
-let json: Value = decode("active: true", &opts)?;
-// With coercion: {"active": true}
-// Without: {"active": "true"}
 ```
 
 **Helper functions:**
@@ -251,163 +243,50 @@ let json: Value = decode("active: true", &opts)?;
 | Method | Description | Default |
 |--------|-------------|---------|
 | `with_strict(b)` | Enable strict validation | `true` |
-| `with_coerce_types(b)` | Auto-convert strings to types | `true` |
-| `with_expand_paths(mode)` | Enable path expansion (v1.5) | `Off` |
+| `with_indent(i)` | Set spaces per indentation level | `Spaces(2)` |
 
 ---
 
-## v1.5 Features
+## Spec v4.1 Highlights
 
-### Key Folding (Encoder)
+### Comment Lines (Decoder)
 
-**New in v1.5**: Collapse single-key object chains into dotted paths to reduce tokens.
+Lines whose first non-space character is `#` are comments, removed before any
+structural interpretation. Encoders never emit them.
 
-**Standard nesting:**
 ```toon
-data:
-  metadata:
-    items[2]: a,b
+# server inventory
+servers[2]{host,port}:
+  a.example.com,8080
+  b.example.com,9090
 ```
 
-**With key folding:**
+### Keyed Tabular Form
+
+An object whose values are uniform non-empty objects collapses into a keyed
+header with one entry row per entry:
+
 ```toon
-data.metadata.items[2]: a,b
+servers[2:]{host,port}:
+  alpha: a.example.com,8080
+  beta: b.example.com,9090
 ```
 
-**Example:**
+### Nested Field Groups
 
-```rust
-use serde_json::json;
-use toon_format::{encode, EncodeOptions, KeyFoldingMode};
+A uniform nested-object column collapses into the header, its leaf cells laid
+out by a depth-first walk:
 
-let data = json!({
-    "data": {
-        "metadata": {
-            "items": ["a", "b"]
-        }
-    }
-});
-
-// Enable key folding
-let opts = EncodeOptions::new()
-    .with_key_folding(KeyFoldingMode::Safe);
-
-let toon = encode(&data, &opts)?;
-// Output: data.metadata.items[2]: a,b
-```
-
-#### With Depth Control
-
-```rust
-let data = json!({"a": {"b": {"c": {"d": 1}}}});
-
-// Fold only 2 levels
-let opts = EncodeOptions::new()
-    .with_key_folding(KeyFoldingMode::Safe)
-    .with_flatten_depth(2);
-
-let toon = encode(&data, &opts)?;
-// Output:
-// a.b:
-//   c:
-//     d: 1
-```
-
-#### Safety Features
-
-Key folding only applies when:
-- All segments are valid identifiers (`a-z`, `A-Z`, `0-9`, `_`)
-- Each level contains exactly one key
-- No collision with sibling literal keys
-- Within the specified `flatten_depth`
-
-Keys like `full-name`, `user.email` (if quoted), or numeric keys won't be folded.
-
-### Path Expansion (Decoder)
-
-**New in v1.5**: Automatically expand dotted keys into nested objects.
-
-**Compact input:**
 ```toon
-a.b.c: 1
-a.b.d: 2
-a.e: 3
+orders[2]{id,customer{name,country},total}:
+  1,Ada,DK,99
+  2,Bob,UK,149
 ```
 
-**Expanded output:**
-```json
-{
-  "a": {
-    "b": {
-      "c": 1,
-      "d": 2
-    },
-    "e": 3
-  }
-}
-```
+### Empty Arrays
 
-**Example:**
-
-```rust
-use serde_json::Value;
-use toon_format::{decode, DecodeOptions, PathExpansionMode};
-
-let toon = "a.b.c: 1\na.b.d: 2";
-
-// Enable path expansion
-let opts = DecodeOptions::new()
-    .with_expand_paths(PathExpansionMode::Safe);
-
-let json: Value = decode(toon, &opts)?;
-// {"a": {"b": {"c": 1, "d": 2}}}
-```
-
-**Round-Trip Example:**
-
-```rust
-use serde_json::{json, Value};
-use toon_format::{encode, decode, EncodeOptions, DecodeOptions, KeyFoldingMode, PathExpansionMode};
-
-let original = json!({
-    "user": {
-        "profile": {
-            "name": "Alice"
-        }
-    }
-});
-
-// Encode with folding
-let encode_opts = EncodeOptions::new()
-    .with_key_folding(KeyFoldingMode::Safe);
-let toon = encode(&original, &encode_opts)?;
-// Output: "user.profile.name: Alice"
-
-// Decode with expansion
-let decode_opts = DecodeOptions::new()
-    .with_expand_paths(PathExpansionMode::Safe);
-let restored: Value = decode(&toon, &decode_opts)?;
-
-assert_eq!(restored, original); // Perfect round-trip!
-```
-
-**Quoted Keys Remain Literal:**
-
-```rust
-use serde_json::Value;
-use toon_format::{decode, DecodeOptions, PathExpansionMode};
-
-let toon = r#"a.b: 1
-"c.d": 2"#;
-
-let opts = DecodeOptions::new()
-    .with_expand_paths(PathExpansionMode::Safe);
-let json: Value = decode(toon, &opts)?;
-// {
-//   "a": {"b": 1},
-//   "c.d": 2        <- quoted key preserved
-// }
-```
+Empty arrays encode as `key: []` in field position and `[]` at the root; the
+legacy `key[0]:` and `[0]:` forms are still accepted by the decoder.
 
 ---
 
@@ -475,10 +354,6 @@ toon data.json --delimiter tab
 # Custom indentation
 toon data.json --indent 4
 
-# Key folding (v1.5)
-toon data.json --fold-keys
-toon data.json --fold-keys --flatten-depth 2
-
 # Show statistics
 toon data.json --stats
 ```
@@ -491,29 +366,12 @@ toon data.toon --json-indent 2
 
 # Relaxed validation
 toon data.toon --no-strict
-
-# Disable type coercion
-toon data.toon --no-coerce
-
-# Path expansion (v1.5)
-toon data.toon --expand-paths
 ```
 
 ### Full Example
 
 ```bash
-$ echo '{"data":{"meta":{"items":["x","y"]}}}' | toon --fold-keys --stats
-
-data.meta.items[2]: x,y
-
-Stats:
-+--------------+------+------+---------+
-| Metric       | JSON | TOON | Savings |
-+======================================+
-| Tokens       | 13   | 8    | 38.46%  |
-|--------------+------+------+---------|
-| Size (bytes) | 38   | 23   | 39.47%  |
-+--------------+------+------+---------+
+$ echo '{"users":[{"id":1,"name":"Alice"},{"id":2,"name":"Bob"}]}' | toon --stats
 ```
 
 ---
@@ -579,7 +437,7 @@ Run with `cargo run --example examples` to see all examples:
 
 ## Resources
 
-- 📖 [TOON Specification v3.0](https://github.com/toon-format/spec/blob/main/SPEC.md)
+- 📖 [TOON Specification v4.1](https://github.com/toon-format/spec/blob/main/SPEC.md)
 - 📦 [Crates.io Package](https://crates.io/crates/toon-format)
 - 📚 [API Documentation](https://docs.rs/toon-format)
 - 🔧 [Main Repository (JS/TS)](https://github.com/toon-format/toon)

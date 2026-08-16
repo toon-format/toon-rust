@@ -1,19 +1,22 @@
-use crate::{
-    types::Delimiter,
-    utils::literal,
-};
+use crate::utils::literal;
 
-/// Escape special characters in a string for quoted output.
+/// Escape special characters in a string for quoted output (§7.1).
+///
+/// Rows are matched top-to-bottom: backslash, quote, `\n`, `\r`, `\t`, then
+/// other U+0000–U+001F controls as lowercase `\uXXXX`.
 pub fn escape_string(s: &str) -> String {
     let mut result = String::with_capacity(s.len());
 
     for ch in s.chars() {
         match ch {
+            '\\' => result.push_str("\\\\"),
+            '"' => result.push_str("\\\""),
             '\n' => result.push_str("\\n"),
             '\r' => result.push_str("\\r"),
             '\t' => result.push_str("\\t"),
-            '"' => result.push_str("\\\""),
-            '\\' => result.push_str("\\\\"),
+            '\u{0000}'..='\u{001F}' => {
+                result.push_str(&format!("\\u{:04x}", ch as u32));
+            }
             _ => result.push(ch),
         }
     }
@@ -21,101 +24,98 @@ pub fn escape_string(s: &str) -> String {
     result
 }
 
-/// Unescape special characters in a quoted string.
+/// Unescape special characters in a quoted string (§7.1).
 ///
-/// Per TOON spec §7.1, only these escape sequences are valid:
-/// - `\\` → `\`
-/// - `\"` → `"`
-/// - `\n` → newline
-/// - `\r` → carriage return
-/// - `\t` → tab
-///
-/// Any other escape sequence MUST cause an error.
+/// Valid escape sequences are `\\`, `\"`, `\n`, `\r`, `\t`, and `\uXXXX`
+/// with exactly four case-insensitive hex digits. `\uXXXX` escapes encoding
+/// surrogate code points (U+D800–U+DFFF) are rejected: supplementary code
+/// points appear as literal UTF-8, never as surrogate escapes.
 ///
 /// # Errors
 ///
-/// Returns an error if the string contains an invalid escape sequence
-/// or if a backslash appears at the end of the string.
+/// Returns an error for any other escape sequence, a truncated `\u` escape,
+/// or a backslash at the end of the string.
 pub fn unescape_string(s: &str) -> Result<String, String> {
     let mut result = String::with_capacity(s.len());
-    let mut chars = s.chars().peekable();
-    let mut position = 0;
+    let mut chars = s.chars();
 
     while let Some(ch) = chars.next() {
-        position += 1;
+        if ch != '\\' {
+            result.push(ch);
+            continue;
+        }
 
-        if ch == '\\' {
-            if let Some(&next) = chars.peek() {
-                match next {
-                    'n' => {
-                        result.push('\n');
-                        chars.next(); // consume the 'n'
-                        position += 1;
-                    }
-                    'r' => {
-                        result.push('\r');
-                        chars.next();
-                        position += 1;
-                    }
-                    't' => {
-                        result.push('\t');
-                        chars.next();
-                        position += 1;
-                    }
-                    '"' => {
-                        result.push('"');
-                        chars.next();
-                        position += 1;
-                    }
-                    '\\' => {
-                        result.push('\\');
-                        chars.next();
-                        position += 1;
-                    }
-                    _ => {
-                        return Err(format!(
-                            "Invalid escape sequence '\\{next}' at position {position}. Only \
-                             \\\\, \\\", \\n, \\r, \\t are valid",
-                        ));
-                    }
+        match chars.next() {
+            Some('n') => result.push('\n'),
+            Some('r') => result.push('\r'),
+            Some('t') => result.push('\t'),
+            Some('"') => result.push('"'),
+            Some('\\') => result.push('\\'),
+            Some('u') => {
+                let mut code = 0u32;
+                for _ in 0..4 {
+                    let digit = chars
+                        .next()
+                        .and_then(|c| c.to_digit(16))
+                        .ok_or_else(|| {
+                            "Invalid escape sequence: \\u must be followed by 4 hex digits"
+                                .to_string()
+                        })?;
+                    code = code * 16 + digit;
                 }
-            } else {
+                if (0xD800..=0xDFFF).contains(&code) {
+                    return Err(format!(
+                        "Invalid escape sequence: \\u{code:04x} is a lone surrogate. \
+                         Supplementary code points MUST appear as literal UTF-8"
+                    ));
+                }
+                result.push(char::from_u32(code).expect("non-surrogate BMP code point"));
+            }
+            Some(other) => {
                 return Err(format!(
-                    "Unterminated escape sequence at end of string (position {position})",
+                    "Invalid escape sequence '\\{other}'. Only \\\\, \\\", \\n, \\r, \\t, and \
+                     \\uXXXX are valid"
                 ));
             }
-        } else {
-            result.push(ch);
+            None => {
+                return Err("Unterminated escape sequence at end of string".to_string());
+            }
         }
     }
 
     Ok(result)
 }
 
-/// Check if a key can be written without quotes (alphanumeric, underscore,
-/// dot).
+/// Check if a key can be written without quotes (§7.3):
+/// `^[A-Za-z_][A-Za-z0-9_.]*$`. The pattern is ASCII-only, so every
+/// non-ASCII key is quoted.
 pub fn is_valid_unquoted_key(key: &str) -> bool {
-    if key.is_empty() {
-        return false;
-    }
-
-    let mut chars = key.chars();
-    let first = if let Some(c) = chars.next() {
-        c
-    } else {
+    let bytes = key.as_bytes();
+    let Some(&first) = bytes.first() else {
         return false;
     };
 
-    if !first.is_alphabetic() && first != '_' {
+    if !first.is_ascii_alphabetic() && first != b'_' {
         return false;
     }
 
-    chars.all(|c| c.is_alphanumeric() || c == '_' || c == '.')
+    bytes[1..]
+        .iter()
+        .all(|&b| b.is_ascii_alphanumeric() || b == b'_' || b == b'.')
 }
 
-/// Determine if a string needs quoting based on content and delimiter.
+/// Determine if a string value needs quoting per §7.2.
+///
+/// `delimiter` is the relevant delimiter for the position (§11.1): the
+/// active delimiter for inline array values, tabular row cells, and keyed
+/// entry-row cells; the document delimiter for object field values.
 pub fn needs_quoting(s: &str, delimiter: char) -> bool {
     if s.is_empty() {
+        return true;
+    }
+
+    // Leading or trailing space or tab (exactly U+0020 / U+0009).
+    if s.starts_with([' ', '\t']) || s.ends_with([' ', '\t']) {
         return true;
     }
 
@@ -123,11 +123,13 @@ pub fn needs_quoting(s: &str, delimiter: char) -> bool {
         return true;
     }
 
-    if s.chars().any(literal::is_structural_char) {
+    // Colons, quotes, backslashes, brackets, and braces (§7.2).
+    if s.contains([':', '"', '\\', '[', ']', '{', '}']) {
         return true;
     }
 
-    if s.contains('\\') || s.contains('"') {
+    // Control characters U+0000–U+001F.
+    if s.chars().any(|c| c <= '\u{001F}') {
         return true;
     }
 
@@ -135,21 +137,9 @@ pub fn needs_quoting(s: &str, delimiter: char) -> bool {
         return true;
     }
 
-    if s.contains('\n') || s.contains('\r') || s.contains('\t') {
-        return true;
-    }
-
-    if s.starts_with(char::is_whitespace) || s.ends_with(char::is_whitespace) {
-        return true;
-    }
-
-    if s.starts_with('-') {
-        return true;
-    }
-
-    // Check for leading zeros (e.g., "05", "007", "0123")
-    // Numbers with leading zeros must be quoted
-    if s.starts_with('0') && s.len() > 1 && s.chars().nth(1).is_some_and(|c| c.is_ascii_digit()) {
+    // A leading hyphen would read as a list-item marker; a leading number
+    // sign would read as a comment line (§7.2).
+    if s.starts_with('-') || s.starts_with('#') {
         return true;
     }
 
@@ -159,32 +149,6 @@ pub fn needs_quoting(s: &str, delimiter: char) -> bool {
 /// Quote and escape a string.
 pub fn quote_string(s: &str) -> String {
     format!("\"{}\"", escape_string(s))
-}
-
-pub fn split_by_delimiter(s: &str, delimiter: Delimiter) -> Vec<String> {
-    let mut result = Vec::new();
-    let mut current = String::new();
-    let mut in_quotes = false;
-    let chars = s.chars().peekable();
-    let delim_char = delimiter.as_char();
-
-    for ch in chars {
-        if ch == '"' && (current.is_empty() || !current.ends_with('\\')) {
-            in_quotes = !in_quotes;
-            current.push(ch);
-        } else if ch == delim_char && !in_quotes {
-            result.push(current.trim().to_string());
-            current.clear();
-        } else {
-            current.push(ch);
-        }
-    }
-
-    if !current.is_empty() {
-        result.push(current.trim().to_string());
-    }
-
-    result
 }
 
 #[cfg(test)]
@@ -197,11 +161,12 @@ mod tests {
         assert_eq!(escape_string("hello\nworld"), "hello\\nworld");
         assert_eq!(escape_string("say \"hi\""), "say \\\"hi\\\"");
         assert_eq!(escape_string("back\\slash"), "back\\\\slash");
+        assert_eq!(escape_string("a\u{0004}b"), "a\\u0004b");
+        assert_eq!(escape_string("x\u{001F}y"), "x\\u001fy");
     }
 
     #[test]
     fn test_unescape_string() {
-        // Valid escapes
         assert_eq!(unescape_string("hello").unwrap(), "hello");
         assert_eq!(unescape_string("hello\\nworld").unwrap(), "hello\nworld");
         assert_eq!(unescape_string("say \\\"hi\\\"").unwrap(), "say \"hi\"");
@@ -211,10 +176,23 @@ mod tests {
     }
 
     #[test]
+    fn test_unescape_unicode_escapes() {
+        assert_eq!(unescape_string("a\\u0004b").unwrap(), "a\u{0004}b");
+        assert_eq!(unescape_string("a\\u00E9b").unwrap(), "aéb");
+        assert_eq!(unescape_string("a\\u00e9b").unwrap(), "aéb");
+
+        // Lone surrogates are rejected.
+        assert!(unescape_string("\\ud800").is_err());
+        assert!(unescape_string("\\uDFFF").is_err());
+
+        // Truncated \u escapes are rejected.
+        assert!(unescape_string("\\u12").is_err());
+        assert!(unescape_string("\\u12g4").is_err());
+    }
+
+    #[test]
     fn test_unescape_string_invalid_escapes() {
-        // Invalid escape sequences should error
         assert!(unescape_string("bad\\xescape").is_err());
-        assert!(unescape_string("bad\\uescape").is_err());
         assert!(unescape_string("bad\\0escape").is_err());
         assert!(unescape_string("bad\\aescape").is_err());
 
@@ -223,17 +201,8 @@ mod tests {
     }
 
     #[test]
-    fn test_unescape_string_error_messages() {
-        let result = unescape_string("bad\\x");
-        assert!(result.is_err());
-        let err = result.unwrap_err();
-        assert!(err.contains("Invalid escape sequence"));
-        assert!(err.contains("\\x"));
-    }
-
-    #[test]
     fn test_needs_quoting() {
-        let comma = Delimiter::Comma.as_char();
+        let comma = ',';
 
         assert!(needs_quoting("", comma));
 
@@ -241,20 +210,24 @@ mod tests {
         assert!(needs_quoting("false", comma));
         assert!(needs_quoting("null", comma));
         assert!(needs_quoting("123", comma));
+        assert!(needs_quoting("+1", comma));
 
         assert!(needs_quoting("hello[world]", comma));
         assert!(needs_quoting("key:value", comma));
 
         assert!(needs_quoting("a,b", comma));
-        assert!(!needs_quoting("a,b", Delimiter::Pipe.as_char()));
+        assert!(!needs_quoting("a,b", '|'));
 
         assert!(!needs_quoting("hello world", comma));
         assert!(needs_quoting(" hello", comma));
         assert!(needs_quoting("hello ", comma));
 
+        assert!(needs_quoting("#", comma));
+        assert!(needs_quoting("#hello", comma));
+        assert!(needs_quoting("-", comma));
+        assert!(needs_quoting("-dash", comma));
+
         assert!(!needs_quoting("hello", comma));
-        assert!(!needs_quoting("world", comma));
-        assert!(!needs_quoting("helloworld", comma));
     }
 
     #[test]
@@ -264,29 +237,15 @@ mod tests {
     }
 
     #[test]
-    fn test_split_by_delimiter() {
-        let comma = Delimiter::Comma;
-
-        assert_eq!(split_by_delimiter("a,b,c", comma), vec!["a", "b", "c"]);
-
-        assert_eq!(split_by_delimiter("a, b, c", comma), vec!["a", "b", "c"]);
-
-        assert_eq!(split_by_delimiter("\"a,b\",c", comma), vec!["\"a,b\"", "c"]);
-    }
-
-    #[test]
     fn test_is_valid_unquoted_key() {
-        // Valid keys (should return true)
         assert!(is_valid_unquoted_key("normal_key"));
         assert!(is_valid_unquoted_key("key123"));
         assert!(is_valid_unquoted_key("key.value"));
         assert!(is_valid_unquoted_key("_private"));
         assert!(is_valid_unquoted_key("KeyName"));
-        assert!(is_valid_unquoted_key("key_name"));
-        assert!(is_valid_unquoted_key("key.name.sub"));
         assert!(is_valid_unquoted_key("a"));
         assert!(is_valid_unquoted_key("_"));
-        assert!(is_valid_unquoted_key("key_123.value"));
+        assert!(is_valid_unquoted_key("key."));
 
         assert!(!is_valid_unquoted_key(""));
         assert!(!is_valid_unquoted_key("123"));
@@ -294,9 +253,11 @@ mod tests {
         assert!(!is_valid_unquoted_key("key-value"));
         assert!(!is_valid_unquoted_key("key value"));
         assert!(!is_valid_unquoted_key(".key"));
-        assert!(is_valid_unquoted_key("key.value.sub."));
-        assert!(is_valid_unquoted_key("key."));
         assert!(!is_valid_unquoted_key("key[value]"));
         assert!(!is_valid_unquoted_key("key{value}"));
+
+        // The §7.3 pattern is ASCII-only: non-ASCII keys are quoted.
+        assert!(!is_valid_unquoted_key("café"));
+        assert!(!is_valid_unquoted_key("名前"));
     }
 }

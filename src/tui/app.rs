@@ -154,38 +154,8 @@ impl<'a> TuiApp<'a> {
                         self.perform_conversion();
                         return Ok(());
                     }
-                    KeyCode::Char('f') => {
-                        self.app_state.toggle_fold_keys();
-                        self.perform_conversion();
-                        return Ok(());
-                    }
-                    KeyCode::Char('p') => {
-                        self.app_state.toggle_expand_paths();
-                        self.perform_conversion();
-                        return Ok(());
-                    }
                     KeyCode::Char('s') => {
                         self.app_state.toggle_strict();
-                        self.perform_conversion();
-                        return Ok(());
-                    }
-                    KeyCode::Char('c') => {
-                        self.app_state.toggle_coerce_types();
-                        self.perform_conversion();
-                        return Ok(());
-                    }
-                    KeyCode::Char('[') | KeyCode::Char('{') => {
-                        self.app_state.decrease_flatten_depth();
-                        self.perform_conversion();
-                        return Ok(());
-                    }
-                    KeyCode::Char(']') | KeyCode::Char('}') => {
-                        self.app_state.increase_flatten_depth();
-                        self.perform_conversion();
-                        return Ok(());
-                    }
-                    KeyCode::Char('u') => {
-                        self.app_state.toggle_flatten_depth();
                         self.perform_conversion();
                         return Ok(());
                     }

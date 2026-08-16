@@ -4,23 +4,36 @@
 //! designed for passing structured data to Large Language Models with
 //! significantly reduced token usage.
 //!
-//! This crate reserves the `toon-format` namespace for the official Rust
-//! implementation. Full implementation coming soon!
+//! This crate is the official Rust implementation of TOON, targeting
+//! specification v4.1 (`toon-spec: 4.1`).
+//!
+//! Documented implementation-defined behavior:
+//! - Numeric out-of-range policy (§4): integral tokens preserve full
+//!   `i64`/`u64` precision; fractional and exponent forms decode as `f64`, and
+//!   a token whose value is not finite in `f64` decodes as a string.
+//! - Host-type normalization (§3) follows `serde::Serialize`; Rust strings are
+//!   always well-formed UTF-8, so unpaired surrogates cannot occur.
+//! - Decoded objects preserve document key order (`serde_json` with
+//!   `preserve_order`), and every key — including `__proto__`, `constructor`,
+//!   and `prototype` — is an ordinary map entry (§15).
 //!
 //! ## Resources
 //!
-//! - [TOON Specification](https://github.com/johannschopplich/toon/blob/main/SPEC.md)
-//! - [Main Repository](https://github.com/johannschopplich/toon)
-//! - [Other Implementations](https://github.com/johannschopplich/toon#other-implementations)
+//! - [TOON Specification](https://github.com/toon-format/spec/blob/main/SPEC.md)
+//! - [Reference Implementation (JS/TS)](https://github.com/toon-format/toon)
 //!
-//! ## Example Usage (Future)
+//! ## Example Usage
 //!
-//! ```ignore
-//! use toon_format::{encode, decode};
+//! ```
+//! use serde_json::{json, Value};
+//! use toon_format::{encode_default, decode_default};
 //!
-//! let data = json!({"name": "Alice", "age": 30});
-//! let toon_string = encode(&data)?;
-//! let decoded = decode(&toon_string)?;
+//! let data = json!({"users": [{"id": 1, "name": "Alice"}, {"id": 2, "name": "Bob"}]});
+//! let toon = encode_default(&data)?;
+//! assert_eq!(toon, "users[2]{id,name}:\n  1,Alice\n  2,Bob");
+//!
+//! let decoded: Value = decode_default(&toon)?;
+//! assert_eq!(decoded, data);
 //! # Ok::<(), toon_format::ToonError>(())
 //! ```
 #![warn(rustdoc::missing_crate_level_docs)]

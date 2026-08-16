@@ -4,6 +4,7 @@ pub(crate) mod layout_builder;
 pub(crate) mod line;
 pub mod parser;
 
+#[cfg(feature = "layout")]
 use serde_json::Value;
 
 use crate::types::{

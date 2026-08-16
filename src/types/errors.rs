@@ -18,25 +18,8 @@ pub enum ToonError {
         context: Option<Box<ErrorContext>>,
     },
 
-    #[error("Invalid character '{char}' at position {position}")]
-    InvalidCharacter { char: char, position: usize },
-
-    #[error("Unexpected end of input")]
-    UnexpectedEof,
-
     #[error("Type mismatch: expected {expected}, found {found}")]
     TypeMismatch { expected: String, found: String },
-
-    #[error("Invalid delimiter: {0}")]
-    InvalidDelimiter(String),
-
-    #[error("Array length mismatch: expected {expected}, found {found}")]
-    LengthMismatch {
-        expected: usize,
-        found: usize,
-        #[source]
-        context: Option<Box<ErrorContext>>,
-    },
 
     #[error("Invalid structure: {0}")]
     InvalidStructure(String),
@@ -190,38 +173,11 @@ impl ToonError {
         }
     }
 
-    /// Create an error for an invalid character.
-    pub fn invalid_char(char: char, position: usize) -> Self {
-        ToonError::InvalidCharacter { char, position }
-    }
-
     /// Create an error for a type mismatch.
     pub fn type_mismatch(expected: impl Into<String>, found: impl Into<String>) -> Self {
         ToonError::TypeMismatch {
             expected: expected.into(),
             found: found.into(),
-        }
-    }
-
-    /// Create an error for array length mismatch.
-    pub fn length_mismatch(expected: usize, found: usize) -> Self {
-        ToonError::LengthMismatch {
-            expected,
-            found,
-            context: None,
-        }
-    }
-
-    /// Create an array length mismatch error with context.
-    pub fn length_mismatch_with_context(
-        expected: usize,
-        found: usize,
-        context: ErrorContext,
-    ) -> Self {
-        ToonError::LengthMismatch {
-            expected,
-            found,
-            context: Some(Box::new(context)),
         }
     }
 
@@ -237,13 +193,6 @@ impl ToonError {
                 line,
                 column,
                 message,
-                context: Some(Box::new(context)),
-            },
-            ToonError::LengthMismatch {
-                expected, found, ..
-            } => ToonError::LengthMismatch {
-                expected,
-                found,
                 context: Some(Box::new(context)),
             },
             other => other,
@@ -338,28 +287,6 @@ mod tests {
                     ctx.suggestion,
                     Some("Use quotes around string values".to_string())
                 );
-            }
-            _ => panic!("Wrong error type"),
-        }
-    }
-
-    #[test]
-    fn test_length_mismatch_with_context() {
-        let ctx = ErrorContext::new("items[3]: a,b").with_suggestion(
-            "Expected 3 items but found 2. Add another item or fix the length marker.",
-        );
-
-        let err = ToonError::length_mismatch_with_context(3, 2, ctx);
-
-        match err {
-            ToonError::LengthMismatch {
-                expected,
-                found,
-                context,
-            } => {
-                assert_eq!(expected, 3);
-                assert_eq!(found, 2);
-                assert!(context.is_some());
             }
             _ => panic!("Wrong error type"),
         }

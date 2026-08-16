@@ -183,9 +183,6 @@ impl<'a> TuiApp<'a> {
             Action::NewFile => {
                 self.new_file();
             }
-            Action::Refresh => {
-                self.perform_conversion();
-            }
             Action::ToggleSettings => {
                 self.app_state.toggle_settings();
             }
@@ -402,9 +399,6 @@ impl<'a> TuiApp<'a> {
     }
 
     fn new_file(&mut self) {
-        if self.app_state.file_state.is_modified {
-            // TODO: confirmation dialog
-        }
         self.app_state.editor.clear_input();
         self.app_state.editor.clear_output();
         self.app_state.file_state.clear_current_file();

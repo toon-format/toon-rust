@@ -226,7 +226,7 @@ fn run_encode(cli: &Cli, input: &str) -> Result<()> {
 }
 
 #[cfg(feature = "json_stream")]
-fn run_encode_streaming(cli: &Cli) -> Result<()> {
+fn run_encode_from_reader(cli: &Cli) -> Result<()> {
     let reader = open_input_reader(cli.input.as_deref())?;
     let mut writer = open_output_writer(cli.output.as_ref())?;
 
@@ -239,7 +239,7 @@ fn run_encode_streaming(cli: &Cli) -> Result<()> {
     }
 
     encode_json_stream(reader, &mut writer, &opts)
-        .context("Failed to encode JSON to TOON with streaming")?;
+        .context("Failed to encode JSON to TOON from reader")?;
 
     if cli.output.is_none() {
         writer
@@ -259,6 +259,9 @@ fn run_decode(cli: &Cli, input: &str) -> Result<()> {
     let mut opts = DecodeOptions::new();
     if cli.no_strict {
         opts = opts.with_strict(false);
+    }
+    if let Some(i) = cli.indent {
+        opts = opts.with_indent(Indent::Spaces(i));
     }
     let json_value: serde_json::Value = decode(input, &opts).context("Failed to decode TOON")?;
 
@@ -347,9 +350,6 @@ fn validate_flags(cli: &Cli, operation: &Operation) -> Result<()> {
             if cli.stats {
                 bail!("--stats is only valid for encode mode");
             }
-            if cli.indent.is_some() {
-                bail!("--indent is only valid for encode mode");
-            }
         }
     }
 
@@ -372,7 +372,7 @@ fn main() -> Result<()> {
             #[cfg(feature = "json_stream")]
             {
                 if !cli.stats {
-                    return run_encode_streaming(&cli);
+                    return run_encode_from_reader(&cli);
                 }
             }
 

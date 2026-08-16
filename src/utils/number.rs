@@ -18,45 +18,18 @@ pub fn format_canonical_number(n: &Number) -> String {
 }
 
 fn format_f64_canonical(f: f64) -> String {
-    // Normalize integer-valued floats to integers
-    if f.is_finite() && f.fract() == 0.0 && f.abs() <= i64::MAX as f64 {
+    // Normalize integer-valued floats to integers. The range test is the
+    // exact `i64` domain: `i64::MAX as f64` rounds up to 2^63, which is one
+    // past the last representable `i64`, so `<=` would let `f as i64`
+    // saturate and print 9223372036854775807 for the value 2^63. `i64::MIN
+    // as f64` is exactly -2^63 and stays inclusive.
+    if f.is_finite() && f.fract() == 0.0 && f >= i64::MIN as f64 && f < i64::MAX as f64 {
         return format!("{}", f as i64);
     }
 
-    let default_format = format!("{f}");
-
-    // Handle cases where Rust would use exponential notation
-    if default_format.contains('e') || default_format.contains('E') {
-        format_without_exponent(f)
-    } else {
-        remove_trailing_zeros(&default_format)
-    }
-}
-
-fn format_without_exponent(f: f64) -> String {
-    if !f.is_finite() {
-        return "0".to_string();
-    }
-
-    if f.abs() >= 1.0 {
-        let abs_f = f.abs();
-        let int_part = abs_f.trunc();
-        let frac_part = abs_f.fract();
-
-        if frac_part == 0.0 {
-            format!("{}{}", if f < 0.0 { "-" } else { "" }, int_part as i64)
-        } else {
-            // High precision to avoid exponent, then trim trailing zeros
-            let result = format!("{f:.17}");
-            remove_trailing_zeros(&result)
-        }
-    } else if f == 0.0 {
-        "0".to_string()
-    } else {
-        // Small numbers: use high precision to avoid exponent
-        let result = format!("{f:.17}",);
-        remove_trailing_zeros(&result)
-    }
+    // Rust's f64 Display never uses exponent notation, so the shortest
+    // representation is already in plain decimal form.
+    remove_trailing_zeros(&format!("{f}"))
 }
 
 fn remove_trailing_zeros(s: &str) -> String {
@@ -190,6 +163,32 @@ mod tests {
             let num = Number::from_f64(f).unwrap();
             assert_eq!(format_canonical_number(&num), "1.5");
         }
+    }
+
+    #[test]
+    fn test_integral_f64_outside_i64_domain_is_not_saturated() {
+        // 2^63 is one past i64::MAX, so a saturating `as i64` would print
+        // 9223372036854775807 — a different number than the input. The value
+        // is inside the u64 domain, so it prints exactly.
+        let n = Number::from_f64(9223372036854775808.0).unwrap();
+        assert_eq!(format_canonical_number(&n), "9223372036854775808");
+
+        // -2^63 is exactly i64::MIN and must stay exact.
+        let n = Number::from_f64(-9223372036854775808.0).unwrap();
+        assert_eq!(format_canonical_number(&n), "-9223372036854775808");
+
+        // Far outside the i64 domain: no exponent, no saturation.
+        let n = Number::from_f64(1e19).unwrap();
+        assert_eq!(format_canonical_number(&n), "10000000000000000000");
+    }
+
+    #[test]
+    fn test_u64_above_i64_max_keeps_full_precision() {
+        let n = Number::from(u64::MAX);
+        assert_eq!(format_canonical_number(&n), "18446744073709551615");
+
+        let n = Number::from(9223372036854775808u64);
+        assert_eq!(format_canonical_number(&n), "9223372036854775808");
     }
 
     #[test]

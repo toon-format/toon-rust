@@ -372,6 +372,20 @@ toon data.toon --no-strict
 
 ```bash
 $ echo '{"users":[{"id":1,"name":"Alice"},{"id":2,"name":"Bob"}]}' | toon --stats
+
+users[2]{id,name}:
+  1,Alice
+  2,Bob
+
+Stats:
+
++--------------+------+------+---------+
+| Metric       | JSON | TOON | Savings |
++======================================+
+| Tokens       | 20   | 19   | 5.00%   |
+|--------------+------+------+---------|
+| Size (bytes) | 58   | 36   | 37.93%  |
++--------------+------+------+---------+
 ```
 
 ---
@@ -402,8 +416,8 @@ use toon_format::{decode_strict, ToonError};
 
 match decode_strict::<Value>("items[3]: a,b") {
     Ok(value) => println!("Success: {:?}", value),
-    Err(ToonError::LengthMismatch { expected, found, .. }) => {
-        eprintln!("Array length mismatch: expected {}, found {}", expected, found);
+    Err(ToonError::ParseError { line, message, .. }) => {
+        eprintln!("Parse error on line {}: {}", line, message);
     }
     Err(e) => eprintln!("Error: {}", e),
 }
@@ -411,8 +425,7 @@ match decode_strict::<Value>("items[3]: a,b") {
 
 ### Error Types
 
-- `ParseError` - Syntax errors with line/column info
-- `LengthMismatch` - Array length doesn't match header
+- `ParseError` - Syntax, structural, and strict-mode errors with line info
 - `TypeMismatch` - Unexpected value type
 - `InvalidStructure` - Malformed TOON structure
 - `SerializationError` / `DeserializationError` - Conversion failures

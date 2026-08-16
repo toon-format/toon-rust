@@ -28,8 +28,11 @@ struct TestCase {
     should_error: bool,
 }
 
+/// Unknown fields are denied: a spec bump that introduces a new fixture
+/// option must fail loudly here rather than be silently decoded as a default,
+/// which would run the case against the wrong contract.
 #[derive(Deserialize, Debug, Clone, Default)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct TestOptions {
     // Decode options
     strict: Option<bool>,

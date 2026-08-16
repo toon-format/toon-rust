@@ -80,8 +80,8 @@ impl Layout {
 
 /// Per-node layout describing how a value was written in the source TOON.
 ///
-/// Only array-shaped nodes are recorded in this release. Object key order
-/// metadata is planned for a follow-up.
+/// Array-shaped nodes and keyed tabular objects (§9.5) are recorded; plain
+/// object key order metadata is planned for a follow-up.
 #[non_exhaustive]
 #[derive(Debug, Clone, PartialEq)]
 pub enum NodeLayout {
@@ -100,18 +100,25 @@ pub enum NodeLayout {
         declared_len: usize,
         delimiter: Delimiter,
     },
+
+    /// Keyed tabular object: `key[N:]{f1,f2,...}:` with one entry row per
+    /// entry. `declared_len` is the declared entry count.
+    KeyedTabular {
+        declared_len: usize,
+        fields: Vec<FieldDescriptor>,
+        delimiter: Delimiter,
+    },
 }
 
-/// A field declared in a tabular array header.
+/// A field declared in a tabular or keyed header.
 ///
-/// `nested` is reserved for forward compatibility with proposals that allow
-/// tabular fields to contain nested object schemas (e.g. spec RFC #46). For
-/// TOON v3.0 it is always `None`.
+/// A leaf field carries `nested: None`; a nested field group (§9.3) carries
+/// its subfields.
 #[non_exhaustive]
 #[derive(Debug, Clone, PartialEq)]
 pub struct FieldDescriptor {
     pub name: String,
-    pub nested: Option<Box<NodeLayout>>,
+    pub nested: Option<Vec<FieldDescriptor>>,
 }
 
 impl FieldDescriptor {
@@ -119,6 +126,13 @@ impl FieldDescriptor {
         Self {
             name: name.into(),
             nested: None,
+        }
+    }
+
+    pub fn group(name: impl Into<String>, nested: Vec<FieldDescriptor>) -> Self {
+        Self {
+            name: name.into(),
+            nested: Some(nested),
         }
     }
 }

@@ -1,5 +1,6 @@
 mod delimiter;
 mod errors;
+mod field;
 mod options;
 mod value;
 
@@ -9,6 +10,7 @@ pub use errors::{
     ToonError,
     ToonResult,
 };
+pub(crate) use field::FieldNode;
 pub use options::{
     DecodeOptions,
     EncodeOptions,

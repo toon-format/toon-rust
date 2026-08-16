@@ -24,26 +24,14 @@ impl Number {
         }
     }
 
+    /// True when [`Number::as_i64`] yields the value without loss.
     pub fn is_i64(&self) -> bool {
-        match self {
-            Number::NegInt(_) => true,
-            Number::PosInt(u) => *u <= i64::MAX as u64,
-            Number::Float(f) => {
-                let i = *f as i64;
-                i as f64 == *f && i != i64::MAX
-            }
-        }
+        self.as_i64().is_some()
     }
 
+    /// True when [`Number::as_u64`] yields the value without loss.
     pub fn is_u64(&self) -> bool {
-        match self {
-            Number::PosInt(_) => true,
-            Number::NegInt(_) => false,
-            Number::Float(f) => {
-                let u = *f as u64;
-                u as f64 == *f
-            }
-        }
+        self.as_u64().is_some()
     }
 
     pub fn is_f64(&self) -> bool {
@@ -60,10 +48,14 @@ impl Number {
                 }
             }
             Number::NegInt(i) => Some(*i),
+            // `f as i64` saturates, and `i64::MAX as f64` rounds up to 2^63,
+            // so the round-trip check `i as f64 == *f` accepts the saturated
+            // result for the value 2^63. Test the exact `i64` domain instead:
+            // `i64::MIN as f64` is exactly -2^63, `i64::MAX as f64` is 2^63,
+            // and every integral f64 strictly inside converts exactly.
             Number::Float(f) => {
-                let i = *f as i64;
-                if i as f64 == *f {
-                    Some(i)
+                if f.fract() == 0.0 && *f >= i64::MIN as f64 && *f < i64::MAX as f64 {
+                    Some(*f as i64)
                 } else {
                     None
                 }
@@ -75,14 +67,12 @@ impl Number {
         match self {
             Number::PosInt(u) => Some(*u),
             Number::NegInt(_) => None,
+            // Same saturation hazard as `as_i64`: `u64::MAX as f64` is 2^64,
+            // so the round-trip check would accept `u64::MAX` for the value
+            // 2^64. `[0, 2^64)` is the exact `u64` domain.
             Number::Float(f) => {
-                if *f >= 0.0 {
-                    let u = *f as u64;
-                    if u as f64 == *f {
-                        Some(u)
-                    } else {
-                        None
-                    }
+                if f.fract() == 0.0 && *f >= 0.0 && *f < u64::MAX as f64 {
+                    Some(*f as u64)
                 } else {
                     None
                 }

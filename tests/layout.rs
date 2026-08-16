@@ -149,6 +149,46 @@ fn multiple_arrays_at_root_object() {
 }
 
 #[test]
+fn keyed_tabular_object_records_keyed_node() {
+    // A keyed tabular header decodes to an object, not an array (SPEC 9.5),
+    // and is recorded with its own node kind, never an array-shaped one.
+    let (value, layout) = decode("scores[2:]{score}:\n  alice: 1\n  bob: 2");
+
+    assert!(value["scores"].is_object());
+    assert_eq!(
+        layout.get("/scores"),
+        Some(&NodeLayout::KeyedTabular {
+            declared_len: 2,
+            fields: vec![FieldDescriptor::leaf("score")],
+            delimiter: Delimiter::Comma,
+        })
+    );
+}
+
+#[test]
+fn nested_field_group_header_records_the_group_name() {
+    // Nested field groups (SPEC 9.3) expand into multiple row cells but one
+    // header field. The descriptor carries the group name, not a mangled
+    // slice of the header text, and not the expanded leaves.
+    let (_value, layout) = decode("users[1]{id,addr{city,zip}}:\n  1,Paris,75001");
+
+    assert_eq!(
+        layout.get("/users"),
+        Some(&NodeLayout::Tabular {
+            declared_len: 1,
+            fields: vec![
+                FieldDescriptor::leaf("id"),
+                FieldDescriptor::group(
+                    "addr",
+                    vec![FieldDescriptor::leaf("city"), FieldDescriptor::leaf("zip")],
+                ),
+            ],
+            delimiter: Delimiter::Comma,
+        })
+    );
+}
+
+#[test]
 fn no_layout_recorded_for_pure_objects() {
     let (_value, layout) = decode("name: Alice\nage: 30");
     assert!(layout.is_empty());

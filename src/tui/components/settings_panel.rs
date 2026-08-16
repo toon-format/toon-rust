@@ -114,8 +114,8 @@ impl SettingsPanel {
             Span::styled("Press ", theme.line_number_style()),
             Span::styled("Ctrl+E", theme.info_style()),
             Span::styled(" to toggle mode | ", theme.line_number_style()),
-            Span::styled("Ctrl+R", theme.info_style()),
-            Span::styled(" to refresh conversion", theme.line_number_style()),
+            Span::styled("Esc", theme.info_style()),
+            Span::styled(" to close", theme.line_number_style()),
         ]))
         .alignment(Alignment::Center);
         f.render_widget(instructions, chunks[2]);

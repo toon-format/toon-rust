@@ -21,7 +21,6 @@ use crate::{
     types::{
         EncodeOptions,
         JsonValue,
-        KeyFoldingMode,
         ToonError,
         ToonResult,
     },
@@ -59,8 +58,8 @@ impl StreamingEncodeOptions {
 /// still buffers the full TOON output in memory. For the lowest-memory path,
 /// prefer [`encode_json_stream`].
 ///
-/// When options such as key folding require whole-document sibling inspection,
-/// this function falls back to the existing in-memory encoder to preserve
+/// When encode options require whole-document sibling inspection, this
+/// function falls back to the existing in-memory encoder to preserve
 /// correctness.
 pub fn encode_json_reader<R: Read>(
     reader: R,
@@ -121,8 +120,8 @@ pub fn encode_json_stream_default<R: Read, W: Write>(reader: R, writer: W) -> To
     encode_json_stream(reader, writer, &encode_options, &streaming_options)
 }
 
-fn requires_whole_document(options: &EncodeOptions) -> bool {
-    options.key_folding != KeyFoldingMode::Off
+fn requires_whole_document(_options: &EncodeOptions) -> bool {
+    false
 }
 
 fn encode_via_in_memory_fallback<R: Read, W: Write>(
@@ -822,7 +821,6 @@ mod tests {
             Delimiter,
             EncodeOptions,
             Indent,
-            KeyFoldingMode,
         },
     };
 
@@ -893,18 +891,6 @@ mod tests {
             {"id": 2, "name": "Bob"}
         ]))
         .unwrap();
-
-        assert_eq!(streaming, in_memory);
-    }
-
-    #[test]
-    fn test_streaming_key_folding_falls_back_to_in_memory_output() {
-        let input = br#"{"a":{"b":1}}"#;
-        let options = EncodeOptions::new().with_key_folding(KeyFoldingMode::Safe);
-
-        let streaming =
-            encode_json_reader(&input[..], &options, &StreamingEncodeOptions::default()).unwrap();
-        let in_memory = encode(&json!({"a": {"b": 1}}), &options).unwrap();
 
         assert_eq!(streaming, in_memory);
     }

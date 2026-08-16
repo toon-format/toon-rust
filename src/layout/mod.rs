@@ -81,7 +81,7 @@ impl Layout {
 /// Per-node layout describing how a value was written in the source TOON.
 ///
 /// Only array-shaped nodes are recorded in this release. Object key order
-/// and key-folding metadata are planned for a follow-up.
+/// metadata is planned for a follow-up.
 #[non_exhaustive]
 #[derive(Debug, Clone, PartialEq)]
 pub enum NodeLayout {

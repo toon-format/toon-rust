@@ -30,8 +30,6 @@ use crate::{
     types::{
         Delimiter,
         Indent,
-        KeyFoldingMode,
-        PathExpansionMode,
     },
 };
 
@@ -89,33 +87,6 @@ impl SettingsPanel {
             Span::styled("  [+/- to adjust]", theme.line_number_style()),
         ])));
 
-        let fold_keys = match app.encode_options.key_folding {
-            KeyFoldingMode::Off => "Off",
-            KeyFoldingMode::Safe => "On (Safe)",
-        };
-        items.push(ListItem::new(Line::from(vec![
-            Span::styled("  Key Folding:     ", theme.info_style()),
-            Span::styled(fold_keys, theme.normal_style()),
-            Span::styled("  [Press 'f' to toggle]", theme.line_number_style()),
-        ])));
-
-        if app.encode_options.key_folding != KeyFoldingMode::Off {
-            items.push(ListItem::new(Line::from(vec![
-                Span::styled("  Flatten Depth:   ", theme.info_style()),
-                Span::styled(
-                    if app.encode_options.flatten_depth == usize::MAX {
-                        "Unlimited".to_string()
-                    } else {
-                        format!("{}", app.encode_options.flatten_depth)
-                    },
-                    theme.normal_style(),
-                ),
-                Span::styled(
-                    "  [[/] to adjust, [u] for unlimited]",
-                    theme.line_number_style(),
-                ),
-            ])));
-        }
 
         items.push(ListItem::new(Line::from("")));
 
@@ -137,28 +108,6 @@ impl SettingsPanel {
             Span::styled("  [Press 's' to toggle]", theme.line_number_style()),
         ])));
 
-        items.push(ListItem::new(Line::from(vec![
-            Span::styled("  Type Coercion:   ", theme.info_style()),
-            Span::styled(
-                if app.decode_options.coerce_types {
-                    "On"
-                } else {
-                    "Off"
-                },
-                theme.normal_style(),
-            ),
-            Span::styled("  [Press 'c' to toggle]", theme.line_number_style()),
-        ])));
-
-        let expand_paths = match app.decode_options.expand_paths {
-            PathExpansionMode::Off => "Off",
-            PathExpansionMode::Safe => "On (Safe)",
-        };
-        items.push(ListItem::new(Line::from(vec![
-            Span::styled("  Path Expansion:  ", theme.info_style()),
-            Span::styled(expand_paths, theme.normal_style()),
-            Span::styled("  [Press 'p' to toggle]", theme.line_number_style()),
-        ])));
 
         let list = List::new(items);
         f.render_widget(list, chunks[1]);

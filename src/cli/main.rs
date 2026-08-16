@@ -33,8 +33,6 @@ use toon_format::{
         Delimiter,
         EncodeOptions,
         Indent,
-        KeyFoldingMode,
-        PathExpansionMode,
     },
 };
 #[cfg(feature = "json_stream")]
@@ -59,11 +57,7 @@ EXAMPLES:
   toon input.toon --json-indent 2
   cat data.json | toon -e --stats
   toon input.json --delimiter pipe
-  toon input.toon -d --no-coerce
-
-  toon input.json --fold-keys              # Collapse {a:{b:1}} to a.b: 1
-  toon input.json --fold-keys --flatten-depth 2
-  toon input.toon --expand-paths           # Expand a.b:1 to {\"a\":{\"b\":1}}",
+  toon input.toon -d --no-strict",
     disable_help_subcommand = true
 )]
 struct Cli {
@@ -93,26 +87,8 @@ struct Cli {
     #[arg(long, help = "Disable strict validation (decode)")]
     no_strict: bool,
 
-    #[arg(long, help = "Disable type coercion (decode)")]
-    no_coerce: bool,
-
     #[arg(long, help = "Indent output JSON with N spaces")]
     json_indent: Option<usize>,
-
-    #[arg(
-        long,
-        help = "Enable key folding (encode): collapse {a:{b:1}} → a.b: 1"
-    )]
-    fold_keys: bool,
-
-    #[arg(long, help = "Max depth for key folding (default: unlimited)")]
-    flatten_depth: Option<usize>,
-
-    #[arg(
-        long,
-        help = "Enable path expansion (decode): expand a.b:1 → {\"a\":{\"b\":1}}"
-    )]
-    expand_paths: bool,
 
     #[cfg(feature = "json_stream")]
     #[arg(long, help = "Streaming traversal depth for JSON encode (default: 2)")]
@@ -214,12 +190,6 @@ fn run_encode(cli: &Cli, input: &str) -> Result<()> {
         opts = opts.with_indent(Indent::Spaces(i));
     }
 
-    if cli.fold_keys {
-        opts = opts.with_key_folding(KeyFoldingMode::Safe);
-        if let Some(depth) = cli.flatten_depth {
-            opts = opts.with_flatten_depth(depth);
-        }
-    }
 
     let toon_str = encode(&json_value, &opts).context("Failed to encode to TOON")?;
 
@@ -301,14 +271,6 @@ fn run_decode(cli: &Cli, input: &str) -> Result<()> {
     if cli.no_strict {
         opts = opts.with_strict(false);
     }
-    if cli.no_coerce {
-        opts = opts.with_coerce_types(false);
-    }
-
-    if cli.expand_paths {
-        opts = opts.with_expand_paths(PathExpansionMode::Safe);
-    }
-
     let json_value: serde_json::Value = decode(input, &opts).context("Failed to decode TOON")?;
 
     let output_json = match cli.json_indent {
@@ -385,14 +347,8 @@ fn validate_flags(cli: &Cli, operation: &Operation) -> Result<()> {
             if cli.no_strict {
                 bail!("--no-strict is only valid for decode mode");
             }
-            if cli.no_coerce {
-                bail!("--no-coerce is only valid for decode mode");
-            }
             if cli.json_indent.is_some() {
                 bail!("--json-indent is only valid for decode mode");
-            }
-            if cli.expand_paths {
-                bail!("--expand-paths is only valid for decode mode");
             }
         }
         Operation::Decode => {
@@ -405,22 +361,11 @@ fn validate_flags(cli: &Cli, operation: &Operation) -> Result<()> {
             if cli.indent.is_some() {
                 bail!("--indent is only valid for encode mode");
             }
-            if cli.fold_keys {
-                bail!("--fold-keys is only valid for encode mode");
-            }
-            if cli.flatten_depth.is_some() {
-                bail!("--flatten-depth is only valid for encode mode (use with --fold-keys)");
-            }
             #[cfg(feature = "json_stream")]
             if cli.streaming_depth.is_some() {
                 bail!("--streaming-depth is only valid for encode mode");
             }
         }
-    }
-
-    // Additional validation: flatten-depth requires fold-keys
-    if cli.flatten_depth.is_some() && !cli.fold_keys {
-        bail!("--flatten-depth requires --fold-keys to be enabled");
     }
 
     Ok(())
@@ -441,7 +386,7 @@ fn main() -> Result<()> {
         Operation::Encode => {
             #[cfg(feature = "json_stream")]
             {
-                if !cli.stats && !cli.fold_keys {
+                if !cli.stats {
                     return run_encode_streaming(&cli);
                 }
             }

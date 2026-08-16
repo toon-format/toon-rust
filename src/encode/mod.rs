@@ -1,5 +1,4 @@
 //! Encoder Implementation
-pub mod folding;
 #[cfg(feature = "json_stream")]
 pub mod json_stream;
 pub mod primitives;
@@ -12,7 +11,6 @@ use crate::{
         EncodeOptions,
         IntoJsonValue,
         JsonValue as Value,
-        KeyFoldingMode,
         ToonError,
         ToonResult,
     },
@@ -209,106 +207,36 @@ fn write_object(
     obj: &IndexMap<String, Value>,
     depth: usize,
 ) -> ToonResult<()> {
-    write_object_impl(writer, obj, depth, false)
-}
-
-fn write_object_impl(
-    writer: &mut writer::Writer,
-    obj: &IndexMap<String, Value>,
-    depth: usize,
-    disable_folding: bool,
-) -> ToonResult<()> {
     validate_depth(depth, MAX_DEPTH)?;
 
-    let keys: Vec<&String> = obj.keys().collect();
-
-    for (i, key) in keys.iter().enumerate() {
+    for (i, (key, value)) in obj.iter().enumerate() {
         if i > 0 {
             writer.write_newline()?;
         }
 
-        let value = &obj[*key];
-
-        // Check if this key-value pair can be folded (v1.5 feature)
-        // Don't fold if any sibling key is a dotted path starting with this key
-        // (e.g., don't fold inside "data" if "data.meta.items" exists as a
-        // sibling)
-        let has_conflicting_sibling = keys
-            .iter()
-            .any(|k| k.starts_with(&format!("{key}.")) || (k.contains('.') && k == key));
-
-        let folded = if !disable_folding
-            && writer.options.key_folding == KeyFoldingMode::Safe
-            && !has_conflicting_sibling
-        {
-            folding::analyze_foldable_chain(key, value, writer.options.flatten_depth, &keys)
-        } else {
-            None
-        };
-
-        if let Some(chain) = folded {
-            // Write folded key-value pair
-            if depth > 0 {
-                writer.write_indent(depth)?;
+        match value {
+            Value::Array(arr) => {
+                write_array(writer, Some(key), arr, depth)?;
             }
-
-            // Write the leaf value
-            match &chain.leaf_value {
-                Value::Array(arr) => {
-                    // For arrays, pass the folded key to write_array so it
-                    // generates the header correctly
-                    write_array(writer, Some(&chain.folded_key), arr, 0)?;
+            Value::Object(nested_obj) => {
+                if depth > 0 {
+                    writer.write_indent(depth)?;
                 }
-                Value::Object(nested_obj) => {
-                    // Write the folded key (e.g., "a.b.c")
-                    writer.write_key(&chain.folded_key)?;
-                    writer.write_char(':')?;
-                    if !nested_obj.is_empty() {
-                        writer.write_newline()?;
-                        // After folding a chain, disable folding for the leaf
-                        // object This respects
-                        // flattenDepth and prevents over-folding
-                        write_object_impl(writer, nested_obj, depth + 1, true)?;
-                    }
-                }
-                _ => {
-                    // Write the folded key (e.g., "a.b.c")
-                    writer.write_key(&chain.folded_key)?;
-                    writer.write_char(':')?;
-                    writer.write_char(' ')?;
-                    write_primitive_value(writer, &chain.leaf_value, QuotingContext::ObjectValue)?;
+                writer.write_key(key)?;
+                writer.write_char(':')?;
+                if !nested_obj.is_empty() {
+                    writer.write_newline()?;
+                    write_object(writer, nested_obj, depth + 1)?;
                 }
             }
-        } else {
-            // Standard (non-folded) encoding
-            match value {
-                Value::Array(arr) => {
-                    write_array(writer, Some(key), arr, depth)?;
+            _ => {
+                if depth > 0 {
+                    writer.write_indent(depth)?;
                 }
-                Value::Object(nested_obj) => {
-                    if depth > 0 {
-                        writer.write_indent(depth)?;
-                    }
-                    writer.write_key(key)?;
-                    writer.write_char(':')?;
-                    if !nested_obj.is_empty() {
-                        writer.write_newline()?;
-                        // If this key has a conflicting sibling, disable
-                        // folding for its nested
-                        // objects
-                        let nested_disable_folding = disable_folding || has_conflicting_sibling;
-                        write_object_impl(writer, nested_obj, depth + 1, nested_disable_folding)?;
-                    }
-                }
-                _ => {
-                    if depth > 0 {
-                        writer.write_indent(depth)?;
-                    }
-                    writer.write_key(key)?;
-                    writer.write_char(':')?;
-                    writer.write_char(' ')?;
-                    write_primitive_value(writer, value, QuotingContext::ObjectValue)?;
-                }
+                writer.write_key(key)?;
+                writer.write_char(':')?;
+                writer.write_char(' ')?;
+                write_primitive_value(writer, value, QuotingContext::ObjectValue)?;
             }
         }
     }
@@ -357,11 +285,6 @@ fn is_tabular_array(arr: &[Value]) -> Option<Vec<String>> {
     let first_obj = first.as_object()?;
     let keys: Vec<String> = first_obj.keys().cloned().collect();
 
-    // A header needs at least one field (§6), so empty objects use list form
-    if keys.is_empty() {
-        return None;
-    }
-
     // First object must have only primitive values
     for value in first_obj.values() {
         if !is_primitive(value) {
@@ -371,21 +294,24 @@ fn is_tabular_array(arr: &[Value]) -> Option<Vec<String>> {
 
     // All remaining objects must match: same keys and all primitive values
     for val in arr.iter().skip(1) {
-        let obj = val.as_object()?;
-        if obj.len() != keys.len() {
+        if let Some(obj) = val.as_object() {
+            if obj.len() != keys.len() {
+                return None;
+            }
+            // Verify all keys from first object exist (order doesn't matter)
+            for key in &keys {
+                if !obj.contains_key(key) {
+                    return None;
+                }
+            }
+            // All values must be primitives
+            for value in obj.values() {
+                if !is_primitive(value) {
+                    return None;
+                }
+            }
+        } else {
             return None;
-        }
-        // Verify all keys from first object exist (order doesn't matter)
-        for key in &keys {
-            if !obj.contains_key(key) {
-                return None;
-            }
-        }
-        // All values must be primitives
-        for value in obj.values() {
-            if !is_primitive(value) {
-                return None;
-            }
         }
     }
 
@@ -579,9 +505,8 @@ fn encode_nested_array(
                 write_array(writer, None, inner_arr, depth + 1)?;
             }
             Value::Object(obj) => {
-                // Objects in list items: first field on same line as "- ", rest
-                // indented For empty objects, write only the
-                // hyphen (no space)
+                // Objects in list items: first field on same line as "- ", rest indented
+                // For empty objects, write only the hyphen (no space)
                 let keys: Vec<&String> = obj.keys().collect();
                 if let Some(first_key) = keys.first() {
                     writer.write_char(' ')?;
@@ -589,16 +514,13 @@ fn encode_nested_array(
 
                     match first_val {
                         Value::Array(arr) => {
-                            // Arrays as first field of list items require
-                            // special indentation
-                            // (depth +2 relative to hyphen) for their nested
-                            // content
+                            // Arrays as first field of list items require special indentation
+                            // (depth +2 relative to hyphen) for their nested content
                             // (rows for tabular, items for non-uniform)
                             writer.write_key(first_key)?;
 
                             if let Some(keys) = is_tabular_array(arr) {
-                                // Tabular array: write inline with correct
-                                // indentation
+                                // Tabular array: write inline with correct indentation
                                 encode_list_item_tabular_array(writer, arr, &keys, depth + 1)?;
                             } else {
                                 // Non-tabular array: write with depth offset
@@ -622,8 +544,7 @@ fn encode_nested_array(
                         }
                     }
 
-                    // Remaining fields on separate lines with proper
-                    // indentation
+                    // Remaining fields on separate lines with proper indentation
                     for key in keys.iter().skip(1) {
                         writer.write_newline()?;
                         writer.write_indent(depth + 2)?;

@@ -40,8 +40,6 @@ pub use decode::decode_with_layout;
 pub use decode::{
     decode,
     decode_default,
-    decode_no_coerce,
-    decode_no_coerce_with_options,
     decode_strict,
     decode_strict_with_options,
 };
@@ -82,6 +80,7 @@ pub use utils::{
         escape_string,
         is_valid_unquoted_key,
         needs_quoting,
+        unescape_string,
     },
 };
 

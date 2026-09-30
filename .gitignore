@@ -6,7 +6,6 @@ cobertura.xml
 
 # Rust
 target/
-Cargo.lock
 
 # IDE
 .vscode/

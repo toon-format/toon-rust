@@ -368,24 +368,21 @@ fn is_tabular_array(arr: &[Value]) -> Option<Vec<String>> {
 
     // All remaining objects must match: same keys and all primitive values
     for val in arr.iter().skip(1) {
-        if let Some(obj) = val.as_object() {
-            if obj.len() != keys.len() {
+        let obj = val.as_object()?;
+        if obj.len() != keys.len() {
+            return None;
+        }
+        // Verify all keys from first object exist (order doesn't matter)
+        for key in &keys {
+            if !obj.contains_key(key) {
                 return None;
             }
-            // Verify all keys from first object exist (order doesn't matter)
-            for key in &keys {
-                if !obj.contains_key(key) {
-                    return None;
-                }
+        }
+        // All values must be primitives
+        for value in obj.values() {
+            if !is_primitive(value) {
+                return None;
             }
-            // All values must be primitives
-            for value in obj.values() {
-                if !is_primitive(value) {
-                    return None;
-                }
-            }
-        } else {
-            return None;
         }
     }
 

@@ -106,7 +106,12 @@ fn test_decode_fixtures(path: &Utf8Path, contents: String) -> datatest_stable::R
                     "Test '{test_name}' should have SUCCEEDED, but it FAILED with: {e:?}"
                 )),
                 Ok(actual_json) => {
-                    if actual_json != test.expected {
+                    // `Value` equality ignores key order even with
+                    // `preserve_order`; comparing the serializations also
+                    // checks the key order §2 and §9.3 require.
+                    if serde_json::to_string(&actual_json)?
+                        != serde_json::to_string(&test.expected)?
+                    {
                         failures.push(format!(
                             "Test '{test_name}' succeeded, but the JSON output was \
                              incorrect.\nExpected: {:?}\nActual: {actual_json:?}",

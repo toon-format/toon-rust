@@ -17,7 +17,7 @@ pub fn format_canonical_number(n: &Number) -> String {
     n.to_string()
 }
 
-fn format_f64_canonical(f: f64) -> String {
+pub(crate) fn format_f64_canonical(f: f64) -> String {
     // Normalize integer-valued floats to integers. The range test is the
     // exact `i64` domain: `i64::MAX as f64` rounds up to 2^63, which is one
     // past the last representable `i64`, so `<=` would let `f as i64`

@@ -66,6 +66,29 @@ fn test_integer_precision_round_trip() {
 }
 
 #[test]
+fn test_integral_token_outside_integer_domain() {
+    // Lossless-first (§4): an integral token past i64/u64 that no f64 spells
+    // canonically stays a string instead of becoming a nearby number.
+    for token in [
+        "-9223372036854775809",
+        "18446744073709551616",
+        "100000000000000000001",
+    ] {
+        let decoded: Value = decode_default(&format!("v: {token}")).unwrap();
+        assert_eq!(decoded["v"], json!(token), "token {token}");
+    }
+
+    // The encoder writes an integral f64 past that domain as a plain integer
+    // (§2 allows no exponent below 1e21); that token decodes as the same
+    // float again.
+    for value in [18446744073709551616.0f64, 1e20, -1e20] {
+        let encoded = encode_default(&json!({ "v": value })).unwrap();
+        let decoded: Value = decode_default(&encoded).unwrap();
+        assert_eq!(decoded["v"], json!(value), "round trip of {encoded}");
+    }
+}
+
+#[test]
 fn test_integral_f64_at_i64_boundary_keeps_its_value() {
     // 2^63 is one past i64::MAX. A saturating `as i64` conversion would encode
     // it as 9223372036854775807 — a different number, silently.

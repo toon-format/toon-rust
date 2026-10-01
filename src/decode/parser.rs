@@ -26,6 +26,7 @@ use crate::{
         ToonResult,
     },
     utils::{
+        number::format_f64_canonical,
         unescape_string,
         validation::validate_depth,
     },
@@ -138,15 +139,20 @@ fn is_numeric_literal(token: &str) -> bool {
     i == bytes.len()
 }
 
-/// Decodes a numeric token to a JSON number.
+/// Decodes a numeric token to a JSON number, or to a string where the
+/// out-of-range policy says so.
 ///
-/// Integral tokens preserve full `i64`/`u64` precision. Fractional and
-/// exponent forms parse as `f64`; an integer-valued result inside the
-/// `i64`/`u64` domain normalizes to that integer, so `-1E+03` decodes as
-/// `-1000` and `1e19` as `10000000000000000000` – the same values the plain
-/// integer spelling yields (§2 JSON-model equality). A token whose value is
-/// not finite in `f64` (e.g. `1e999`) decodes as a string, per the documented
-/// out-of-range policy.
+/// Integral tokens preserve full `i64`/`u64` precision. An integral token
+/// outside that domain decodes as `f64` only when it is that float's
+/// canonical spelling – the form the encoder writes for an `f64` such as
+/// `1e20`, so those values still round-trip (§2) – and as a string
+/// otherwise, so `-9223372036854775809` is not silently read as `i64::MIN`
+/// (§4, lossless-first). Fractional and exponent forms parse as `f64`; an
+/// integer-valued result inside the `i64`/`u64` domain normalizes to that
+/// integer, so `-1E+03` decodes as `-1000` and `1e19` as
+/// `10000000000000000000` – the same values the plain integer spelling
+/// yields (§2 JSON-model equality). A token whose value is not finite in
+/// `f64` (e.g. `1e999`) decodes as a string.
 fn parse_number_token(token: &str) -> Value {
     /// 2^64, the first `f64` above the `u64` domain. `u64::MAX as f64` rounds
     /// up to this value, so a `<=` comparison against it would let `f as u64`
@@ -160,6 +166,12 @@ fn parse_number_token(token: &str) -> Value {
         if let Ok(u) = token.parse::<u64>() {
             return Value::Number(Number::from(u));
         }
+        return token
+            .parse::<f64>()
+            .ok()
+            .filter(|&f| format_f64_canonical(f) == token)
+            .and_then(Number::from_f64)
+            .map_or_else(|| Value::String(token.to_string()), Value::Number);
     }
 
     match token.parse::<f64>() {

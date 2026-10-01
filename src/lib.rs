@@ -9,10 +9,14 @@
 //!
 //! Documented implementation-defined behavior:
 //! - Numeric out-of-range policy (§4): integral tokens preserve full
-//!   `i64`/`u64` precision; fractional and exponent forms parse as `f64`, with
-//!   integer-valued results normalized to integers (`-1E+03` decodes as the
-//!   integer `-1000`). A token whose value is not finite in `f64` decodes as a
-//!   string.
+//!   `i64`/`u64` precision. An integral token outside that domain decodes as
+//!   `f64` when it is that float's canonical spelling – the form the encoder
+//!   writes for an `f64` such as `1e20`, which therefore round-trips – and as a
+//!   string otherwise, so `-9223372036854775809` and `18446744073709551616`
+//!   decode as strings rather than as a nearby number. Fractional and exponent
+//!   forms parse as `f64`, with integer-valued results normalized to integers
+//!   (`-1E+03` decodes as the integer `-1000`). A token whose value is not
+//!   finite in `f64` decodes as a string.
 //! - Host-type normalization (§3) follows `serde::Serialize`; Rust strings are
 //!   always well-formed UTF-8, so unpaired surrogates cannot occur.
 //! - Decoded objects preserve document key order (`serde_json` with

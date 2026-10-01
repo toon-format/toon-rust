@@ -21,6 +21,7 @@ use crate::{
         DecodeOptions,
         Delimiter,
         ErrorContext,
+        PathExpansionMode,
         ToonError,
         ToonResult,
     },
@@ -434,8 +435,13 @@ impl<'a> Parser<'a> {
             let key = match &self.current_token {
                 Token::String(s, was_quoted) => {
                     // Mark quoted keys containing dots with a special prefix
-                    // so path expansion can skip them
-                    if *was_quoted && s.contains('.') {
+                    // so path expansion can skip them. Only path expansion
+                    // strips the marker again, so it must not be added when
+                    // expansion is off.
+                    if *was_quoted
+                        && s.contains('.')
+                        && self.options.expand_paths != PathExpansionMode::Off
+                    {
                         format!("{QUOTED_KEY_MARKER}{s}")
                     } else {
                         s.clone()
@@ -574,8 +580,13 @@ impl<'a> Parser<'a> {
             let key = match &self.current_token {
                 Token::String(s, was_quoted) => {
                     // Mark quoted keys containing dots with a special prefix
-                    // so path expansion can skip them
-                    if *was_quoted && s.contains('.') {
+                    // so path expansion can skip them. Only path expansion
+                    // strips the marker again, so it must not be added when
+                    // expansion is off.
+                    if *was_quoted
+                        && s.contains('.')
+                        && self.options.expand_paths != PathExpansionMode::Off
+                    {
                         format!("{QUOTED_KEY_MARKER}{s}")
                     } else {
                         s.clone()

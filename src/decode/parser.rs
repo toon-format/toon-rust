@@ -194,7 +194,8 @@ impl<'a> Parser<'a> {
 
         match &self.current_token {
             Token::Null => {
-                // Peek ahead to see if this is a key (followed by ':') or a value
+                // Peek ahead to see if this is a key (followed by ':') or a
+                // value
                 let next_char_is_colon = matches!(self.scanner.peek(), Some(':'));
                 if next_char_is_colon {
                     let key = KEYWORDS[0].to_string();
@@ -359,8 +360,9 @@ impl<'a> Parser<'a> {
                         self.parse_object_with_initial_key(first, depth)
                     }
                     _ => {
-                        // Strings on new indented lines could be missing colons (keys) or values
-                        // Only error in strict mode when we know it's a new line
+                        // Strings on new indented lines could be missing colons
+                        // (keys) or values Only error
+                        // in strict mode when we know it's a new line
                         if self.options.strict && depth > 0 && had_newline {
                             return Err(self
                                 .parse_error_with_context(format!(
@@ -375,7 +377,8 @@ impl<'a> Parser<'a> {
                         if matches!(self.current_token, Token::Newline | Token::Eof) {
                             return Ok(Value::String(first));
                         }
-                        // Root-level string value - join consecutive tokens with exact spacing
+                        // Root-level string value - join consecutive tokens
+                        // with exact spacing
                         let mut accumulated = first;
                         while let Token::String(..)
                         | Token::SignedInteger(..)
@@ -423,7 +426,8 @@ impl<'a> Parser<'a> {
                 self.validate_indentation(current_indent)?;
             }
 
-            // Once we've seen the first key, all subsequent keys must match its indent
+            // Once we've seen the first key, all subsequent keys must match its
+            // indent
             if let Some(expected) = base_indent {
                 if current_indent != expected {
                     break;
@@ -662,10 +666,12 @@ impl<'a> Parser<'a> {
                     _ => Err(self.parse_error_with_context("Unexpected token after colon")),
                 }
             } else {
-                // Multi-token value - reconstruct using original token text and re-parse
+                // Multi-token value - reconstruct using original token text and
+                // re-parse
                 let mut value_str = match &self.current_token {
                     Token::String(_, true) => {
-                        // Quoted strings: use last_token_text which includes quotes
+                        // Quoted strings: use last_token_text which includes
+                        // quotes
                         token_text.clone()
                     }
                     Token::String(_, false)
@@ -860,8 +866,9 @@ impl<'a> Parser<'a> {
             self.layout_record_tabular(length, &fields, delim);
             self.parse_tabular_array(length, &fields, depth, context)
         } else {
-            // Non-tabular arrays as first field of list items require depth adjustment
-            // (items at depth +2 relative to hyphen, not the usual +1)
+            // Non-tabular arrays as first field of list items require depth
+            // adjustment (items at depth +2 relative to hyphen, not
+            // the usual +1)
             let adjusted_depth = match context {
                 ArrayParseContext::Normal => depth,
                 ArrayParseContext::ListItemFirstField => depth + 1,
@@ -905,8 +912,9 @@ impl<'a> Parser<'a> {
 
             let current_indent = self.scanner.get_last_line_indent();
 
-            // Tabular arrays as first field of list-item objects require rows at depth +2
-            // (relative to hyphen), while normal tabular arrays use depth +1
+            // Tabular arrays as first field of list-item objects require rows
+            // at depth +2 (relative to hyphen), while normal
+            // tabular arrays use depth +1
             let row_depth_offset = match context {
                 ArrayParseContext::Normal => 1,
                 ArrayParseContext::ListItemFirstField => 2,
@@ -974,7 +982,8 @@ impl<'a> Parser<'a> {
                                     fields.len()
                                 )));
                         } else {
-                            // Fill remaining fields with null in non-strict mode
+                            // Fill remaining fields with null in non-strict
+                            // mode
                             for field in fields.iter().skip(field_index + 1) {
                                 row.insert(field.clone(), Value::Null);
                             }
@@ -984,7 +993,8 @@ impl<'a> Parser<'a> {
                 } else if !matches!(self.current_token, Token::Newline | Token::Eof)
                     && matches!(self.current_token, Token::Delimiter(_))
                 {
-                    // Last field but there's another delimiter - too many values
+                    // Last field but there's another delimiter - too many
+                    // values
                     return Err(self
                         .parse_error_with_context(format!(
                             "Tabular row {}: expected {} values, but found extra values",
@@ -1044,8 +1054,9 @@ impl<'a> Parser<'a> {
                 let expected_indent = self.options.indent.get_spaces() * (depth + 1);
                 let actual_indent = self.scanner.get_last_line_indent();
 
-                // If something at the same indent level, it might be a new row (error)
-                // unless it's a key-value pair (which belongs to parent)
+                // If something at the same indent level, it might be a new row
+                // (error) unless it's a key-value pair (which
+                // belongs to parent)
                 if actual_indent == expected_indent && !matches!(self.current_token, Token::Eof) {
                     let is_key_value = matches!(self.current_token, Token::String(_, _))
                         && matches!(self.scanner.peek(), Some(':'));
@@ -1067,8 +1078,9 @@ impl<'a> Parser<'a> {
     fn parse_regular_array(&mut self, length: usize, depth: usize) -> ToonResult<Value> {
         let mut items = Vec::new();
 
-        // Empty arrays: return immediately without consuming the trailing newline,
-        // so the caller's field-parsing loop can correctly check indentation.
+        // Empty arrays: return immediately without consuming the trailing
+        // newline, so the caller's field-parsing loop can correctly
+        // check indentation.
         if length == 0 {
             return Ok(Value::Array(items));
         }
@@ -1117,13 +1129,15 @@ impl<'a> Parser<'a> {
                         self.advance()?;
 
                         if matches!(self.current_token, Token::Colon | Token::LeftBracket) {
-                            // This is an object: key followed by colon or array bracket
-                            // First field of list-item object may be an array requiring special
-                            // indentation
+                            // This is an object: key followed by colon or array
+                            // bracket First field
+                            // of list-item object may be an array requiring
+                            // special indentation
                             self.layout_push(&key);
                             let first_value = if matches!(self.current_token, Token::LeftBracket) {
                                 // Array directly after key (e.g., "- key[N]:")
-                                // Use ListItemFirstField context to apply correct indentation
+                                // Use ListItemFirstField context to apply
+                                // correct indentation
                                 self.parse_array_with_context(
                                     depth + 1,
                                     ArrayParseContext::ListItemFirstField,
@@ -1132,7 +1146,8 @@ impl<'a> Parser<'a> {
                                 self.advance()?;
                                 // Handle nested arrays: "key: [2]: ..."
                                 if matches!(self.current_token, Token::LeftBracket) {
-                                    // Array after colon - not directly on hyphen line, use normal
+                                    // Array after colon - not directly on
+                                    // hyphen line, use normal
                                     // context
                                     self.parse_array(depth + 2)?
                                 } else {
@@ -1146,7 +1161,8 @@ impl<'a> Parser<'a> {
 
                             let field_indent = self.options.indent.get_spaces() * (depth + 2);
 
-                            // Check if there are more fields at the same indentation level
+                            // Check if there are more fields at the same
+                            // indentation level
                             let should_parse_more_fields =
                                 if matches!(self.current_token, Token::Newline) {
                                     let next_indent = self.scanner.count_leading_spaces();
@@ -1162,14 +1178,16 @@ impl<'a> Parser<'a> {
                                         true
                                     }
                                 } else if matches!(self.current_token, Token::String(_, _)) {
-                                    // When already positioned at a field key, check its indent
+                                    // When already positioned at a field key,
+                                    // check its indent
                                     let current_indent = self.scanner.get_last_line_indent();
                                     current_indent == field_indent
                                 } else {
                                     false
                                 };
 
-                            // Parse additional fields if they're at the right indentation
+                            // Parse additional fields if they're at the right
+                            // indentation
                             if should_parse_more_fields {
                                 while !matches!(self.current_token, Token::Eof) {
                                     let current_indent = self.scanner.get_last_line_indent();
@@ -1222,8 +1240,10 @@ impl<'a> Parser<'a> {
                                             self.skip_newlines()?;
                                         }
                                     } else if matches!(self.current_token, Token::String(_, _)) {
-                                        // Tabular array parser already consumed the newline
-                                        // and advanced to the next token — check indent
+                                        // Tabular array parser already consumed
+                                        // the newline
+                                        // and advanced to the next token —
+                                        // check indent
                                         let current_indent = self.scanner.get_last_line_indent();
                                         if current_indent != field_indent {
                                             break;
@@ -1276,7 +1296,8 @@ impl<'a> Parser<'a> {
 
                         let list_indent = self.options.indent.get_spaces() * (depth + 1);
                         let actual_indent = self.scanner.get_last_line_indent();
-                        // If we see another dash at the same indent, there are too many items
+                        // If we see another dash at the same indent, there are
+                        // too many items
                         if actual_indent == list_indent && matches!(self.current_token, Token::Dash)
                         {
                             return Err(self.parse_error_with_context(format!(
@@ -1367,7 +1388,8 @@ impl<'a> Parser<'a> {
             self.advance()?;
             result
         } else {
-            // Multiple tokens — combine original text + spaces + rest, then type-infer
+            // Multiple tokens — combine original text + spaces + rest, then
+            // type-infer
             let mut value_str = token_text;
             for _ in 0..space_count {
                 value_str.push(' ');
@@ -1375,7 +1397,8 @@ impl<'a> Parser<'a> {
             value_str.push_str(&rest);
 
             let token = self.scanner.parse_value_string(&value_str)?;
-            // Rescan so current_token is positioned at the next delimiter/newline
+            // Rescan so current_token is positioned at the next
+            // delimiter/newline
             self.current_token = self.scanner.scan_token()?;
             match token {
                 Token::String(s, _) => Ok(Value::String(s)),
@@ -1504,7 +1527,8 @@ impl<'a> Parser<'a> {
         }
 
         let indent_size = self.options.indent.get_spaces();
-        // In strict mode, indentation must be a multiple of the configured indent size
+        // In strict mode, indentation must be a multiple of the configured
+        // indent size
         if indent_size > 0 && indent_amount > 0 && !indent_amount.is_multiple_of(indent_size) {
             Err(self.parse_error_with_context(format!(
                 "Invalid indentation: found {indent_amount} spaces, but must be a multiple of \
@@ -1887,7 +1911,8 @@ hello: 0(f)"#;
 
     #[test]
     fn test_decode_nested_tabular_not_first_field() {
-        // Tabular array as a subsequent field (not first) should use normal depth
+        // Tabular array as a subsequent field (not first) should use normal
+        // depth
         let input = r#"items[1]:
   - name: test
     data[2]{id,val}:
@@ -1914,8 +1939,8 @@ hello: 0(f)"#;
 
     #[test]
     fn test_array_element_number_followed_by_string() {
-        // Issue #56: Array elements starting with a number should be parsed as string
-        // when followed by non-numeric text
+        // Issue #56: Array elements starting with a number should be parsed as
+        // string when followed by non-numeric text
         let result = parse("version1[1]: 1.0 something").unwrap();
         assert_eq!(result["version1"], json!(["1.0 something"]));
 

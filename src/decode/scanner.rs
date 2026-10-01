@@ -359,7 +359,8 @@ impl Scanner {
     }
 
     fn parse_number(&self, s: &str) -> ToonResult<Token> {
-        // Number followed immediately by other chars like "0(f)" should be a string
+        // Number followed immediately by other chars like "0(f)" should be a
+        // string
         if let Some(next_ch) = self.peek() {
             if next_ch != ' '
                 && next_ch != '\n'

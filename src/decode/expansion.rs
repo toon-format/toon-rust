@@ -15,7 +15,8 @@ pub fn should_expand_key(key: &str, mode: PathExpansionMode) -> Option<Vec<Strin
     match mode {
         PathExpansionMode::Off => None,
         PathExpansionMode::Safe => {
-            // Quoted keys with dots shouldn't be expanded (they were explicitly quoted)
+            // Quoted keys with dots shouldn't be expanded (they were explicitly
+            // quoted)
             if key.starts_with(QUOTED_KEY_MARKER) {
                 return None;
             }
@@ -30,7 +31,8 @@ pub fn should_expand_key(key: &str, mode: PathExpansionMode) -> Option<Vec<Strin
                 return None;
             }
 
-            // Only expand if all segments are valid identifiers (safety requirement)
+            // Only expand if all segments are valid identifiers (safety
+            // requirement)
             if segments.iter().all(|s| is_identifier_segment(s)) {
                 Some(segments)
             } else {

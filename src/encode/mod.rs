@@ -231,7 +231,8 @@ fn write_object_impl(
 
         // Check if this key-value pair can be folded (v1.5 feature)
         // Don't fold if any sibling key is a dotted path starting with this key
-        // (e.g., don't fold inside "data" if "data.meta.items" exists as a sibling)
+        // (e.g., don't fold inside "data" if "data.meta.items" exists as a
+        // sibling)
         let has_conflicting_sibling = keys
             .iter()
             .any(|k| k.starts_with(&format!("{key}.")) || (k.contains('.') && k == key));
@@ -254,8 +255,8 @@ fn write_object_impl(
             // Write the leaf value
             match &chain.leaf_value {
                 Value::Array(arr) => {
-                    // For arrays, pass the folded key to write_array so it generates the header
-                    // correctly
+                    // For arrays, pass the folded key to write_array so it
+                    // generates the header correctly
                     write_array(writer, Some(&chain.folded_key), arr, 0)?;
                 }
                 Value::Object(nested_obj) => {
@@ -264,8 +265,9 @@ fn write_object_impl(
                     writer.write_char(':')?;
                     if !nested_obj.is_empty() {
                         writer.write_newline()?;
-                        // After folding a chain, disable folding for the leaf object
-                        // This respects flattenDepth and prevents over-folding
+                        // After folding a chain, disable folding for the leaf
+                        // object This respects
+                        // flattenDepth and prevents over-folding
                         write_object_impl(writer, nested_obj, depth + 1, true)?;
                     }
                 }
@@ -291,7 +293,8 @@ fn write_object_impl(
                     writer.write_char(':')?;
                     if !nested_obj.is_empty() {
                         writer.write_newline()?;
-                        // If this key has a conflicting sibling, disable folding for its nested
+                        // If this key has a conflicting sibling, disable
+                        // folding for its nested
                         // objects
                         let nested_disable_folding = disable_folding || has_conflicting_sibling;
                         write_object_impl(writer, nested_obj, depth + 1, nested_disable_folding)?;
@@ -576,8 +579,9 @@ fn encode_nested_array(
                 write_array(writer, None, inner_arr, depth + 1)?;
             }
             Value::Object(obj) => {
-                // Objects in list items: first field on same line as "- ", rest indented
-                // For empty objects, write only the hyphen (no space)
+                // Objects in list items: first field on same line as "- ", rest
+                // indented For empty objects, write only the
+                // hyphen (no space)
                 let keys: Vec<&String> = obj.keys().collect();
                 if let Some(first_key) = keys.first() {
                     writer.write_char(' ')?;
@@ -585,13 +589,16 @@ fn encode_nested_array(
 
                     match first_val {
                         Value::Array(arr) => {
-                            // Arrays as first field of list items require special indentation
-                            // (depth +2 relative to hyphen) for their nested content
+                            // Arrays as first field of list items require
+                            // special indentation
+                            // (depth +2 relative to hyphen) for their nested
+                            // content
                             // (rows for tabular, items for non-uniform)
                             writer.write_key(first_key)?;
 
                             if let Some(keys) = is_tabular_array(arr) {
-                                // Tabular array: write inline with correct indentation
+                                // Tabular array: write inline with correct
+                                // indentation
                                 encode_list_item_tabular_array(writer, arr, &keys, depth + 1)?;
                             } else {
                                 // Non-tabular array: write with depth offset
@@ -615,7 +622,8 @@ fn encode_nested_array(
                         }
                     }
 
-                    // Remaining fields on separate lines with proper indentation
+                    // Remaining fields on separate lines with proper
+                    // indentation
                     for key in keys.iter().skip(1) {
                         writer.write_newline()?;
                         writer.write_indent(depth + 2)?;

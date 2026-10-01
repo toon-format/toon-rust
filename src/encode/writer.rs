@@ -90,7 +90,8 @@ impl Writer {
         self.write_char('[')?;
         self.write_str(&length.to_string())?;
 
-        // Only write delimiter in header if it's not comma (comma is default/implied)
+        // Only write delimiter in header if it's not comma (comma is
+        // default/implied)
         if self.options.delimiter != Delimiter::Comma {
             self.write_delimiter()?;
         }
@@ -136,7 +137,8 @@ impl Writer {
     }
 
     pub fn needs_quoting(&self, s: &str, context: QuotingContext) -> bool {
-        // Use active delimiter for array values, document delimiter for object values
+        // Use active delimiter for array values, document delimiter for object
+        // values
         let delim_char = match context {
             QuotingContext::ObjectValue => self.get_document_delimiter_char(),
             QuotingContext::ArrayValue => self.get_active_delimiter_char(),

@@ -92,8 +92,8 @@ pub fn unescape_string(s: &str) -> Result<String, String> {
     Ok(result)
 }
 
-/// Check if a key can be written without quotes (alphanumeric, underscore,
-/// dot).
+/// Check if a key can be written without quotes: `^[A-Za-z_][A-Za-z0-9_.]*$`
+/// (§7.3). The pattern is ASCII-only, so every non-ASCII key is quoted.
 pub fn is_valid_unquoted_key(key: &str) -> bool {
     if key.is_empty() {
         return false;
@@ -106,11 +106,11 @@ pub fn is_valid_unquoted_key(key: &str) -> bool {
         return false;
     };
 
-    if !first.is_alphabetic() && first != '_' {
+    if !first.is_ascii_alphabetic() && first != '_' {
         return false;
     }
 
-    chars.all(|c| c.is_alphanumeric() || c == '_' || c == '.')
+    chars.all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '.')
 }
 
 /// Determine if a string needs quoting based on content and delimiter.

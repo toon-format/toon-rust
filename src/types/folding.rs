@@ -31,12 +31,12 @@ pub fn is_identifier_segment(s: &str) -> bool {
         None => return false,
     };
 
-    if !first.is_alphabetic() && first != '_' {
+    if !first.is_ascii_alphabetic() && first != '_' {
         return false;
     }
 
-    // Remaining characters: letters, digits, or underscore (NO dots)
-    chars.all(|c| c.is_alphanumeric() || c == '_')
+    // Remaining characters: ASCII letters, digits, or underscore (NO dots)
+    chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
 }
 
 #[cfg(test)]
@@ -62,6 +62,8 @@ mod tests {
         assert!(is_identifier_segment("user_name"));
         assert!(is_identifier_segment("user123"));
         assert!(is_identifier_segment("_123"));
+        assert!(!is_identifier_segment("é"));
+        assert!(!is_identifier_segment("a日"));
 
         // Invalid segments
         assert!(!is_identifier_segment(""));

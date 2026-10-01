@@ -405,7 +405,8 @@ fn test_invalid_array_header_syntax() {
     let result: Value = decode_default("items[: a,b").unwrap();
     assert_eq!(result, json!({"items[": "a,b"}));
 
-    // Malformed bracket lengths and keyed markers are strict errors (SPEC 14.2).
+    // Malformed bracket lengths and keyed markers are strict errors (SPEC
+    // 14.2).
     let cases = vec![
         ("items[03]: 1,2,3", "Invalid array length"),
         (

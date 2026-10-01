@@ -292,7 +292,8 @@ fn parse_array_header_line(content: &str) -> HeaderParse {
         }
     };
 
-    // A header key can't contain an unquoted colon, so this is a key-value line.
+    // A header key can't contain an unquoted colon, so this is a key-value
+    // line.
     if let Some(colon) = find_unquoted_char(content, b':', 0) {
         if colon < bracket_start {
             return HeaderParse::NotHeader;
@@ -344,7 +345,8 @@ fn parse_array_header_line(content: &str) -> HeaderParse {
 
     let key = if bracket_start > 0 {
         let raw_key = &content[..bracket_start];
-        // Trimming here would silently turn `foo [2]:` into a header with key `foo`.
+        // Trimming here would silently turn `foo [2]:` into a header with key
+        // `foo`.
         if raw_key != raw_key.trim_end() {
             return HeaderParse::Invalid(
                 "Unexpected whitespace between key and bracket segment".to_string(),

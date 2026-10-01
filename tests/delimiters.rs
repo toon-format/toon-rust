@@ -50,8 +50,9 @@ fn test_delimiter_in_values() {
 
 #[test]
 fn test_non_active_delimiters_in_tabular_arrays() {
-    // When comma is the active delimiter, pipe and tab should be treated as regular
-    // data Per TOON spec §11: "non-active delimiters MUST NOT cause splits"
+    // When comma is the active delimiter, pipe and tab should be treated as
+    // regular data Per TOON spec §11: "non-active delimiters MUST NOT cause
+    // splits"
 
     // Test 1: Pipe character in value when comma is active delimiter (default)
     let data = r#"item-list[1]{a,b}:
@@ -75,7 +76,8 @@ fn test_non_active_delimiters_in_tabular_arrays() {
     assert_eq!(decoded["item-list"][0]["a"], ":");
     assert_eq!(decoded["item-list"][0]["b"], "\t");
 
-    // Test 4: Comma in value when pipe is active delimiter - should quote the comma
+    // Test 4: Comma in value when pipe is active delimiter - should quote the
+    // comma
     let data = r#"item-list[1|]{a|b}:
   ":"|","
 "#;

@@ -154,38 +154,8 @@ impl<'a> TuiApp<'a> {
                         self.perform_conversion();
                         return Ok(());
                     }
-                    KeyCode::Char('f') => {
-                        self.app_state.toggle_fold_keys();
-                        self.perform_conversion();
-                        return Ok(());
-                    }
-                    KeyCode::Char('p') => {
-                        self.app_state.toggle_expand_paths();
-                        self.perform_conversion();
-                        return Ok(());
-                    }
                     KeyCode::Char('s') => {
                         self.app_state.toggle_strict();
-                        self.perform_conversion();
-                        return Ok(());
-                    }
-                    KeyCode::Char('c') => {
-                        self.app_state.toggle_coerce_types();
-                        self.perform_conversion();
-                        return Ok(());
-                    }
-                    KeyCode::Char('[') | KeyCode::Char('{') => {
-                        self.app_state.decrease_flatten_depth();
-                        self.perform_conversion();
-                        return Ok(());
-                    }
-                    KeyCode::Char(']') | KeyCode::Char('}') => {
-                        self.app_state.increase_flatten_depth();
-                        self.perform_conversion();
-                        return Ok(());
-                    }
-                    KeyCode::Char('u') => {
-                        self.app_state.toggle_flatten_depth();
                         self.perform_conversion();
                         return Ok(());
                     }
@@ -212,9 +182,6 @@ impl<'a> TuiApp<'a> {
             }
             Action::NewFile => {
                 self.new_file();
-            }
-            Action::Refresh => {
-                self.perform_conversion();
             }
             Action::ToggleSettings => {
                 self.app_state.toggle_settings();
@@ -432,9 +399,6 @@ impl<'a> TuiApp<'a> {
     }
 
     fn new_file(&mut self) {
-        if self.app_state.file_state.is_modified {
-            // TODO: confirmation dialog
-        }
         self.app_state.editor.clear_input();
         self.app_state.editor.clear_output();
         self.app_state.file_state.clear_current_file();

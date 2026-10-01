@@ -1,11 +1,10 @@
 //! Decoder Implementation
-pub mod expansion;
 #[cfg(feature = "layout")]
 pub(crate) mod layout_builder;
+pub(crate) mod line;
 pub mod parser;
-pub mod scanner;
-pub mod validation;
 
+#[cfg(feature = "layout")]
 use serde_json::Value;
 
 use crate::types::{
@@ -65,25 +64,8 @@ pub fn decode<T: serde::de::DeserializeOwned>(
 ) -> ToonResult<T> {
     let mut parser = parser::Parser::new(input, options.clone())?;
     let value = parser.parse()?;
-    let final_value = apply_path_expansion(value, options)?;
-    serde_json::from_value(final_value)
+    serde_json::from_value(value)
         .map_err(|e| crate::types::ToonError::DeserializationError(e.to_string()))
-}
-
-/// Apply path expansion to a decoded value if enabled in `options`.
-///
-/// Shared by [`decode`] and [`decode_with_layout`] so both paths see the same
-/// post-parse transformation.
-fn apply_path_expansion(value: Value, options: &DecodeOptions) -> ToonResult<Value> {
-    use crate::types::PathExpansionMode;
-    if options.expand_paths != PathExpansionMode::Off {
-        let json_value = crate::types::JsonValue::from(value);
-        let expanded =
-            expansion::expand_paths_recursive(json_value, options.expand_paths, options.strict)?;
-        Ok(Value::from(expanded))
-    } else {
-        Ok(value)
-    }
 }
 
 /// Decode with strict validation enabled (validates array lengths,
@@ -122,11 +104,12 @@ pub fn decode_strict<T: serde::de::DeserializeOwned>(input: &str) -> ToonResult<
 /// use toon_format::{
 ///     decode_strict_with_options,
 ///     DecodeOptions,
+///     Indent,
 /// };
 ///
 /// let options = DecodeOptions::new()
 ///     .with_strict(true)
-///     .with_delimiter(toon_format::Delimiter::Pipe);
+///     .with_indent(Indent::Spaces(4));
 /// let result: Value = decode_strict_with_options("items[2|]: a|b", &options)?;
 /// assert_eq!(result["items"], json!(["a", "b"]));
 /// # Ok::<(), toon_format::ToonError>(())
@@ -139,60 +122,7 @@ pub fn decode_strict_with_options<T: serde::de::DeserializeOwned>(
     decode(input, &opts)
 }
 
-/// Decode without type coercion (strings remain strings).
-///
-/// # Examples
-///
-/// ```
-/// use serde_json::{
-///     json,
-///     Value,
-/// };
-/// use toon_format::decode_no_coerce;
-///
-/// // Without coercion: quoted strings that look like numbers stay as strings
-/// let result: Value = decode_no_coerce("value: \"123\"")?;
-/// assert_eq!(result["value"], json!("123"));
-///
-/// // With default coercion: unquoted "true" becomes boolean
-/// let result: Value = toon_format::decode_default("value: true")?;
-/// assert_eq!(result["value"], json!(true));
-/// # Ok::<(), toon_format::ToonError>(())
-/// ```
-pub fn decode_no_coerce<T: serde::de::DeserializeOwned>(input: &str) -> ToonResult<T> {
-    decode(input, &DecodeOptions::new().with_coerce_types(false))
-}
-
-/// Decode without type coercion and with additional options.
-///
-/// # Examples
-///
-/// ```
-/// use serde_json::{
-///     json,
-///     Value,
-/// };
-/// use toon_format::{
-///     decode_no_coerce_with_options,
-///     DecodeOptions,
-/// };
-///
-/// let options = DecodeOptions::new()
-///     .with_coerce_types(false)
-///     .with_strict(false);
-/// let result: Value = decode_no_coerce_with_options("value: \"123\"", &options)?;
-/// assert_eq!(result["value"], json!("123"));
-/// # Ok::<(), toon_format::ToonError>(())
-/// ```
-pub fn decode_no_coerce_with_options<T: serde::de::DeserializeOwned>(
-    input: &str,
-    options: &DecodeOptions,
-) -> ToonResult<T> {
-    let opts = options.clone().with_coerce_types(false);
-    decode(input, &opts)
-}
-
-/// Decode with default options (strict mode, type coercion enabled).
+/// Decode with default options (strict mode enabled).
 ///
 /// Works with any type implementing `serde::Deserialize`.
 ///
@@ -241,15 +171,6 @@ pub fn decode_default<T: serde::de::DeserializeOwned>(input: &str) -> ToonResult
 /// and tooling use cases and is not part of the TOON specification.
 /// See [`crate::layout`] for the metadata types.
 ///
-/// # Pointer semantics with `expand_paths`
-///
-/// JSON pointers in the returned [`Layout`](crate::layout::Layout) reflect
-/// the document's *pre-expansion* structure — i.e. the key names the parser
-/// actually saw on the wire. When `options.expand_paths` is `Safe`, the
-/// returned value is restructured (e.g. `a.b: 1` becomes `{"a": {"b": 1}}`)
-/// but layout pointers still address the original keys. For unambiguous
-/// pointer-to-value lookups, prefer `PathExpansionMode::Off` (the default).
-///
 /// # Examples
 ///
 /// ```
@@ -275,88 +196,122 @@ pub fn decode_with_layout(
 ) -> ToonResult<(Value, crate::layout::Layout)> {
     let mut parser = parser::Parser::new(input, options.clone())?.with_layout();
     let value = parser.parse()?;
-    let final_value = apply_path_expansion(value, options)?;
     let layout = parser.take_layout().unwrap_or_default();
-    Ok((final_value, layout))
+    Ok((value, layout))
 }
 
 #[cfg(test)]
 mod tests {
-    use core::f64;
-
-    use serde_json::json;
+    use serde_json::{
+        json,
+        Value,
+    };
 
     use super::*;
 
     #[test]
-    fn test_decode_null() {
-        assert_eq!(decode_default::<Value>("null").unwrap(), json!(null));
-    }
-
-    #[test]
-    fn test_decode_bool() {
-        assert_eq!(decode_default::<Value>("true").unwrap(), json!(true));
-        assert_eq!(decode_default::<Value>("false").unwrap(), json!(false));
-    }
-
-    #[test]
-    fn test_decode_number() {
-        assert_eq!(decode_default::<Value>("42").unwrap(), json!(42));
-        assert_eq!(
-            decode_default::<Value>("3.141592653589793").unwrap(),
-            json!(f64::consts::PI)
-        );
-        assert_eq!(decode_default::<Value>("-5").unwrap(), json!(-5));
-    }
-
-    #[test]
-    fn test_decode_string() {
-        assert_eq!(decode_default::<Value>("hello").unwrap(), json!("hello"));
-        assert_eq!(
-            decode_default::<Value>("\"hello world\"").unwrap(),
-            json!("hello world")
-        );
-    }
-
-    #[test]
     fn test_decode_simple_object() {
-        let input = "name: Alice\nage: 30";
-        let result: Value = decode_default(input).unwrap();
-        assert_eq!(result["name"], json!("Alice"));
-        assert_eq!(result["age"], json!(30));
+        let result: Value = decode_default("name: Alice\nage: 30").unwrap();
+        assert_eq!(result, json!({"name": "Alice", "age": 30}));
     }
 
     #[test]
-    fn test_decode_primitive_array() {
-        let input = "tags[3]: reading,gaming,coding";
+    fn test_decode_nested_object() {
+        let input = "user:\n  name: Alice\n  age: 30";
         let result: Value = decode_default(input).unwrap();
-        assert_eq!(result["tags"], json!(["reading", "gaming", "coding"]));
+        assert_eq!(result, json!({"user": {"name": "Alice", "age": 30}}));
+    }
+
+    #[test]
+    fn test_decode_inline_array() {
+        let result: Value = decode_default("tags[3]: a,b,c").unwrap();
+        assert_eq!(result, json!({"tags": ["a", "b", "c"]}));
     }
 
     #[test]
     fn test_decode_tabular_array() {
-        let input = "users[2]{id,name,role}:\n  1,Alice,admin\n  2,Bob,user";
+        let input = "users[2]{id,name}:\n  1,Alice\n  2,Bob";
         let result: Value = decode_default(input).unwrap();
         assert_eq!(
-            result["users"],
-            json!([
-                {"id": 1, "name": "Alice", "role": "admin"},
-                {"id": 2, "name": "Bob", "role": "user"}
-            ])
+            result,
+            json!({"users": [{"id": 1, "name": "Alice"}, {"id": 2, "name": "Bob"}]})
         );
     }
 
     #[test]
-    fn test_decode_empty_array() {
-        let input = "items[0]:";
-        let result: Value = decode_default(input).unwrap();
-        assert_eq!(result["items"], json!([]));
+    fn test_decode_root_primitive() {
+        let result: Value = decode_default("hello").unwrap();
+        assert_eq!(result, json!("hello"));
+
+        let result: Value = decode_default("42").unwrap();
+        assert_eq!(result, json!(42));
+
+        let result: Value = decode_default("true").unwrap();
+        assert_eq!(result, json!(true));
     }
 
     #[test]
-    fn test_decode_quoted_strings() {
-        let input = "tags[3]: \"true\",\"42\",\"-3.14\"";
-        let result: Value = decode_default(input).unwrap();
-        assert_eq!(result["tags"], json!(["true", "42", "-3.14"]));
+    fn test_decode_root_array() {
+        let result: Value = decode_default("[3]: a,b,c").unwrap();
+        assert_eq!(result, json!(["a", "b", "c"]));
+    }
+
+    #[test]
+    fn test_decode_empty_document() {
+        let result: Value = decode_default("").unwrap();
+        assert_eq!(result, json!({}));
+    }
+
+    #[test]
+    fn test_decode_strict_length_mismatch() {
+        assert!(decode_strict::<Value>("items[3]: a,b").is_err());
+    }
+
+    #[test]
+    fn test_decode_non_strict_length_mismatch() {
+        let opts = DecodeOptions::new().with_strict(false);
+        let result: Value = decode("items[3]: a,b", &opts).unwrap();
+        assert_eq!(result, json!({"items": ["a", "b"]}));
+    }
+
+    #[test]
+    fn test_decode_excludes_only_the_crlf_carriage_return() {
+        // Lines are split on LF alone and exactly one trailing CR is dropped,
+        // so a second CR is content rather than a line terminator.
+        let result: Value = decode_default("k: 1\r\n").unwrap();
+        assert_eq!(result, json!({"k": 1}));
+
+        let result: Value = decode_default("k: 1\r\r\n").unwrap();
+        assert_eq!(result, json!({"k": "1\r"}));
+
+        // A CR inside a line is never a terminator.
+        let result: Value = decode_default("k: a\rb").unwrap();
+        assert_eq!(result, json!({"k": "a\rb"}));
+    }
+
+    #[test]
+    fn test_decode_rejects_zero_indent_size() {
+        use crate::types::{
+            Indent,
+            ToonError,
+        };
+
+        // Indentation depth is `indent / indent_size`, so a zero indent size
+        // would divide by zero. The parser rejects it up front, before any
+        // line is read, in both strict and non-strict mode.
+        for strict in [true, false] {
+            let opts = DecodeOptions::new()
+                .with_strict(strict)
+                .with_indent(Indent::Spaces(0));
+
+            for input in ["name: Alice", "user:\n  name: Alice", ""] {
+                let err = decode::<Value>(input, &opts)
+                    .expect_err("zero indent size must be rejected, not panic");
+                assert!(
+                    matches!(err, ToonError::InvalidInput(_)),
+                    "expected InvalidInput for strict={strict}, input={input:?}, got: {err:?}"
+                );
+            }
+        }
     }
 }

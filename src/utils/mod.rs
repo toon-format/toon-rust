@@ -8,7 +8,6 @@ pub use literal::{
     is_keyword,
     is_literal_like,
     is_numeric_like,
-    is_structural_char,
 };
 pub use number::format_canonical_number;
 pub use string::{
@@ -19,20 +18,29 @@ pub use string::{
     unescape_string,
 };
 
-use crate::types::{
-    JsonValue as Value,
-    Number,
+use crate::{
+    constants::MAX_DEPTH,
+    types::{
+        JsonValue as Value,
+        Number,
+    },
 };
-
-/// Context for determining when quoting is needed.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum QuotingContext {
-    ObjectValue,
-    ArrayValue,
-}
 
 /// Normalize a JSON value (converts NaN/Infinity to null, -0 to 0).
 pub fn normalize(value: Value) -> Value {
+    normalize_at(value, 0)
+}
+
+/// Descent is bounded by [`MAX_DEPTH`]: this runs as a whole-tree pre-pass
+/// before the encoder's own depth check, so without a bound a pathological
+/// value would abort the process on a stack overflow instead of being
+/// rejected. A subtree past the bound is returned untouched — the encoder
+/// rejects the document at [`MAX_DEPTH`], so it never reaches output.
+fn normalize_at(value: Value, depth: usize) -> Value {
+    if depth > MAX_DEPTH {
+        return value;
+    }
+
     match value {
         Value::Number(n) => {
             // Handle NegInt(0) case - convert to PosInt(0)
@@ -51,12 +59,17 @@ pub fn normalize(value: Value) -> Value {
             }
         }
         Value::Object(obj) => {
-            let normalized: IndexMap<String, Value> =
-                obj.into_iter().map(|(k, v)| (k, normalize(v))).collect();
+            let normalized: IndexMap<String, Value> = obj
+                .into_iter()
+                .map(|(k, v)| (k, normalize_at(v, depth + 1)))
+                .collect();
             Value::Object(normalized)
         }
         Value::Array(arr) => {
-            let normalized: Vec<Value> = arr.into_iter().map(normalize).collect();
+            let normalized: Vec<Value> = arr
+                .into_iter()
+                .map(|v| normalize_at(v, depth + 1))
+                .collect();
             Value::Array(normalized)
         }
         _ => value,

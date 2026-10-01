@@ -103,7 +103,8 @@ pub(crate) fn encode_impl(value: &Value, options: &EncodeOptions) -> ToonResult<
     match &normalized {
         Value::Array(arr) => encode_array_lines(None, arr, 0, options, &mut lines)?,
         Value::Object(obj) => {
-            // A keyed-eligible root object uses the keyless keyed header (§9.5).
+            // A keyed-eligible root object uses the keyless keyed header
+            // (§9.5).
             if let Some(fields) = extract_keyed_tabular_fields(obj) {
                 encode_keyed_object_lines(None, obj, &fields, 0, options, &mut lines)?;
             } else {
@@ -624,7 +625,8 @@ fn encode_object_as_list_item(
 
     let (first_key, first_value) = obj.get_index(0).expect("object is non-empty");
 
-    // A tabular first field sits on the hyphen line with rows at depth +2 (§10).
+    // A tabular first field sits on the hyphen line with rows at depth +2
+    // (§10).
     if let Value::Array(arr) = first_value {
         if !arr.is_empty() && arr.iter().all(|v| matches!(v, Value::Object(_))) {
             if let Some(fields) = extract_tabular_fields(arr) {
@@ -678,7 +680,8 @@ fn encode_object_as_list_item(
                     encode_inline_array_line(&arr.iter().collect::<Vec<_>>(), None, options);
                 push_list_item(lines, depth, &format!("{encoded_key}{content}"), options);
             } else {
-                // Non-inline array items sit at depth +2, below the hyphen line.
+                // Non-inline array items sit at depth +2, below the hyphen
+                // line.
                 let header = format_header(arr.len(), None, None, false, options.delimiter);
                 push_list_item(lines, depth, &format!("{encoded_key}{header}"), options);
                 for item in arr {

@@ -111,6 +111,9 @@ pub(crate) fn encode_impl(value: &Value, options: &EncodeOptions) -> ToonResult<
                 encode_object_lines(obj, 0, options, &mut lines)?;
             }
         }
+        // On line 1 a leading U+FEFF is a byte-order mark the decoder removes
+        // (§12), so a root string starting with it is quoted to keep it.
+        Value::String(s) if s.starts_with('\u{FEFF}') => lines.push(quote_string(s)),
         primitive => lines.push(encode_primitive(primitive, options.delimiter)),
     }
 

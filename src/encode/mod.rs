@@ -354,6 +354,11 @@ fn is_tabular_array(arr: &[Value]) -> Option<Vec<String>> {
     let first_obj = first.as_object()?;
     let keys: Vec<String> = first_obj.keys().cloned().collect();
 
+    // A header needs at least one field (§6), so empty objects use list form
+    if keys.is_empty() {
+        return None;
+    }
+
     // First object must have only primitive values
     for value in first_obj.values() {
         if !is_primitive(value) {

@@ -1,6 +1,6 @@
 mod delimiter;
 mod errors;
-mod folding;
+mod field;
 mod options;
 mod value;
 
@@ -10,11 +10,7 @@ pub use errors::{
     ToonError,
     ToonResult,
 };
-pub use folding::{
-    is_identifier_segment,
-    KeyFoldingMode,
-    PathExpansionMode,
-};
+pub(crate) use field::FieldNode;
 pub use options::{
     DecodeOptions,
     EncodeOptions,

@@ -7,9 +7,68 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.6.0](https://github.com/toon-format/toon-rust/compare/v0.5.0...v0.6.0) - 2026-10-05
 
+This release implements TOON spec v4.1 ([#79](https://github.com/toon-format/toon-rust/pull/79)).
+The decoder and encoder were rewritten against the specification; every API change
+below follows from that.
+
+### Removed
+
+Key folding and path expansion left the spec in v4.0. The options that drove them
+are gone, with no replacement:
+
+- `EncodeOptions::key_folding` and `EncodeOptions::flatten_depth`, plus the
+  `with_key_folding` and `with_flatten_depth` builders
+- `DecodeOptions::expand_paths` and `with_expand_paths`
+- The `KeyFoldingMode` and `PathExpansionMode` enums
+
+Decoder options are now exactly `strict` and `indent` (spec §13):
+
+- `DecodeOptions::delimiter` and `with_delimiter` — the delimiter is detected from
+  the input per §11.2. `EncodeOptions::with_delimiter` is unaffected.
+- `DecodeOptions::coerce_types` and `with_coerce_types` — the old parser never read
+  this field, so removing it changes no behaviour
+- `decode_no_coerce` and `decode_no_coerce_with_options` — use `decode` and
+  `decode_strict_with_options`
+
+Four `ToonError` variants that no code path produced any more, with their
+constructors. An exhaustive `match` on `ToonError` needs updating:
+
+- `InvalidCharacter`, `UnexpectedEof`, `InvalidDelimiter`, `LengthMismatch`
+- `ToonError::invalid_char`, `ToonError::length_mismatch` and
+  `ToonError::length_mismatch_with_context`
+
+### Changed
+
+- `StreamingEncodeOptions` is removed and the `json_stream` signatures lost a
+  parameter. v4.1 selects the encoded form from a value's whole shape, so no header
+  can be written before its entire subtree has been read and bounded-memory
+  streaming encode is no longer implementable. These functions now parse the input
+  in full and run the in-memory encoder; they remain as I/O conveniences.
+
+  ```rust
+  // 0.5.0
+  encode_json_reader(reader, &encode_options, &streaming_options)?;
+  encode_json_stream(reader, writer, &encode_options, &streaming_options)?;
+
+  // 0.6.0
+  encode_json_reader(reader, &encode_options)?;
+  encode_json_stream(reader, writer, &encode_options)?;
+  ```
+
+- `layout::FieldDescriptor::nested` changed from `Option<Box<NodeLayout>>` to
+  `Option<Vec<FieldDescriptor>>`, so it can carry nested field groups (`layout`
+  feature).
+- Modules and items that were `pub` but never part of the documented API are gone:
+  `decode::scanner`, `decode::expansion`, `decode::validation`, `encode::folding`,
+  `encode::writer`, `encode::primitives`, `constants::STRUCTURAL_CHARS` and
+  `utils::QuotingContext`.
+- TUI internals behind the `cli` feature: the `Action` discriminants shifted and the
+  `AppState::toggle_*` and flatten-depth methods are gone. These back the binary and
+  have no library consumer.
+
 ### Added
 
-- [**breaking**] implement TOON spec v4.1 ([#79](https://github.com/toon-format/toon-rust/pull/79))
+- `utils::unescape_string` is now re-exported at the crate root.
 
 ### Fixed
 

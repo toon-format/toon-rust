@@ -235,7 +235,7 @@ fn parse_key_token(content: &str) -> Result<(String, usize), String> {
         let closing =
             find_closing_quote(content, 0).ok_or_else(|| "Unterminated quoted key".to_string())?;
         let key = unescape_string(&content[1..closing])?;
-        let after = closing + 1;
+        let after = content.len() - content[closing + 1..].trim_start_matches(' ').len();
         if content.as_bytes().get(after) != Some(&b':') {
             return Err("Missing colon after key".to_string());
         }

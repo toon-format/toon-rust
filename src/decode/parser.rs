@@ -1237,13 +1237,7 @@ impl<'s> Parser<'s> {
             }
 
             if line.depth > entry_depth {
-                if self.strict {
-                    return Err(err_at(
-                        line,
-                        "Unexpected indentation inside keyed tabular object",
-                    ));
-                }
-                self.reader.next()?;
+                self.skip_over_indented_line(entry_depth)?;
                 continue;
             }
 
@@ -1317,7 +1311,14 @@ impl<'s> Parser<'s> {
             let Some(line) = self.reader.peek()? else {
                 break;
             };
-            if line.depth != row_depth || !is_data_row(&line.content, header.delimiter) {
+            if line.depth <= base_depth {
+                break;
+            }
+            if line.depth != row_depth {
+                self.skip_over_indented_line(row_depth)?;
+                continue;
+            }
+            if !is_data_row(&line.content, header.delimiter) {
                 break;
             }
 
@@ -1379,7 +1380,14 @@ impl<'s> Parser<'s> {
             let Some(line) = self.reader.peek()? else {
                 break;
             };
-            if line.depth != item_depth || !is_list_item_content(&line.content) {
+            if line.depth <= base_depth {
+                break;
+            }
+            if line.depth != item_depth {
+                self.skip_over_indented_line(item_depth)?;
+                continue;
+            }
+            if !is_list_item_content(&line.content) {
                 break;
             }
 
@@ -1502,8 +1510,12 @@ impl<'s> Parser<'s> {
         map: &mut Map<String, Value>,
     ) -> ToonResult<()> {
         while let Some(line) = self.reader.peek()? {
-            if line.depth != follow_depth {
+            if line.depth < follow_depth {
                 break;
+            }
+            if line.depth > follow_depth {
+                self.skip_over_indented_line(follow_depth)?;
+                continue;
             }
 
             let line = self.reader.next()?.expect("peeked line exists");

@@ -879,6 +879,21 @@ impl<'s> Parser<'s> {
         assert_not_scalar_line(&line)
     }
 
+    /// The content depth of a header's scope: one level below the header, or
+    /// the depth of a jumped first line in non-strict mode.
+    fn scope_content_depth(&mut self, base_depth: usize) -> ToonResult<usize> {
+        let Some(first) = self
+            .reader
+            .peek()?
+            .filter(|line| line.depth > base_depth + 1)
+            .cloned()
+        else {
+            return Ok(base_depth + 1);
+        };
+        self.assert_no_depth_jump(&first, base_depth)?;
+        Ok(first.depth)
+    }
+
     fn assert_expected_count(
         &self,
         actual: usize,
@@ -1147,10 +1162,8 @@ impl<'s> Parser<'s> {
             if line.depth == depth {
                 let line = self.reader.next()?.expect("peeked line exists");
                 self.decode_key_value_into(&line, depth, &mut map)?;
-            } else if line.depth > depth {
-                self.skip_over_indented_line(depth)?;
             } else {
-                break;
+                self.skip_over_indented_line(depth)?;
             }
         }
 
@@ -1217,7 +1230,7 @@ impl<'s> Parser<'s> {
         base_depth: usize,
         header_line: &ParsedLine,
     ) -> ToonResult<Value> {
-        let entry_depth = base_depth + 1;
+        let entry_depth = self.scope_content_depth(base_depth)?;
         let fields = header
             .fields
             .as_deref()
@@ -1236,7 +1249,7 @@ impl<'s> Parser<'s> {
                 break;
             }
 
-            if line.depth > entry_depth {
+            if line.depth != entry_depth {
                 self.skip_over_indented_line(entry_depth)?;
                 continue;
             }
@@ -1294,7 +1307,7 @@ impl<'s> Parser<'s> {
         base_depth: usize,
         header_line: &ParsedLine,
     ) -> ToonResult<Value> {
-        let row_depth = base_depth + 1;
+        let row_depth = self.scope_content_depth(base_depth)?;
         let fields = header
             .fields
             .as_deref()
@@ -1369,7 +1382,7 @@ impl<'s> Parser<'s> {
         base_depth: usize,
         header_line: &ParsedLine,
     ) -> ToonResult<Value> {
-        let item_depth = base_depth + 1;
+        let item_depth = self.scope_content_depth(base_depth)?;
         let mut items = Vec::new();
         let mut start_line: Option<usize> = None;
         let mut last_item_line = header_line.line_number;

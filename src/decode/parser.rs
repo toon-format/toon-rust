@@ -460,9 +460,9 @@ fn parse_bracket_segment(seg: &str) -> Result<(usize, Delimiter, bool), String> 
         ));
     }
 
-    let length = content
-        .parse::<usize>()
-        .map_err(|_| format!("Invalid array length: \"{seg}\" (value out of range)"))?;
+    // A length beyond `usize` still forms a header; no scope can hold that
+    // many items, so saturating keeps its count unmet.
+    let length = content.parse::<usize>().unwrap_or(usize::MAX);
 
     Ok((length, delimiter, keyed))
 }

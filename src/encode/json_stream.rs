@@ -1,6 +1,6 @@
 //! Reader/writer conveniences for JSON → TOON encoding.
 //!
-//! Spec v4.1 selects the form from the value's shape (§1.4, §9): tabular and
+//! Spec v4.2 selects the form from the value's shape (§1.4, §9): tabular and
 //! keyed tabular headers depend on whole-subtree analysis, so no header can
 //! be emitted before its entire subtree has been read. These functions
 //! therefore parse the full JSON input and run the in-memory encoder; they

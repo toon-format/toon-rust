@@ -292,16 +292,14 @@ fn parse_array_header_line(content: &str) -> HeaderParse {
         }
     };
 
-    // A header key can't contain an unquoted colon, so this is a key-value
-    // line.
-    if let Some(colon) = find_unquoted_char(content, b':', 0) {
-        if colon < bracket_start {
-            return HeaderParse::NotHeader;
-        }
+    // A header needs a colon, and its key can't contain one. Past this check,
+    // a grammar failure makes the line invalid instead of a key-value line.
+    if find_unquoted_char(content, b':', 0).is_none_or(|colon| colon < bracket_start) {
+        return HeaderParse::NotHeader;
     }
 
     let Some(bracket_end) = find_unquoted_char(content, b']', bracket_start) else {
-        return HeaderParse::NotHeader;
+        return HeaderParse::Invalid("Unterminated bracket segment".to_string());
     };
 
     let mut brace_end = bracket_end + 1;
@@ -329,7 +327,7 @@ fn parse_array_header_line(content: &str) -> HeaderParse {
     }
 
     let Some(colon_index) = find_unquoted_char(content, b':', bracket_end.max(brace_end)) else {
-        return HeaderParse::NotHeader;
+        return HeaderParse::Invalid("Missing colon after array header".to_string());
     };
 
     let gap_start = (bracket_end + 1).max(brace_end);

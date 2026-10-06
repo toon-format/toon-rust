@@ -53,11 +53,6 @@ fn test_invalid_syntax_errors() {
         }
     }
 
-    // An unterminated bracket segment is not a header; the line falls
-    // through to the key-value class (SPEC 5.2) in both modes.
-    let result: Value = decode_default("items[2: a,b").unwrap();
-    assert_eq!(result, json!({"items[2": "a,b"}));
-
     // A malformed bracket length is a strict-mode header error (SPEC 14.2).
     let result = decode_default::<Value>("items[abc]: 1,2");
     assert!(
@@ -382,9 +377,9 @@ fn test_nested_field_group_depth_is_bounded() {
     // The limit itself still decodes.
     assert!(decode_strict::<Value>(&nested_field_group_header(256)).is_ok());
 
-    // Non-strict mode does not error on the header itself: an unparseable
-    // header is simply not a header, so the line falls through to the
-    // key-value class (SPEC 5.2) with the whole text as the key.
+    // Non-strict mode does not error on the header itself: it reads an
+    // unparseable header line as a key-value line (SPEC 5.2) with the whole
+    // text as the key.
     let opts = DecodeOptions::new().with_strict(false);
     let header_only = format!("x[1]{{{}v{}}}:", "a{".repeat(257), "}".repeat(257));
     let value: Value = decode(&header_only, &opts).expect("non-strict falls through to key-value");
@@ -397,13 +392,10 @@ fn test_nested_field_group_depth_is_bounded() {
 
 #[test]
 fn test_invalid_array_header_syntax() {
-    // Not headers under SPEC 5.2: a single bare token decodes as the root
-    // primitive, and a colon-bearing line falls through to key-value.
+    // Not a header under SPEC 5.2: a single bare token decodes as the root
+    // primitive.
     let result: Value = decode_default("items[").unwrap();
     assert_eq!(result, json!("items["));
-
-    let result: Value = decode_default("items[: a,b").unwrap();
-    assert_eq!(result, json!({"items[": "a,b"}));
 
     // Malformed bracket lengths and keyed markers are strict errors (SPEC
     // 14.2).

@@ -1,6 +1,6 @@
 //! Encoder Implementation
 //!
-//! Emits TOON per spec v4.2: the form follows from the value's shape and
+//! Emits TOON per spec v4.3: the form follows from the value's shape and
 //! position (§1.4, §9), tabular and keyed tabular forms are mandatory
 //! wherever detection succeeds and the position permits them, empty arrays
 //! use the `key: []` / `[]` forms, and every header declares the document

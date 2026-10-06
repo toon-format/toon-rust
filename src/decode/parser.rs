@@ -1,4 +1,4 @@
-//! Line-based TOON decoder implementing spec v4.2.
+//! Line-based TOON decoder implementing spec v4.3.
 //!
 //! Lines are classified per §5.2 on the comment-stripped sequence (§5.1);
 //! headers are parsed per §6, including keyed tabular headers and nested

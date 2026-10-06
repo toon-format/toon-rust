@@ -734,9 +734,10 @@ fn over_indented_error(line: &ParsedLine, expected_depth: usize) -> ToonError {
 
 /// Both modes reject a bare token outside root primitive position (§5.2),
 /// so it must not reach the non-strict paths that drop an over-indented
-/// line.
+/// line. A hyphen-leading line reaching here is off item depth, so it is no
+/// list item either.
 fn assert_not_scalar_line(line: &ParsedLine) -> ToonResult<()> {
-    if is_list_item_content(&line.content) || is_key_value_content(&line.content) {
+    if is_key_value_content(&line.content) {
         return Ok(());
     }
     Err(err_at(
@@ -1485,7 +1486,7 @@ impl<'s> Parser<'s> {
         map: &mut Map<String, Value>,
     ) -> ToonResult<()> {
         while let Some(line) = self.reader.peek()? {
-            if line.depth != follow_depth || line.content.starts_with("- ") {
+            if line.depth != follow_depth {
                 break;
             }
 

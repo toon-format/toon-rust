@@ -869,6 +869,16 @@ impl<'s> Parser<'s> {
         Ok(())
     }
 
+    /// Consumes a line off its scope's content depth: strict decoding rejects
+    /// it, non-strict drops it but still rejects a scalar line.
+    fn skip_over_indented_line(&mut self, content_depth: usize) -> ToonResult<()> {
+        let line = self.reader.next()?.expect("caller peeked a line");
+        if self.strict {
+            return Err(over_indented_error(&line, content_depth));
+        }
+        assert_not_scalar_line(&line)
+    }
+
     fn assert_expected_count(
         &self,
         actual: usize,
@@ -989,6 +999,12 @@ impl<'s> Parser<'s> {
     // #region Document dispatch (§5)
 
     fn decode_document(&mut self) -> ToonResult<Value> {
+        let mut skipped_leading_line = false;
+        while self.reader.peek()?.is_some_and(|line| line.depth != 0) {
+            self.skip_over_indented_line(0)?;
+            skipped_leading_line = true;
+        }
+
         let Some(first) = self.reader.peek()? else {
             return Ok(Value::Object(Map::new()));
         };
@@ -1012,7 +1028,12 @@ impl<'s> Parser<'s> {
         self.reader.next()?;
         let following_depth = self.reader.peek()?.map(|line| line.depth);
 
-        if following_depth.is_none() && !is_key_value_content(&first.content) {
+        // A skipped leading line makes the document multi-line, so no root
+        // primitive.
+        if following_depth.is_none()
+            && !skipped_leading_line
+            && !is_key_value_content(&first.content)
+        {
             return parse_primitive_token(&first.content).map_err(|e| err_at(&first, e));
         }
 
@@ -1028,11 +1049,7 @@ impl<'s> Parser<'s> {
 
         while let Some(line) = self.reader.peek()? {
             if line.depth != 0 {
-                if self.strict {
-                    return Err(over_indented_error(line, 0));
-                }
-                assert_not_scalar_line(line)?;
-                self.reader.next()?;
+                self.skip_over_indented_line(0)?;
                 continue;
             }
 
@@ -1128,11 +1145,7 @@ impl<'s> Parser<'s> {
                 let line = self.reader.next()?.expect("peeked line exists");
                 self.decode_key_value_into(&line, depth, &mut map)?;
             } else if line.depth > depth {
-                if self.strict {
-                    return Err(over_indented_error(line, depth));
-                }
-                assert_not_scalar_line(line)?;
-                self.reader.next()?;
+                self.skip_over_indented_line(depth)?;
             } else {
                 break;
             }

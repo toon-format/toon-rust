@@ -500,9 +500,12 @@ fn parse_field_entries(
                 });
             };
 
-            let name_part = trim_spaces(&trimmed[..group_start]);
+            let name_part = &trimmed[..group_start];
             if name_part.is_empty() {
                 return Err("Missing field name before nested field group".to_string());
+            }
+            if name_part != name_part.trim_end() {
+                return Err("Unexpected whitespace before nested field group".to_string());
             }
 
             let group_end = find_matching_brace(trimmed, group_start)

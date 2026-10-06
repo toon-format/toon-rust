@@ -697,18 +697,6 @@ fn is_key_value_content(content: &str) -> bool {
     find_unquoted_char(content, b':', 0).is_some()
 }
 
-/// Root-form key-value check (§5): quoted keys look past the closing quote.
-fn is_key_value_line(content: &str) -> bool {
-    if content.starts_with('"') {
-        match find_closing_quote(content, 0) {
-            Some(closing) => content[closing + 1..].contains(':'),
-            None => false,
-        }
-    } else {
-        content.contains(':')
-    }
-}
-
 /// Row/key-value disambiguation at row depth (§9.3): first unquoted
 /// delimiter vs first unquoted colon.
 fn is_data_row(content: &str, delimiter: Delimiter) -> bool {
@@ -1020,11 +1008,11 @@ impl<'s> Parser<'s> {
         self.reader.next()?;
         let following_depth = self.reader.peek()?.map(|line| line.depth);
 
-        if following_depth.is_none() && !is_key_value_line(&first.content) {
+        if following_depth.is_none() && !is_key_value_content(&first.content) {
             return parse_primitive_token(&first.content).map_err(|e| err_at(&first, e));
         }
 
-        if !is_key_value_line(&first.content) && following_depth == Some(0) {
+        if !is_key_value_content(&first.content) && following_depth == Some(0) {
             return Err(err_at(
                 &first,
                 "Top-level document must start with a key-value or array-header line",

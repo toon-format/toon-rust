@@ -900,6 +900,9 @@ impl<'s> Parser<'s> {
     /// root form is an error (§5).
     fn assert_fully_consumed(&mut self) -> ToonResult<()> {
         if !self.strict {
+            while let Some(line) = self.reader.next()? {
+                assert_not_scalar_line(&line)?;
+            }
             return Ok(());
         }
         if let Some(line) = self.reader.peek()? {

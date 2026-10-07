@@ -940,7 +940,7 @@ impl<'s> Parser<'s> {
         if self.strict && map.contains_key(&key) {
             return Err(err_at(line, format!("Duplicate sibling key \"{key}\"")));
         }
-        // Non-strict duplicates resolve via last-write-wins (§14.3).
+        // Non-strict duplicates resolve via last-write-wins (§14.4).
         map.insert(key, value);
         Ok(())
     }
@@ -1273,7 +1273,7 @@ impl<'s> Parser<'s> {
         let mut last_row_line = header_line.line_number;
 
         // Only strict stops at N, leaving the surplus to the extra-rows check
-        // below; non-strict reads on so a declared [N] never truncates (§14.1).
+        // below; non-strict reads on so a declared [N] never truncates (§14.4).
         while !self.strict || rows.len() < header.length {
             let Some(line) = self.reader.peek()? else {
                 break;
@@ -1341,7 +1341,7 @@ impl<'s> Parser<'s> {
         let mut last_item_line = header_line.line_number;
 
         // Only strict stops at N, leaving the surplus to the extra-items check
-        // below; non-strict reads on so a declared [N] never truncates (§14.1).
+        // below; non-strict reads on so a declared [N] never truncates (§14.4).
         while !self.strict || items.len() < header.length {
             let Some(line) = self.reader.peek()? else {
                 break;

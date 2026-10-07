@@ -229,7 +229,7 @@ let toon = "name: Alice\nage: 30";
 // Default (strict) decode
 let json: Value = decode(toon, &DecodeOptions::default())?;
 
-// Non-strict mode (relaxed validation)
+// Non-strict mode
 let opts = DecodeOptions::new().with_strict(false);
 let json: Value = decode(toon, &opts)?;
 ```
@@ -244,6 +244,17 @@ let json: Value = decode(toon, &opts)?;
 |--------|-------------|---------|
 | `with_strict(b)` | Enable strict validation | `true` |
 | `with_indent(i)` | Set spaces per indentation level | `Spaces(2)` |
+
+With `with_strict(false)`, the decoder recovers from exactly five conditions
+(spec §14.4) and errors on everything else, as strict mode does:
+
+- A declared `[N]` is advisory: fewer or more items, rows, or entries than `N`
+  still decode, but a row's width must match its fields.
+- Duplicate keys and repeated field names resolve last-write-wins.
+- Indentation may use tabs or non-multiples of the indent size: each tab is one
+  level, spaces are floored.
+- Blank lines inside an array or keyed tabular object are ignored.
+- A block whose first line starts too deep takes that line's depth.
 
 ---
 

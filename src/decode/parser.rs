@@ -38,6 +38,10 @@ use crate::{
 // occur inside a multi-byte UTF-8 sequence, so byte positions are always
 // char boundaries.
 
+/// Whitespace is exactly SP and HTAB (§1.2); NBSP and every other Unicode
+/// space are content, so no host whitespace test applies.
+const WHITESPACE: [char; 2] = [' ', '\t'];
+
 /// Trims surrounding ASCII spaces (exactly U+0020, §12) from a token.
 fn trim_spaces(value: &str) -> &str {
     value.trim_matches(' ')
@@ -274,17 +278,14 @@ enum HeaderParse {
 /// Detects and parses an array-header line, staying free of strict-mode
 /// policy: callers decide how to treat `Invalid` and `strict_error`.
 fn parse_array_header_line(content: &str) -> HeaderParse {
-    let trimmed = content.trim_start();
-
-    let bracket_start = if trimmed.starts_with('"') {
-        let Some(closing) = find_closing_quote(trimmed, 0) else {
+    let bracket_start = if content.starts_with('"') {
+        let Some(closing) = find_closing_quote(content, 0) else {
             return HeaderParse::NotHeader;
         };
-        if trimmed.as_bytes().get(closing + 1) != Some(&b'[') {
+        if content.as_bytes().get(closing + 1) != Some(&b'[') {
             return HeaderParse::NotHeader;
         }
-        let leading = content.len() - trimmed.len();
-        leading + closing + 1
+        closing + 1
     } else {
         match find_unquoted_char(content, b'[', 0) {
             Some(i) => i,
@@ -309,7 +310,7 @@ fn parse_array_header_line(content: &str) -> HeaderParse {
         if colon_after_bracket.is_some_and(|c| brace_start < c) {
             let gap = &content[bracket_end + 1..brace_start];
             if !gap.is_empty() {
-                let trimmed_gap = gap.trim();
+                let trimmed_gap = gap.trim_matches(WHITESPACE);
                 return HeaderParse::Invalid(if trimmed_gap.is_empty() {
                     "Unexpected whitespace between bracket segment and field list".to_string()
                 } else {
@@ -333,7 +334,7 @@ fn parse_array_header_line(content: &str) -> HeaderParse {
     let gap_start = (bracket_end + 1).max(brace_end);
     let gap = &content[gap_start..colon_index];
     if !gap.is_empty() {
-        let trimmed_gap = gap.trim();
+        let trimmed_gap = gap.trim_matches(WHITESPACE);
         return HeaderParse::Invalid(if trimmed_gap.is_empty() {
             "Unexpected whitespace between bracket segment and colon".to_string()
         } else {
@@ -345,7 +346,7 @@ fn parse_array_header_line(content: &str) -> HeaderParse {
         let raw_key = &content[..bracket_start];
         // Trimming here would silently turn `foo [2]:` into a header with key
         // `foo`.
-        if raw_key != raw_key.trim_end() {
+        if raw_key.ends_with(WHITESPACE) {
             return HeaderParse::Invalid(
                 "Unexpected whitespace between key and bracket segment".to_string(),
             );
@@ -502,7 +503,7 @@ fn parse_field_entries(
             if name_part.is_empty() {
                 return Err("Missing field name before nested field group".to_string());
             }
-            if name_part != name_part.trim_end() {
+            if name_part.ends_with(WHITESPACE) {
                 return Err("Unexpected whitespace before nested field group".to_string());
             }
 
@@ -691,7 +692,7 @@ fn is_list_item_content(content: &str) -> bool {
 }
 
 fn is_array_header_content(content: &str) -> bool {
-    content.trim().starts_with('[') && find_unquoted_char(content, b':', 0).is_some()
+    trim_spaces(content).starts_with('[') && find_unquoted_char(content, b':', 0).is_some()
 }
 
 fn is_key_value_content(content: &str) -> bool {

@@ -251,11 +251,6 @@ fn run_encode_from_reader(cli: &Cli) -> Result<()> {
 }
 
 fn run_decode(cli: &Cli, input: &str) -> Result<()> {
-    if input.trim().is_empty() {
-        write_output(cli.output.clone(), "{}\n")?;
-        return Ok(());
-    }
-
     let mut opts = DecodeOptions::new();
     if cli.no_strict {
         opts = opts.with_strict(false);

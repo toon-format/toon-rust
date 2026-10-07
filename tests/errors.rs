@@ -376,18 +376,6 @@ fn test_nested_field_group_depth_is_bounded() {
 
     // The limit itself still decodes.
     assert!(decode_strict::<Value>(&nested_field_group_header(256)).is_ok());
-
-    // Non-strict mode does not error on the header itself: it reads an
-    // unparseable header line as a key-value line (SPEC 5.2) with the whole
-    // text as the key.
-    let opts = DecodeOptions::new().with_strict(false);
-    let header_only = format!("x[1]{{{}v{}}}:", "a{".repeat(257), "}".repeat(257));
-    let value: Value = decode(&header_only, &opts).expect("non-strict falls through to key-value");
-    let key = value
-        .as_object()
-        .and_then(|map| map.keys().next())
-        .expect("one key-value pair");
-    assert!(key.starts_with("x[1]{a{a{"), "unexpected key: {key}");
 }
 
 #[test]

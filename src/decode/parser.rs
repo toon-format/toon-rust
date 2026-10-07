@@ -1397,7 +1397,7 @@ impl<'s> Parser<'s> {
         if line.content == "-" {
             return Ok(Value::Object(Map::new()));
         }
-        let after_hyphen = &line.content[2..];
+        let after_hyphen = line.content[1..].trim_start_matches(' ');
         let after_trimmed = trim_spaces(after_hyphen);
 
         if after_trimmed.is_empty() {

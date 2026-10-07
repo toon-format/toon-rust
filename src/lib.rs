@@ -26,9 +26,6 @@
 //!   both impose the documented limit of 256 levels — including nested field
 //!   groups in headers — and report exceeding it as an error rather than
 //!   exhausting the host stack.
-//! - Non-strict tab indentation (§12): strict mode rejects tabs in indentation;
-//!   non-strict mode accepts them, counting each leading tab as one depth level
-//!   and each run of `indentSize` leading spaces as one.
 //!
 //! ## Resources
 //!

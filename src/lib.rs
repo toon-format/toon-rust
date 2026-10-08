@@ -5,7 +5,7 @@
 //! significantly reduced token usage.
 //!
 //! This crate is the official Rust implementation of TOON, targeting
-//! specification v4.3 (`toon-spec: 4.3`).
+//! specification v4.4 (`toon-spec: 4.4`).
 //!
 //! Documented implementation-defined behavior:
 //! - Numeric out-of-range policy (§4): integral tokens preserve full

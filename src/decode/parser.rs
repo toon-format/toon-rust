@@ -1,4 +1,4 @@
-//! Line-based TOON decoder implementing spec v4.1.
+//! Line-based TOON decoder implementing spec v4.4.
 //!
 //! Lines are classified per §5.2 on the comment-stripped sequence (§5.1);
 //! headers are parsed per §6, including keyed tabular headers and nested
@@ -37,6 +37,10 @@ use crate::{
 // All scans are byte-based: every target is ASCII, and ASCII bytes never
 // occur inside a multi-byte UTF-8 sequence, so byte positions are always
 // char boundaries.
+
+/// Whitespace is exactly SP and HTAB (§1.2); NBSP and every other Unicode
+/// space are content, so no host whitespace test applies.
+const WHITESPACE: [char; 2] = [' ', '\t'];
 
 /// Trims surrounding ASCII spaces (exactly U+0020, §12) from a token.
 fn trim_spaces(value: &str) -> &str {
@@ -235,7 +239,7 @@ fn parse_key_token(content: &str) -> Result<(String, usize), String> {
         let closing =
             find_closing_quote(content, 0).ok_or_else(|| "Unterminated quoted key".to_string())?;
         let key = unescape_string(&content[1..closing])?;
-        let after = closing + 1;
+        let after = content.len() - content[closing + 1..].trim_start_matches(' ').len();
         if content.as_bytes().get(after) != Some(&b':') {
             return Err("Missing colon after key".to_string());
         }
@@ -274,17 +278,14 @@ enum HeaderParse {
 /// Detects and parses an array-header line, staying free of strict-mode
 /// policy: callers decide how to treat `Invalid` and `strict_error`.
 fn parse_array_header_line(content: &str) -> HeaderParse {
-    let trimmed = content.trim_start();
-
-    let bracket_start = if trimmed.starts_with('"') {
-        let Some(closing) = find_closing_quote(trimmed, 0) else {
+    let bracket_start = if content.starts_with('"') {
+        let Some(closing) = find_closing_quote(content, 0) else {
             return HeaderParse::NotHeader;
         };
-        if trimmed.as_bytes().get(closing + 1) != Some(&b'[') {
+        if content.as_bytes().get(closing + 1) != Some(&b'[') {
             return HeaderParse::NotHeader;
         }
-        let leading = content.len() - trimmed.len();
-        leading + closing + 1
+        closing + 1
     } else {
         match find_unquoted_char(content, b'[', 0) {
             Some(i) => i,
@@ -292,16 +293,14 @@ fn parse_array_header_line(content: &str) -> HeaderParse {
         }
     };
 
-    // A header key can't contain an unquoted colon, so this is a key-value
-    // line.
-    if let Some(colon) = find_unquoted_char(content, b':', 0) {
-        if colon < bracket_start {
-            return HeaderParse::NotHeader;
-        }
+    // A header needs a colon, and its key can't contain one. Past this check,
+    // a grammar failure makes the line invalid instead of a key-value line.
+    if find_unquoted_char(content, b':', 0).is_none_or(|colon| colon < bracket_start) {
+        return HeaderParse::NotHeader;
     }
 
     let Some(bracket_end) = find_unquoted_char(content, b']', bracket_start) else {
-        return HeaderParse::NotHeader;
+        return HeaderParse::Invalid("Unterminated bracket segment".to_string());
     };
 
     let mut brace_end = bracket_end + 1;
@@ -311,7 +310,7 @@ fn parse_array_header_line(content: &str) -> HeaderParse {
         if colon_after_bracket.is_some_and(|c| brace_start < c) {
             let gap = &content[bracket_end + 1..brace_start];
             if !gap.is_empty() {
-                let trimmed_gap = gap.trim();
+                let trimmed_gap = gap.trim_matches(WHITESPACE);
                 return HeaderParse::Invalid(if trimmed_gap.is_empty() {
                     "Unexpected whitespace between bracket segment and field list".to_string()
                 } else {
@@ -329,13 +328,13 @@ fn parse_array_header_line(content: &str) -> HeaderParse {
     }
 
     let Some(colon_index) = find_unquoted_char(content, b':', bracket_end.max(brace_end)) else {
-        return HeaderParse::NotHeader;
+        return HeaderParse::Invalid("Missing colon after array header".to_string());
     };
 
     let gap_start = (bracket_end + 1).max(brace_end);
     let gap = &content[gap_start..colon_index];
     if !gap.is_empty() {
-        let trimmed_gap = gap.trim();
+        let trimmed_gap = gap.trim_matches(WHITESPACE);
         return HeaderParse::Invalid(if trimmed_gap.is_empty() {
             "Unexpected whitespace between bracket segment and colon".to_string()
         } else {
@@ -347,7 +346,7 @@ fn parse_array_header_line(content: &str) -> HeaderParse {
         let raw_key = &content[..bracket_start];
         // Trimming here would silently turn `foo [2]:` into a header with key
         // `foo`.
-        if raw_key != raw_key.trim_end() {
+        if raw_key.ends_with(WHITESPACE) {
             return HeaderParse::Invalid(
                 "Unexpected whitespace between key and bracket segment".to_string(),
             );
@@ -460,9 +459,9 @@ fn parse_bracket_segment(seg: &str) -> Result<(usize, Delimiter, bool), String> 
         ));
     }
 
-    let length = content
-        .parse::<usize>()
-        .map_err(|_| format!("Invalid array length: \"{seg}\" (value out of range)"))?;
+    // A length beyond `usize` still forms a header; no scope can hold that
+    // many items, so saturating keeps its count unmet.
+    let length = content.parse::<usize>().unwrap_or(usize::MAX);
 
     Ok((length, delimiter, keyed))
 }
@@ -500,9 +499,12 @@ fn parse_field_entries(
                 });
             };
 
-            let name_part = trim_spaces(&trimmed[..group_start]);
+            let name_part = &trimmed[..group_start];
             if name_part.is_empty() {
                 return Err("Missing field name before nested field group".to_string());
+            }
+            if name_part.ends_with(WHITESPACE) {
+                return Err("Unexpected whitespace before nested field group".to_string());
             }
 
             let group_end = find_matching_brace(trimmed, group_start)
@@ -690,23 +692,11 @@ fn is_list_item_content(content: &str) -> bool {
 }
 
 fn is_array_header_content(content: &str) -> bool {
-    content.trim().starts_with('[') && find_unquoted_char(content, b':', 0).is_some()
+    trim_spaces(content).starts_with('[') && find_unquoted_char(content, b':', 0).is_some()
 }
 
 fn is_key_value_content(content: &str) -> bool {
     find_unquoted_char(content, b':', 0).is_some()
-}
-
-/// Root-form key-value check (§5): quoted keys look past the closing quote.
-fn is_key_value_line(content: &str) -> bool {
-    if content.starts_with('"') {
-        match find_closing_quote(content, 0) {
-            Some(closing) => content[closing + 1..].contains(':'),
-            None => false,
-        }
-    } else {
-        content.contains(':')
-    }
 }
 
 /// Row/key-value disambiguation at row depth (§9.3): first unquoted
@@ -739,19 +729,6 @@ fn over_indented_error(line: &ParsedLine, expected_depth: usize) -> ToonError {
             line.depth
         ),
     )
-}
-
-/// Both modes reject a bare token outside root primitive position (§5.2),
-/// so it must not reach the non-strict paths that drop an over-indented
-/// line.
-fn assert_not_scalar_line(line: &ParsedLine) -> ToonResult<()> {
-    if is_list_item_content(&line.content) || is_key_value_content(&line.content) {
-        return Ok(());
-    }
-    Err(err_at(
-        line,
-        "Unexpected bare token line outside root primitive position",
-    ))
 }
 
 struct ResolvedHeader {
@@ -877,14 +854,28 @@ impl<'s> Parser<'s> {
         Ok(())
     }
 
+    /// The content depth of a header's scope: one level below the header, or
+    /// the depth of a jumped first line in non-strict mode.
+    fn scope_content_depth(&mut self, base_depth: usize) -> ToonResult<usize> {
+        let Some(first) = self
+            .reader
+            .peek()?
+            .filter(|line| line.depth > base_depth + 1)
+            .cloned()
+        else {
+            return Ok(base_depth + 1);
+        };
+        self.assert_no_depth_jump(&first, base_depth)?;
+        Ok(first.depth)
+    }
+
     fn assert_expected_count(
-        &self,
         actual: usize,
         expected: usize,
         item_type: &str,
         line_number: usize,
     ) -> ToonResult<()> {
-        if self.strict && actual != expected {
+        if actual != expected {
             return Err(ToonError::parse_error(
                 line_number,
                 1,
@@ -894,12 +885,9 @@ impl<'s> Parser<'s> {
         Ok(())
     }
 
-    /// Strict decoding never silently discards input, so a line after the
-    /// root form is an error (§5).
+    /// Decoding never silently discards input, so a line after the root form
+    /// is an error (§5).
     fn assert_fully_consumed(&mut self) -> ToonResult<()> {
-        if !self.strict {
-            return Ok(());
-        }
         if let Some(line) = self.reader.peek()? {
             let err = err_at(line, "Unexpected content after the document root");
             return Err(err);
@@ -952,16 +940,16 @@ impl<'s> Parser<'s> {
         if self.strict && map.contains_key(&key) {
             return Err(err_at(line, format!("Duplicate sibling key \"{key}\"")));
         }
-        // Non-strict duplicates resolve via last-write-wins (§14.3).
+        // Non-strict duplicates resolve via last-write-wins (§14.4).
         map.insert(key, value);
         Ok(())
     }
 
     // #endregion
 
-    /// Resolves a header parse result under the current mode: strict throws
-    /// on `Invalid` and on strict-only defects; non-strict falls through to
-    /// key-value parsing.
+    /// Resolves a header parse result under the current mode: both modes
+    /// throw on `Invalid`; only strict throws on a duplicate field name, which
+    /// non-strict resolves via last-write-wins (§14.4).
     fn resolve_array_header(
         &self,
         content: &str,
@@ -969,13 +957,7 @@ impl<'s> Parser<'s> {
     ) -> ToonResult<Option<ResolvedHeader>> {
         match parse_array_header_line(content) {
             HeaderParse::NotHeader => Ok(None),
-            HeaderParse::Invalid(reason) => {
-                if self.strict {
-                    Err(err_at(line, reason))
-                } else {
-                    Ok(None)
-                }
-            }
+            HeaderParse::Invalid(reason) => Err(err_at(line, reason)),
             HeaderParse::Header {
                 header,
                 inline_values,
@@ -1001,6 +983,9 @@ impl<'s> Parser<'s> {
             return Ok(Value::Object(Map::new()));
         };
         let first = first.clone();
+        if first.depth != 0 {
+            return Err(over_indented_error(&first, 0));
+        }
 
         if trim_spaces(&first.content) == "[]" {
             self.reader.next()?;
@@ -1020,11 +1005,11 @@ impl<'s> Parser<'s> {
         self.reader.next()?;
         let following_depth = self.reader.peek()?.map(|line| line.depth);
 
-        if following_depth.is_none() && !is_key_value_line(&first.content) {
+        if following_depth.is_none() && !is_key_value_content(&first.content) {
             return parse_primitive_token(&first.content).map_err(|e| err_at(&first, e));
         }
 
-        if !is_key_value_line(&first.content) && following_depth == Some(0) {
+        if !is_key_value_content(&first.content) && following_depth == Some(0) {
             return Err(err_at(
                 &first,
                 "Top-level document must start with a key-value or array-header line",
@@ -1036,12 +1021,7 @@ impl<'s> Parser<'s> {
 
         while let Some(line) = self.reader.peek()? {
             if line.depth != 0 {
-                if self.strict {
-                    return Err(over_indented_error(line, 0));
-                }
-                assert_not_scalar_line(line)?;
-                self.reader.next()?;
-                continue;
+                return Err(over_indented_error(line, 0));
             }
 
             let line = self.reader.next()?.expect("peeked line exists");
@@ -1074,20 +1054,18 @@ impl<'s> Parser<'s> {
                     return self.insert_entry(map, key, value?, line);
                 }
                 None => {
-                    if self.strict {
-                        return Err(if resolved.header.keyed {
-                            err_at(
-                                line,
-                                "Keyless keyed header is only valid at the document root",
-                            )
-                        } else {
-                            err_at(
-                                line,
-                                "Keyless array header is only valid at the document root or as a \
-                                 list item",
-                            )
-                        });
-                    }
+                    return Err(if resolved.header.keyed {
+                        err_at(
+                            line,
+                            "Keyless keyed header is only valid at the document root",
+                        )
+                    } else {
+                        err_at(
+                            line,
+                            "Keyless array header is only valid at the document root or as a list \
+                             item",
+                        )
+                    });
                 }
             }
         }
@@ -1131,19 +1109,12 @@ impl<'s> Parser<'s> {
             }
 
             let depth = *computed_depth.get_or_insert(line.depth);
-
-            if line.depth == depth {
-                let line = self.reader.next()?.expect("peeked line exists");
-                self.decode_key_value_into(&line, depth, &mut map)?;
-            } else if line.depth > depth {
-                if self.strict {
-                    return Err(over_indented_error(line, depth));
-                }
-                assert_not_scalar_line(line)?;
-                self.reader.next()?;
-            } else {
-                break;
+            if line.depth != depth {
+                return Err(over_indented_error(line, depth));
             }
+
+            let line = self.reader.next()?.expect("peeked line exists");
+            self.decode_key_value_into(&line, depth, &mut map)?;
         }
 
         Ok(map)
@@ -1188,12 +1159,14 @@ impl<'s> Parser<'s> {
         header_line: &ParsedLine,
     ) -> ToonResult<Value> {
         let values = parse_delimited_values(inline_values, header.delimiter);
-        self.assert_expected_count(
-            values.len(),
-            header.length,
-            "inline-form values",
-            header_line.line_number,
-        )?;
+        if self.strict {
+            Self::assert_expected_count(
+                values.len(),
+                header.length,
+                "inline-form values",
+                header_line.line_number,
+            )?;
+        }
 
         values
             .iter()
@@ -1209,7 +1182,7 @@ impl<'s> Parser<'s> {
         base_depth: usize,
         header_line: &ParsedLine,
     ) -> ToonResult<Value> {
-        let entry_depth = base_depth + 1;
+        let entry_depth = self.scope_content_depth(base_depth)?;
         let fields = header
             .fields
             .as_deref()
@@ -1228,26 +1201,15 @@ impl<'s> Parser<'s> {
                 break;
             }
 
-            if line.depth > entry_depth {
-                if self.strict {
-                    return Err(err_at(
-                        line,
-                        "Unexpected indentation inside keyed tabular object",
-                    ));
-                }
-                self.reader.next()?;
-                continue;
+            if line.depth != entry_depth {
+                return Err(over_indented_error(line, entry_depth));
             }
 
             if find_unquoted_char(&line.content, b':', 0).is_none() {
-                if self.strict {
-                    return Err(err_at(
-                        line,
-                        "Expected entry row inside keyed tabular object",
-                    ));
-                }
-                self.reader.next()?;
-                continue;
+                return Err(err_at(
+                    line,
+                    "Expected entry row inside keyed tabular object",
+                ));
             }
 
             let line = self.reader.next()?.expect("peeked line exists");
@@ -1262,7 +1224,7 @@ impl<'s> Parser<'s> {
             } else {
                 parse_delimited_values(cells_content, header.delimiter)
             };
-            self.assert_expected_count(
+            Self::assert_expected_count(
                 values.len(),
                 leaf_field_count,
                 "keyed entry cells",
@@ -1279,7 +1241,14 @@ impl<'s> Parser<'s> {
             entry_count += 1;
         }
 
-        self.assert_expected_count(entry_count, header.length, "keyed entries", last_entry_line)?;
+        if self.strict {
+            Self::assert_expected_count(
+                entry_count,
+                header.length,
+                "keyed entries",
+                last_entry_line,
+            )?;
+        }
         self.assert_no_blank_lines_in_span(start_line, last_entry_line, "keyed tabular object")?;
 
         Ok(Value::Object(map))
@@ -1292,7 +1261,7 @@ impl<'s> Parser<'s> {
         base_depth: usize,
         header_line: &ParsedLine,
     ) -> ToonResult<Value> {
-        let row_depth = base_depth + 1;
+        let row_depth = self.scope_content_depth(base_depth)?;
         let fields = header
             .fields
             .as_deref()
@@ -1304,12 +1273,18 @@ impl<'s> Parser<'s> {
         let mut last_row_line = header_line.line_number;
 
         // Only strict stops at N, leaving the surplus to the extra-rows check
-        // below; non-strict reads on so a declared [N] never truncates (§14.1).
+        // below; non-strict reads on so a declared [N] never truncates (§14.4).
         while !self.strict || rows.len() < header.length {
             let Some(line) = self.reader.peek()? else {
                 break;
             };
-            if line.depth != row_depth || !is_data_row(&line.content, header.delimiter) {
+            if line.depth <= base_depth {
+                break;
+            }
+            if line.depth != row_depth {
+                return Err(over_indented_error(line, row_depth));
+            }
+            if !is_data_row(&line.content, header.delimiter) {
                 break;
             }
 
@@ -1318,7 +1293,7 @@ impl<'s> Parser<'s> {
             last_row_line = line.line_number;
 
             let values = parse_delimited_values(&line.content, header.delimiter);
-            self.assert_expected_count(
+            Self::assert_expected_count(
                 values.len(),
                 leaf_field_count,
                 "tabular row values",
@@ -1332,10 +1307,10 @@ impl<'s> Parser<'s> {
             rows.push(object_from_fields(fields, &primitives));
         }
 
-        self.assert_expected_count(rows.len(), header.length, "tabular rows", last_row_line)?;
         self.assert_no_blank_lines_in_span(start_line, last_row_line, "tabular array")?;
 
         if self.strict {
+            Self::assert_expected_count(rows.len(), header.length, "tabular rows", last_row_line)?;
             if let Some(next) = self.reader.peek()? {
                 if next.depth == row_depth
                     && !next.content.starts_with("- ")
@@ -1360,18 +1335,24 @@ impl<'s> Parser<'s> {
         base_depth: usize,
         header_line: &ParsedLine,
     ) -> ToonResult<Value> {
-        let item_depth = base_depth + 1;
+        let item_depth = self.scope_content_depth(base_depth)?;
         let mut items = Vec::new();
         let mut start_line: Option<usize> = None;
         let mut last_item_line = header_line.line_number;
 
         // Only strict stops at N, leaving the surplus to the extra-items check
-        // below; non-strict reads on so a declared [N] never truncates (§14.1).
+        // below; non-strict reads on so a declared [N] never truncates (§14.4).
         while !self.strict || items.len() < header.length {
             let Some(line) = self.reader.peek()? else {
                 break;
             };
-            if line.depth != item_depth || !is_list_item_content(&line.content) {
+            if line.depth <= base_depth {
+                break;
+            }
+            if line.depth != item_depth {
+                return Err(over_indented_error(line, item_depth));
+            }
+            if !is_list_item_content(&line.content) {
                 break;
             }
 
@@ -1386,15 +1367,15 @@ impl<'s> Parser<'s> {
             last_item_line = self.reader.last_consumed_line;
         }
 
-        self.assert_expected_count(
-            items.len(),
-            header.length,
-            "list-form items",
-            last_item_line,
-        )?;
         self.assert_no_blank_lines_in_span(start_line, last_item_line, "list-form array")?;
 
         if self.strict {
+            Self::assert_expected_count(
+                items.len(),
+                header.length,
+                "list-form items",
+                last_item_line,
+            )?;
             if let Some(next) = self.reader.peek()? {
                 if next.depth == item_depth && next.content.starts_with("- ") {
                     let err = err_at(
@@ -1416,7 +1397,7 @@ impl<'s> Parser<'s> {
         if line.content == "-" {
             return Ok(Value::Object(Map::new()));
         }
-        let after_hyphen = &line.content[2..];
+        let after_hyphen = line.content[1..].trim_start_matches(' ');
         let after_trimmed = trim_spaces(after_hyphen);
 
         if after_trimmed.is_empty() {
@@ -1439,23 +1420,19 @@ impl<'s> Parser<'s> {
         if is_array_header_content(after_hyphen) {
             if let Some(resolved) = self.resolve_array_header(after_hyphen, &item_line)? {
                 if resolved.header.keyed || resolved.header.fields.is_some() {
-                    if self.strict {
-                        return Err(if resolved.header.keyed {
-                            err_at(
-                                &item_line,
-                                "Keyless keyed header is only valid at the document root",
-                            )
-                        } else {
-                            err_at(
-                                &item_line,
-                                "Keyless header with a field list is only valid at the document \
-                                 root",
-                            )
-                        });
-                    }
-                } else {
-                    return self.decode_array_from_header(resolved, base_depth, &item_line);
+                    return Err(if resolved.header.keyed {
+                        err_at(
+                            &item_line,
+                            "Keyless keyed header is only valid at the document root",
+                        )
+                    } else {
+                        err_at(
+                            &item_line,
+                            "Keyless header with a field list is only valid at the document root",
+                        )
+                    });
                 }
+                return self.decode_array_from_header(resolved, base_depth, &item_line);
             }
         }
 
@@ -1494,8 +1471,11 @@ impl<'s> Parser<'s> {
         map: &mut Map<String, Value>,
     ) -> ToonResult<()> {
         while let Some(line) = self.reader.peek()? {
-            if line.depth != follow_depth || line.content.starts_with("- ") {
+            if line.depth < follow_depth {
                 break;
+            }
+            if line.depth > follow_depth {
+                return Err(over_indented_error(line, follow_depth));
             }
 
             let line = self.reader.next()?.expect("peeked line exists");
@@ -1536,12 +1516,8 @@ fn object_from_fields(fields: &[FieldNode], primitives: &[Value]) -> Value {
                     map.insert(field.name.clone(), walk(children, primitives, cell_index));
                 }
                 None => {
-                    // A non-strict width mismatch leaves trailing leaf fields
-                    // with no cell; they are absent, not null (§14.1).
-                    if *cell_index < primitives.len() {
-                        map.insert(field.name.clone(), primitives[*cell_index].clone());
-                        *cell_index += 1;
-                    }
+                    map.insert(field.name.clone(), primitives[*cell_index].clone());
+                    *cell_index += 1;
                 }
             }
         }

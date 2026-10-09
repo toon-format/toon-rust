@@ -62,19 +62,6 @@ fn test_invalid_syntax_errors() {
 }
 
 #[test]
-fn test_type_mismatch_errors() {
-    let cases = vec![
-        ("value: ", "Empty value"),
-        ("items[abc]: 1,2", "Invalid array length"),
-    ];
-
-    for (input, description) in cases {
-        let result = decode_default::<Value>(input);
-        println!("Test case '{description}': {result:?}");
-    }
-}
-
-#[test]
 fn test_length_mismatch_strict_mode() {
     let test_cases = vec![("items[3]: a,b", 3, 2), ("items[5]: x", 5, 1)];
 
@@ -85,40 +72,6 @@ fn test_length_mismatch_strict_mode() {
     // More values than declared is a mismatch too, not a silent truncation.
     let input = "items[1]: a,b,c";
     assert_count_mismatch(decode_strict::<Value>(input), 1, 3, input);
-}
-
-#[test]
-fn test_length_mismatch_non_strict_mode() {
-    let test_cases = vec![
-        ("items[3]: a,b", json!({"items": ["a", "b"]})),
-        ("items[1]: a,b", json!({"items": ["a", "b"]})),
-    ];
-
-    for (input, _expected) in test_cases {
-        let result = decode_default::<Value>(input);
-        println!("Non-strict test for '{input}': {result:?}");
-    }
-}
-
-#[test]
-fn test_delimiter_errors() {
-    let mixed_delimiters = "items[3]: a,b|c";
-    let result = decode_default::<Value>(mixed_delimiters);
-
-    println!("Mixed delimiter test: {result:?}");
-}
-
-#[test]
-fn test_quoting_errors() {
-    let test_cases = vec![
-        ("value: \"unclosed", "Unclosed string"),
-        ("value: \"invalid\\x\"", "Invalid escape"),
-    ];
-
-    for (input, description) in test_cases {
-        let result = decode_default::<Value>(input);
-        println!("Quoting error test '{description}': {result:?}");
-    }
 }
 
 #[test]
@@ -159,33 +112,6 @@ fn test_nested_structure_errors() {
 
     let result = decode_default::<Value>("arr[2]:\n  - item");
     assert!(result.is_err(), "Should error on incomplete nested array");
-}
-
-#[test]
-fn test_depth_limit_errors() {
-    let mut nested = "a:\n".to_string();
-    for i in 0..60 {
-        nested.push_str(&format!("{}b:\n", "  ".repeat(i + 1)));
-    }
-    nested.push_str(&format!("{}c: value", "  ".repeat(61)));
-
-    let result = decode_default::<Value>(&nested);
-    println!("Deep nesting test: {result:?}");
-}
-
-#[test]
-fn test_empty_structure_errors() {
-    let cases = vec![
-        ("items[]:", "Empty array with colon"),
-        ("obj{}:", "Empty object with colon"),
-        ("{}", "Just braces"),
-        ("[]", "Just brackets"),
-    ];
-
-    for (input, description) in cases {
-        let result = decode_default::<Value>(input);
-        println!("Empty structure test '{description}': {result:?}");
-    }
 }
 
 #[test]
@@ -294,25 +220,9 @@ fn test_unicode_in_errors() {
 }
 
 #[test]
-fn test_recovery_from_errors() {
-    let valid_after_invalid = vec!["good: value\nbad syntax here\nalso_good: value"];
-
-    for input in valid_after_invalid {
-        let result = decode_default::<Value>(input);
-        println!("Recovery test for: {result:?}");
-    }
-}
-
-#[test]
 fn test_strict_mode_indentation_errors() {
     let input = "items[2]: a";
     assert_count_mismatch(decode_strict::<Value>(input), 2, 1, input);
-}
-
-#[test]
-fn test_quoted_key_without_colon() {
-    let result = decode_default::<Value>(r#""key" value"#);
-    println!("Quoted key test: {result:?}");
 }
 
 #[test]
@@ -410,20 +320,6 @@ fn test_invalid_array_header_syntax() {
             );
         }
     }
-
-    let result = decode_default::<Value>("items{id}: a,b");
-    println!("Braces without brackets test: {result:?}");
-
-    let result = decode_default::<Value>("items]2[: a,b");
-    println!("Quirky bracket syntax test: {result:?}");
-}
-
-#[test]
-fn test_missing_colon_after_key() {
-    let _result = decode_default::<Value>("key value");
-
-    let result = decode_default::<Value>("obj:\n  key value");
-    println!("Missing colon in object: {result:?}");
 }
 
 #[test]

@@ -47,7 +47,7 @@ cli = [
 [dependencies]
 serde = { version = "1.0.228", features = ["derive"] }
 indexmap = "2.0"
-serde_json = { version = "1.0.145", features = ["preserve_order"] }
+serde_json = { version = "1.0.145", features = ["float_roundtrip", "preserve_order"] }
 thiserror = "2.0.17"
 
 # CLI dependencies (gated behind "cli" feature)

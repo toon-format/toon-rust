@@ -105,8 +105,8 @@ impl DecodeOptions {
         Self::default()
     }
 
-    /// Enable or disable strict mode (validates array lengths, indentation,
-    /// etc.).
+    /// Enable or disable strict mode; `false` applies the spec's five
+    /// non-strict recoveries (§14.4) and every other condition still errors.
     pub fn with_strict(mut self, strict: bool) -> Self {
         self.strict = strict;
         self

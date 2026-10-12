@@ -2,7 +2,7 @@
 
 [![Crates.io](https://img.shields.io/crates/v/toon-format.svg)](https://crates.io/crates/toon-format)
 [![Documentation](https://docs.rs/toon-format/badge.svg)](https://docs.rs/toon-format)
-[![Spec v4.1](https://img.shields.io/badge/spec-v4.1-brightgreen.svg)](https://github.com/toon-format/spec/blob/main/SPEC.md)
+[![Spec v4.4](https://img.shields.io/badge/spec-v4.4-brightgreen.svg)](https://github.com/toon-format/spec/blob/main/SPEC.md)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 [![Tests](https://img.shields.io/badge/tests-%20passing-success.svg)]()
 
@@ -10,7 +10,7 @@
 
 This crate provides the official, **spec-compliant Rust implementation** of TOON, offering both a library (`toon-format`) and a full-featured command-line tool (`toon`).
 
-`toon-spec: 4.1` — this implementation targets [TOON Specification v4.1](https://github.com/toon-format/spec/blob/main/SPEC.md).
+`toon-spec: 4.4` – this implementation targets [TOON Specification v4.4](https://github.com/toon-format/spec/blob/main/SPEC.md).
 
 ## Quick Example
 
@@ -34,7 +34,7 @@ users[2]{id,name}:
 ## Features
 
 - **Generic API**: Works with any `Serialize`/`Deserialize` type - custom structs, enums, JSON values, and more
-- **Spec-Compliant**: Fully compliant with [TOON Specification v4.1](https://github.com/toon-format/spec/blob/main/SPEC.md), including comment lines, keyed tabular form, and nested field groups
+- **Spec-Compliant**: Fully compliant with [TOON Specification v4.4](https://github.com/toon-format/spec/blob/main/SPEC.md), including comment lines, keyed tabular form, and nested field groups
 - **Safe & Performant**: Built with safe, fast Rust
 - **Powerful CLI**: Full-featured command-line tool
 - **Strict Validation**: Enforces all spec rules (configurable)
@@ -178,7 +178,7 @@ let toon = encode(&data, &opts)?;
 #### `json_stream` Feature
 
 The optional `json_stream` feature adds conveniences for encoding JSON from a
-`Read` source to a `Write` target. Spec v4.1 selects the encoded form from a
+`Read` source to a `Write` target. Spec v4.4 selects the encoded form from a
 value's whole shape (tabular and keyed tabular headers depend on every element
 of their subtree), so the input is parsed in full before encoding; these
 functions are I/O conveniences, not bounded-memory streaming.
@@ -229,7 +229,7 @@ let toon = "name: Alice\nage: 30";
 // Default (strict) decode
 let json: Value = decode(toon, &DecodeOptions::default())?;
 
-// Non-strict mode (relaxed validation)
+// Non-strict mode
 let opts = DecodeOptions::new().with_strict(false);
 let json: Value = decode(toon, &opts)?;
 ```
@@ -244,6 +244,17 @@ let json: Value = decode(toon, &opts)?;
 |--------|-------------|---------|
 | `with_strict(b)` | Enable strict validation | `true` |
 | `with_indent(i)` | Set spaces per indentation level | `Spaces(2)` |
+
+With `with_strict(false)`, the decoder recovers from exactly five conditions
+(spec §14.4) and errors on everything else, as strict mode does:
+
+- A declared `[N]` is advisory: fewer or more items, rows, or entries than `N`
+  still decode, but a row's width must match its fields.
+- Duplicate keys and repeated field names resolve last-write-wins.
+- Indentation may use tabs or non-multiples of the indent size: each tab is one
+  level, spaces are floored.
+- Blank lines inside an array or keyed tabular object are ignored.
+- A block whose first line starts too deep takes that line's depth.
 
 ---
 
@@ -450,7 +461,7 @@ Run with `cargo run --example examples` to see all examples:
 
 ## Resources
 
-- 📖 [TOON Specification v4.1](https://github.com/toon-format/spec/blob/main/SPEC.md)
+- 📖 [TOON Specification v4.4](https://github.com/toon-format/spec/blob/main/SPEC.md)
 - 📦 [Crates.io Package](https://crates.io/crates/toon-format)
 - 📚 [API Documentation](https://docs.rs/toon-format)
 - 🔧 [Main Repository (JS/TS)](https://github.com/toon-format/toon)

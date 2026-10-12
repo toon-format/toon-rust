@@ -12,20 +12,74 @@ use toon_format::{
     },
 };
 
+/// The spec version this crate targets, mirroring the `toon-spec` line in
+/// `src/lib.rs`. A fixture tagged with a newer `minSpecVersion` means the
+/// `spec` submodule has moved ahead of the implementation.
+const TARGET_SPEC_VERSION: (u32, u32) = (4, 4);
+
 #[derive(Deserialize, Debug)]
 struct FixtureFile {
     tests: Vec<TestCase>,
 }
 
+/// Unknown fields are denied here as well as on `TestOptions`, and for the
+/// same reason: a spec bump that adds a case-level field must fail loudly
+/// rather than be dropped. `minSpecVersion` went unread for exactly that
+/// reason when the fixtures gained it.
 #[derive(Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct TestCase {
     name: String,
     input: Value,
     expected: Value,
     #[serde(default)]
     options: TestOptions,
-    #[serde(default, rename = "shouldError")]
+    #[serde(default)]
     should_error: bool,
+    /// Lowest spec version whose contract this case expresses, checked
+    /// against `TARGET_SPEC_VERSION`.
+    min_spec_version: Option<String>,
+    /// Carried by the fixtures to locate the rule a case pins; both are
+    /// folded into the failure label so a red case names its rule.
+    spec_section: Option<String>,
+    note: Option<String>,
+}
+
+impl TestCase {
+    /// Failure label carrying the spec section and any fixture note.
+    fn label(&self, kind: &str, file_name: &str) -> String {
+        let section = self.spec_section.as_deref().unwrap_or("?");
+        match &self.note {
+            Some(note) => format!("[{kind}] {file_name} (§{section}): {} - {note}", self.name),
+            None => format!("[{kind}] {file_name} (§{section}): {}", self.name),
+        }
+    }
+}
+
+/// Parses a `MAJOR.MINOR` spec version as `minSpecVersion` spells it.
+fn parse_spec_version(version: &str) -> Result<(u32, u32), String> {
+    let malformed = || format!("Malformed minSpecVersion: {version:?}");
+    let (major, minor) = version.split_once('.').ok_or_else(malformed)?;
+    Ok((
+        major.parse().map_err(|_| malformed())?,
+        minor.parse().map_err(|_| malformed())?,
+    ))
+}
+
+/// A case whose contract postdates `TARGET_SPEC_VERSION` is a signal to act
+/// on, not a case to skip quietly: the fixtures describe a spec this crate
+/// has not implemented yet.
+fn check_spec_version(test: &TestCase, test_name: &str) -> Option<String> {
+    let required = test.min_spec_version.as_deref()?;
+    match parse_spec_version(required) {
+        Err(e) => Some(format!("Test '{test_name}': {e}")),
+        Ok(version) if version > TARGET_SPEC_VERSION => Some(format!(
+            "Test '{test_name}' requires spec v{required}, but this crate targets v{}.{}: the \
+             `spec` submodule has moved ahead of the implementation.",
+            TARGET_SPEC_VERSION.0, TARGET_SPEC_VERSION.1
+        )),
+        Ok(_) => None,
+    }
 }
 
 /// Unknown fields are denied: a spec bump that introduces a new fixture
@@ -74,7 +128,11 @@ fn test_decode_fixtures(path: &Utf8Path, contents: String) -> datatest_stable::R
     let mut failures = Vec::new();
 
     for test in file_data.tests {
-        let test_name = format!("[decode] {}: {}", file_name, test.name);
+        let test_name = test.label("decode", file_name);
+        if let Some(failure) = check_spec_version(&test, &test_name) {
+            failures.push(failure);
+            continue;
+        }
 
         let mut opts = DecodeOptions::new();
         if let Some(strict) = test.options.strict {
@@ -134,7 +192,11 @@ fn test_encode_fixtures(path: &Utf8Path, contents: String) -> datatest_stable::R
     let mut failures = Vec::new();
 
     for test in file_data.tests {
-        let test_name = format!("[encode] {}: {}", file_name, test.name);
+        let test_name = test.label("encode", file_name);
+        if let Some(failure) = check_spec_version(&test, &test_name) {
+            failures.push(failure);
+            continue;
+        }
 
         let mut opts = EncodeOptions::new();
         if let Some(indent_size) = test.options.indent_size {

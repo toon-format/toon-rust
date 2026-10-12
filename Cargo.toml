@@ -58,7 +58,7 @@ comfy-table = { version = "8", optional = true }
 
 # TUI dependencies (gated behind "cli" feature)
 ratatui = { version = "0.29", optional = true }
-crossterm = { version = "0.28", optional = true }
+crossterm = { version = "0.29", optional = true }
 tui-textarea = { version = "0.7", optional = true }
 arboard = { version = "3.4", optional = true }
 syntect = { version = "5.2", optional = true }
